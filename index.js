@@ -49,7 +49,26 @@ export function apply(ctx, config = {}) {
       log,
       version: pkg.version,
     })
-    http = registerHttp({ ctx, manager, log })
+    // The webserver is composed after feature plugins on a cold boot. Inject it
+    // so the dashboard route is registered when the service becomes active
+    // (and re-registered if it is replaced), instead of reading a one-shot
+    // ctx.get() during this plugin's initial activation.
+    ctx.inject(['webServer'], (webCtx) => {
+      http = registerHttp({ ctx: webCtx, manager, log })
+      manager.dashboard = http
+      webCtx.effect(
+        () => () => {
+          manager.dashboard = undefined
+          try {
+            http?.dispose()
+          } catch {
+            // ignore
+          }
+          http = undefined
+        },
+        'virtuoso-bridge: dashboard endpoint',
+      )
+    })
     tools = registerTools({ ctx, manager, log })
 
     const ready = (async () => {

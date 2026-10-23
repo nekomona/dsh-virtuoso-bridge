@@ -194,11 +194,17 @@ use the waveform button at the left of the composer. The tab shows:
 * recent plugin activity.
 
 The same state is served by a same-origin endpoint at
-`/__dsh/virtuoso-bridge` with an SSE stream. The endpoint requires the
-per-process token injected into the page (`x-vb-token` or `?token=`) or an
-explicit same-origin `Sec-Fetch-Site` request; cross-site requests are
-rejected. Binding the Web server to a non-loopback address widens exposure of
-the whole DSH UI, so keep the default loopback bind.
+`/__dsh/virtuoso-bridge` with an SSE stream. The Host registers the route
+through `ctx.inject(['webServer'])`, so a cold boot where the webserver
+activates after feature plugins still exposes it. The browser half bootstraps
+`{ token, origin, basePath }` from a loopback-only `/bootstrap`, tries the
+injected origin first and then the page's own origin, and retries after a 404
+or a stale token. The endpoint requires the per-process token or a local
+same-origin request (`Sec-Fetch-Site` / matching loopback `Origin` / `Host`);
+cross-site requests are rejected. Binding the Web server to a non-loopback
+address still widens exposure of the whole DSH UI, so keep the default
+loopback bind. Reload the page after upgrading the plugin so the browser uses
+the current bundle.
 
 ## Files
 

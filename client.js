@@ -346,34 +346,132 @@ window.__ModuleLoader__.load({
       }
     }
 
-    function basePath() {
+    const session = { base: undefined, token: undefined, resolving: undefined, lastError: undefined }
+
+    function configuredBase() {
       return bridgeGlobal()?.basePath || BASE_PATH
     }
 
-    function readToken() {
-      return bridgeGlobal()?.token
+    function candidateBases() {
+      const global = bridgeGlobal()
+      const bases = []
+      const add = (value) => {
+        if (!value) return
+        const text = String(value).replace(/\/+$/, '')
+        if (text && !bases.includes(text)) bases.push(text)
+      }
+      if (global?.origin) add(`${String(global.origin).replace(/\/+$/, '')}${global.basePath || BASE_PATH}`)
+      if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
+        add(`${location.origin}${global?.basePath || BASE_PATH}`)
+      }
+      add(configuredBase())
+      if (String(configuredBase()).startsWith('/')) add(String(configuredBase()).slice(1))
+      return bases
     }
 
-    async function request(path, options = {}) {
-      const headers = { 'content-type': 'application/json', ...(options.headers || {}) }
-      const token = readToken()
+    async function bootstrapAt(base) {
+      const response = await fetch(`${base}/bootstrap`, {
+        method: 'GET',
+        headers: { accept: 'application/json' },
+        credentials: 'same-origin',
+        cache: 'no-store',
+      })
+      if (!response.ok) return undefined
+      let data
+      try {
+        data = await response.json()
+      } catch {
+        return undefined
+      }
+      return data?.ok ? data : undefined
+    }
+
+    async function ensureSession(force = false) {
+      if (!force && session.base && session.token) return session
+      if (session.resolving) return session.resolving
+      session.resolving = (async () => {
+        const problems = []
+        for (const base of candidateBases()) {
+          try {
+            const data = await bootstrapAt(base)
+            if (data) {
+              session.base = base
+              session.token = data.token || bridgeGlobal()?.token
+              session.lastError = undefined
+              return session
+            }
+            problems.push(`${base} → no bootstrap`)
+          } catch (error) {
+            problems.push(`${base} → ${error?.message || error}`)
+          }
+        }
+        const global = bridgeGlobal()
+        session.base =
+          session.base ||
+          (global?.origin ? `${String(global.origin).replace(/\/+$/, '')}${global.basePath || BASE_PATH}` : configuredBase())
+        session.token = session.token || global?.token
+        session.lastError = problems.slice(0, 3).join('; ') || 'no dashboard endpoint answered'
+        return session
+      })().finally(() => {
+        session.resolving = undefined
+      })
+      return session.resolving
+    }
+
+    async function rawRequest(base, token, path, options) {
+      const headers = { accept: 'application/json', ...(options.headers || {}) }
+      if (options.body !== undefined) headers['content-type'] = 'application/json'
       if (token) headers['x-vb-token'] = token
-      const response = await fetch(`${basePath()}${path}`, {
+      const url = new URL(`${base}${path}`, typeof location !== 'undefined' ? location.href : undefined)
+      if (token) url.searchParams.set('token', token)
+      const response = await fetch(url.toString(), {
         method: options.method || 'GET',
         headers,
         credentials: 'same-origin',
+        cache: 'no-store',
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
       })
       let data
       try {
         data = await response.json()
       } catch {
-        throw new Error(`HTTP ${response.status}`)
+        const failure = new Error(`HTTP ${response.status} from ${url.pathname}`)
+        failure.status = response.status
+        throw failure
       }
       if (!response.ok || data?.ok === false) {
-        throw new Error(data?.error?.message || `HTTP ${response.status}`)
+        const failure = new Error(data?.error?.message || `HTTP ${response.status}`)
+        failure.status = response.status
+        failure.code = data?.error?.code
+        throw failure
       }
       return data
+    }
+
+    async function request(path, options = {}) {
+      let lastError
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const current = await ensureSession(attempt > 0)
+        try {
+          return await rawRequest(current.base, current.token, path, options)
+        } catch (error) {
+          lastError = error
+          if (error?.status === 403) {
+            session.token = undefined
+            continue
+          }
+          if (error?.status === 404) {
+            session.base = undefined
+            continue
+          }
+          throw error
+        }
+      }
+      const page = typeof location !== 'undefined' ? location.href : '(no location)'
+      const tried = candidateBases().join(', ')
+      throw new Error(
+        `${lastError?.message || 'dashboard request failed'} [page ${page}; tried ${tried}; ${session.lastError || 'no bootstrap'}]`,
+      )
     }
 
     function formatBytes(bytes) {
@@ -473,27 +571,30 @@ window.__ModuleLoader__.load({
             }
           }
           load()
-          try {
-            const token = readToken()
-            const url = `${basePath()}/events${token ? `?token=${encodeURIComponent(token)}` : ''}`
-            source = new EventSource(url)
-            source.onopen = () => setLive(true)
-            source.onmessage = (event) => {
-              try {
-                const payload = JSON.parse(event.data)
-                if (payload?.type === 'state' && payload.state) {
-                  setState(payload.state)
-                  setLive(true)
-                  setError('')
+          ;(async () => {
+            try {
+              const current = await ensureSession()
+              if (disposed) return
+              const url = `${current.base}/events${current.token ? `?token=${encodeURIComponent(current.token)}` : ''}`
+              source = new EventSource(url)
+              source.onopen = () => setLive(true)
+              source.onmessage = (event) => {
+                try {
+                  const payload = JSON.parse(event.data)
+                  if (payload?.type === 'state' && payload.state) {
+                    setState(payload.state)
+                    setLive(true)
+                    setError('')
+                  }
+                } catch {
+                  // ignore malformed frames
                 }
-              } catch {
-                // ignore malformed frames
               }
+              source.onerror = () => setLive(false)
+            } catch {
+              setLive(false)
             }
-            source.onerror = () => setLive(false)
-          } catch {
-            setLive(false)
-          }
+          })()
           timer = setInterval(load, 5000)
           return () => {
             disposed = true
