@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "title": "Virtuoso 桥接",
+    "description": "面向 Cadence Virtuoso 的 virtuoso-bridge-lite 托管运行时：侧边栏仪表盘、隔离 Python 环境、智能体工具与批量脚本。"
+  },
+  "settings": {
+    "title": "Virtuoso 桥接"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "virtuoso-bridge-lite",
+  "version": "1.0.0",
+  "commit": "fdf520c69b84dc0106c79835aeae848d6ab10331",
+  "commitDate": "2026-10-23T02:28:41+08:00",
+  "repository": "https://github.com/Arcadia-1/virtuoso-bridge-lite.git",
+  "description": "Bundled Python source snapshot. Used when source.mode is 'bundled'; pip-installed into the plugin venv on first setup.",
+  "contents": [
+    "pyproject.toml",
+    "README.md",
+    "LICENSE",
+    "mcp_server.py",
+    "src/virtuoso_bridge",
+    "skills"
+  ]
+}

@@ -1,0 +1,12 @@
+.data/
+.dev-venv/
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+.tmp-*
+vendor/build/
+vendor/*.egg-info/
+vendor/build/
+vendor/*.egg-info/
+vendor/src/*.egg-info/

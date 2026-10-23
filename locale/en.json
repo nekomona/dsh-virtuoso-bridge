@@ -1,0 +1,9 @@
+{
+  "meta": {
+    "title": "Virtuoso Bridge",
+    "description": "Managed virtuoso-bridge-lite runtimes for Cadence Virtuoso: side-panel dashboard, isolated Python environment, agent tools and batched scripts."
+  },
+  "settings": {
+    "title": "Virtuoso Bridge"
+  }
+}

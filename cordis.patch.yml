@@ -1,0 +1,14 @@
+- insert:
+    - id: virtuoso-bridge
+      name: 'dsh-virtuoso-bridge'
+      config:
+        source:
+          mode: bundled
+          repoUrl: https://github.com/Arcadia-1/virtuoso-bridge-lite.git
+          gitRef: main
+          localRepoPath: ''
+        pythonPath: python
+        autoInstall: false
+        autoStart: []
+        logToCiw: false
+        maxScripts: 4

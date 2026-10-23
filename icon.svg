@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Virtuoso Bridge">
+  <defs>
+    <linearGradient id="vb-bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1f6feb"/>
+      <stop offset="1" stop-color="#0b3a8f"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#vb-bg)"/>
+  <path d="M10 38c4 0 5-14 9-14s4 22 8 22 4-26 8-26 4 18 8 18h11" fill="none" stroke="#eaf2ff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="49" cy="38" r="4.2" fill="#7ee2c4"/>
+  <circle cx="15" cy="38" r="3.2" fill="#9fc1ff"/>
+  <path d="M18 51h28" stroke="#9fc1ff" stroke-width="2.6" stroke-linecap="round" opacity=".8"/>
+</svg>

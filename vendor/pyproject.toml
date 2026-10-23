@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "virtuoso-bridge"
+version = "1.0.0"
+description = "Lightweight Python bridge for Cadence Virtuoso SKILL execution and Spectre simulation"
+requires-python = ">=3.9"
+dependencies = [
+    "python-dotenv>=1.0",
+    "pydantic>=2.0",
+    "eval-type-backport>=0.2.0; python_version < '3.10'",
+    "pyyaml>=6.0",
+    "markdownify>=0.14",
+]
+
+[project.optional-dependencies]
+# Schematic → Visio export (`virtuoso-bridge export-visio`).  Drives
+# Microsoft Visio via COM, Windows-only.  The pure model layer in
+# `virtuoso/visio.py` has no extra deps and stays importable everywhere.
+visio = ["pywin32; sys_platform == 'win32'"]
+# Persistent SSH transport with real multi-session multiplexing. This avoids
+# Windows OpenSSH ControlMaster limitations while keeping local mode lightweight.
+ssh = ["paramiko>=3.5", "PySocks>=1.7.1"]
+# Optional labels and legends on MCP waveform PNG previews. Without Pillow the
+# image remains available and its axes/legend are supplied as tool text.
+mcp-visuals = ["Pillow>=10.0"]
+# Complete test environment, including the optional SSH backend exercised by
+# the transport suite.
+dev = [
+    "jsonschema>=4.18","pytest>=7.0", "paramiko>=3.5", "PySocks>=1.7.1"]
+
+[project.scripts]
+virtuoso-bridge = "virtuoso_bridge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"virtuoso_bridge.resources" = [".env_template"]
+"virtuoso_bridge.virtuoso.basic.resources" = ["*.il", "*.py"]
+"virtuoso_bridge.virtuoso.maestro" = ["*.yaml"]
+"virtuoso_bridge.virtuoso.schematic" = ["*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
