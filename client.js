@@ -721,7 +721,10 @@ window.__ModuleLoader__.load({
         const start = () => invoke('runtime.start', { connection: connection.id, waitMs: 15000 })
         const stop = () => invoke('runtime.stop', { connection: connection.id, runtime: runtime?.id })
         const restart = () => invoke('runtime.restart', { connection: connection.id, waitMs: 15000 })
-        const test = () => invoke('connection.test', { connection: connection.id })
+        const test = async () => {
+          const result = await invoke('connection.test', { connection: connection.id })
+          props.onTestResult?.(result)
+        }
         if (state === 'needs-trust') {
           return h('div', { className: 'vb-actions' }, h(Button, { disabled, onClick: test }, label('test')))
         }
@@ -776,6 +779,8 @@ window.__ModuleLoader__.load({
         const { connection, runtime, busy, invoke } = props
         const state = runtime?.state || 'stopped'
         const agents = runtime?.agents || []
+        const [testInfo, setTestInfo] = React.useState(null)
+        const pending = runtime?.pendingHostKey ?? testInfo?.pendingHostKey
         return h(
           'div',
           { className: 'vb-card' },
@@ -790,14 +795,19 @@ window.__ModuleLoader__.load({
               h(Pill, { state }),
               connection.hasSecret ? h('span', { className: 'vb-chip', title: label('conn.tokenStored') }, 'token') : null,
             ),
-            h(RuntimeActions, { connection, runtime, busy, invoke }),
+            h(RuntimeActions, { connection, runtime, busy, invoke, onTestResult: setTestInfo }),
           ),
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
             `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
           ),
-          h(HostKeyPrompt, { connection, pending: runtime?.pendingHostKey, busy, invoke }),
+          h(HostKeyPrompt, { connection, pending, busy, invoke }),
+          testInfo && !testInfo.ok
+            ? h('div', { className: 'vb-error' }, `SSH test: ${testInfo.detail || 'failed'}`)
+            : testInfo?.ok
+              ? h('div', { className: 'vb-muted' }, testInfo.detail || 'SSH test succeeded')
+              : null,
           runtime?.health?.summary ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
           runtime?.setupHint
             ? h(
