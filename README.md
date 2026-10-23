@@ -133,12 +133,20 @@ deploys the remote setup and connects the sidecar. A runtime reports:
 * **starting / connecting** — sidecar and tunnel are being established.
 * **needs-trust** — a first connection offered an unknown SSH host key. The
   runtime is intentionally not started; confirm the fingerprint in the
-  dashboard or with `trust_host`, then start again.
+  dashboard or with `trust_host`, then start again. When a live agent/session is
+  available the plugin also raises the same confirmation as a question in the
+  main conversation, so the sidebar does not have to be open.
 * **waiting** — the tunnel is up but the Virtuoso CIW has not loaded the bridge
   setup yet. The dashboard shows the exact `load("...")` command; run it in the
   CIW, then the health poll flips the runtime to **running**.
 * **running** — `execute_skill("1+1")` answered through the daemon.
 * **stopped / error** — no sidecar, or the last start failed.
+
+Runtime snapshots carry a separate `daemon` object and `connectionStatus`:
+`ready`, `no-response`, `auth-failed`, `unreachable` or `unknown`. Startup
+records it from the connect handshake, and **Test** queries it again when a
+runtime sidecar is available. The dashboard shows it as its own chip next to the
+connection state.
 
 Runtimes are process-wide, so they survive conversation changes, forks and
 subagent sessions. They stop when the plugin is disabled/unloaded or DSH exits,
@@ -168,6 +176,15 @@ the profile.
 `status`, `list`, `start`, `stop`, `restart`, `ping`, `connections`,
 `save_connection`, `delete_connection`, `test_connection`, `detect_shell`,
 `host_key`, `trust_host`, `orphans`, `stop_orphan`.
+
+`status`/`list` return a compact projection: setup readiness, connection
+endpoints, runtime state, daemon state, attached agents and running actions.
+Verbose install logs, source/venv debug paths, tunnel internals and full
+tracebacks stay in the dashboard, which keeps the full state. `status` with
+`waitMs` waits until an in-flight start settles (or the budget expires) instead
+of returning immediately while the runtime is still starting. `test_connection`
+uses the same SSH backend as the bridge — Paramiko sessions never launch
+`ssh.exe` — and includes the daemon status when a runtime is already reachable.
 
 ### `virtuoso_bridge_api`
 
@@ -214,8 +231,10 @@ last 40 job directories are indexed when the plugin starts.
 ### `virtuoso_bridge_setup`
 
 `status`, `preflight`, `install`, `update`, `diagnose`, `configure`,
-`set_source`, `caches`, `clear_cache`. `preflight` reports the Python, source,
-venv and both SSH backends plus the `ssh` extra definition. If OpenSSH is
+`set_source`, `caches`, `clear_cache`. `status` and `preflight` return only the
+installed/source/venv/backend facts needed to decide the next step; the full
+install log and source snapshot remain in the dashboard. `diagnose` is the
+explicit plugin-debugging action. If OpenSSH is
 missing, `install` returns a confirmation request; retry with `confirm: true`
 to continue with Paramiko only.
 
@@ -224,11 +243,13 @@ to continue with Paramiko only.
 Open the right sidebar and click **Virtuoso Bridge** in the Start/guide page, or
 use the waveform button at the left of the composer. The tab shows:
 
-* connection and runtime state, tunnel/daemon summary, the CIW `load(...)` hint;
+* connection and runtime state, separate daemon state (responsive / no response /
+  auth failed / unreachable), tunnel summary and the CIW `load(...)` hint;
 * attached agents (session id, call count, last use, live/closed);
 * local cache storages with size, file count and clear actions;
-* ongoing and recent actions (start, stop, API call, script, install);
-* recent plugin activity.
+* ongoing and recent actions with a **Clear history** button, plus a clear
+  button for the activity log;
+* a scrollable, viewport-bounded body; every category header is foldable.
 
 The same state is served by a same-origin endpoint at
 `/__dsh/virtuoso-bridge` with an SSE stream. The Host registers the route

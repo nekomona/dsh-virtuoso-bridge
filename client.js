@@ -140,12 +140,20 @@ window.__ModuleLoader__.load({
       'caches.free': 'free disk',
       'caches.truncated': 'partially measured',
       'actions.empty': 'No actions yet.',
+      'actions.clear': 'Clear history',
       'actions.running': 'running',
+      'logs.clear': 'Clear log',
       'logs.empty': 'No activity yet.',
       'state.starting': 'starting',
       'state.connecting': 'connecting',
       'state.waiting': 'waiting for CIW',
       'state.needs-trust': 'host key confirmation',
+      'daemon.title': 'Daemon',
+      'daemon.ready': 'responsive',
+      'daemon.noResponse': 'no response',
+      'daemon.authFailed': 'auth failed',
+      'daemon.unreachable': 'unreachable',
+      'daemon.unknown': 'not checked',
       'state.running': 'running',
       'state.stopping': 'stopping',
       'state.stopped': 'stopped',
@@ -297,12 +305,20 @@ window.__ModuleLoader__.load({
       'caches.free': '可用空间',
       'caches.truncated': '部分统计',
       'actions.empty': '尚无操作。',
+      'actions.clear': '清除历史',
       'actions.running': '进行中',
       'logs.empty': '尚无活动。',
+      'logs.clear': '清除日志',
       'state.starting': '启动中',
       'state.connecting': '连接中',
       'state.waiting': '等待 CIW',
       'state.needs-trust': '等待确认主机密钥',
+      'daemon.title': '守护进程',
+      'daemon.ready': '响应正常',
+      'daemon.noResponse': '无响应',
+      'daemon.authFailed': '认证失败',
+      'daemon.unreachable': '不可达',
+      'daemon.unknown': '未检查',
       'state.running': '运行中',
       'state.stopping': '停止中',
       'state.stopped': '已停止',
@@ -332,7 +348,7 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.vb-root{align-self:stretch;display:flex;flex-direction:column;gap:12px;padding:14px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.45;box-sizing:border-box;min-height:100%}
+.vb-root{align-self:stretch;display:flex;flex-direction:column;gap:12px;padding:14px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.45;box-sizing:border-box;height:100%;min-height:0;max-height:calc(100vh - 16px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable}
 .vb-root *{box-sizing:border-box}
 .vb-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .vb-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
@@ -342,6 +358,9 @@ window.__ModuleLoader__.load({
 .vb-live-dot.off{background:var(--dsw-alias-state-idle-primary)}
 .vb-section{display:flex;flex-direction:column;gap:8px;min-width:0}
 .vb-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.vb-section-fold{display:inline-flex;align-items:center;gap:6px;padding:0;border:0;background:transparent;color:inherit;font:inherit;cursor:pointer;min-width:0}
+.vb-section-fold:hover .vb-section-title{color:var(--dsw-alias-label-primary)}
+.vb-chevron{width:10px;color:var(--dsw-alias-label-secondary);font-size:10px}
 .vb-section-title{font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--dsw-alias-label-secondary)}
 .vb-count{color:var(--dsw-alias-label-secondary);font-size:11px}
 .vb-card{border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);padding:10px 12px;display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -394,6 +413,10 @@ window.__ModuleLoader__.load({
 .vb-agent{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .vb-agent:last-child{border-bottom:none}
 .vb-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:1px 7px;font-size:10px;color:var(--dsw-alias-label-secondary)}
+.vb-chip.daemon-ready{color:var(--dsw-alias-state-success, #2e7d32);border-color:var(--dsw-alias-state-success, #2e7d32)}
+.vb-chip.daemon-no-response{color:var(--dsw-alias-state-warning, #a15c00);border-color:var(--dsw-alias-state-warning, #a15c00)}
+.vb-chip.daemon-auth-failed{color:var(--dsw-alias-state-warning, #a15c00);border-color:var(--dsw-alias-state-warning, #a15c00)}
+.vb-chip.daemon-unreachable{color:var(--dsw-alias-state-error, #c62828);border-color:var(--dsw-alias-state-error, #c62828)}
 .vb-logline{display:flex;gap:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;padding:2px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .vb-logline:last-child{border-bottom:none}
 .vb-logtime{color:var(--dsw-alias-label-secondary);flex:none}
@@ -590,6 +613,15 @@ window.__ModuleLoader__.load({
         return label(`state.${state}`)
       }
 
+      function daemonLabel(daemon) {
+        if (!daemon) return label('daemon.unknown')
+        if (daemon.state === 'ready') return label('daemon.ready')
+        if (daemon.state === 'no-response') return label('daemon.noResponse')
+        if (daemon.state === 'auth-failed') return label('daemon.authFailed')
+        if (daemon.state === 'unreachable') return label('daemon.unreachable')
+        return label('daemon.unknown')
+      }
+
       function Pill(props) {
         return h('span', { className: `vb-pill ${props.state || ''}` }, props.children || stateLabel(props.state))
       }
@@ -609,16 +641,28 @@ window.__ModuleLoader__.load({
       }
 
       function Section(props) {
+        const [open, setOpen] = React.useState(props.defaultOpen !== false)
         return h(
           'section',
           { className: 'vb-section' },
           h(
             'div',
             { className: 'vb-section-head' },
-            h('div', { className: 'vb-section-title' }, props.title),
-            props.actions || (props.count !== undefined ? h('span', { className: 'vb-count' }, String(props.count)) : null),
+            h(
+              'button',
+              {
+                type: 'button',
+                className: 'vb-section-fold',
+                'aria-expanded': open,
+                onClick: () => setOpen((value) => !value),
+              },
+              h('span', { className: 'vb-chevron' }, open ? '▾' : '▸'),
+              h('span', { className: 'vb-section-title' }, props.title),
+              props.count !== undefined ? h('span', { className: 'vb-count' }, String(props.count)) : null,
+            ),
+            props.actions || null,
           ),
-          props.children,
+          open ? props.children : null,
         )
       }
 
@@ -681,7 +725,7 @@ window.__ModuleLoader__.load({
         return { state, error, live, reload }
       }
 
-      function useAction(reload) {
+      function useAction(reload, agentId) {
         const [busy, setBusy] = React.useState('')
         const [error, setError] = React.useState('')
         const invoke = React.useCallback(
@@ -689,7 +733,7 @@ window.__ModuleLoader__.load({
             setBusy(action)
             setError('')
             try {
-              const data = await request('/action', { method: 'POST', body: { action, payload } })
+              const data = await request('/action', { method: 'POST', body: { action, payload, agentId } })
               reload()
               return data.result
             } catch (failure) {
@@ -699,7 +743,7 @@ window.__ModuleLoader__.load({
               setBusy('')
             }
           },
-          [reload],
+          [reload, agentId],
         )
         return { busy, error, invoke, clearError: () => setError('') }
       }
@@ -808,7 +852,29 @@ window.__ModuleLoader__.load({
             : testInfo?.ok
               ? h('div', { className: 'vb-muted' }, testInfo.detail || 'SSH test succeeded')
               : null,
+          testInfo?.daemon
+            ? h(
+                'div',
+                { className: 'vb-row vb-gap6' },
+                h('span', { className: `vb-chip daemon-${testInfo.daemon.state || 'unknown'}` }, `${label('daemon.title')}: ${daemonLabel(testInfo.daemon)}`),
+                testInfo.daemon.summary ? h('span', { className: 'vb-muted vb-ellipsis' }, testInfo.daemon.summary) : null,
+              )
+            : null,
           runtime?.health?.summary ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
+          runtime?.daemon || connection.daemon
+            ? h(
+                'div',
+                { className: 'vb-row vb-wrap vb-gap6' },
+                h(
+                  'span',
+                  { className: `vb-chip daemon-${(runtime?.daemon ?? connection.daemon).state || 'unknown'}` },
+                  `${label('daemon.title')}: ${daemonLabel(runtime?.daemon ?? connection.daemon)}`,
+                ),
+                (runtime?.daemon ?? connection.daemon).summary
+                  ? h('span', { className: 'vb-muted vb-ellipsis' }, (runtime?.daemon ?? connection.daemon).summary)
+                  : null,
+              )
+            : null,
           runtime?.setupHint
             ? h(
                 'div',
@@ -899,9 +965,9 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function DashboardBody() {
+      function DashboardBody(props) {
         const { state, error, live, reload } = useBridgeState()
-        const { busy, error: actionError, invoke } = useAction(reload)
+        const { busy, error: actionError, invoke } = useAction(reload, props?.sessionId)
         if (!state) {
           return h(
             'div',
@@ -978,7 +1044,15 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.actions'), count: running.length },
+            {
+              title: label('section.actions'),
+              count: running.length,
+              actions: h(
+                Button,
+                { disabled: Boolean(busy) || !recent.length, onClick: () => invoke('actions.clear', {}) },
+                label('actions.clear'),
+              ),
+            },
             h(
               'div',
               { className: 'vb-card' },
@@ -1046,7 +1120,11 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.logs'), count: logs.length },
+            {
+              title: label('section.logs'),
+              count: logs.length,
+              actions: h(Button, { disabled: Boolean(busy) || !logs.length, onClick: () => invoke('logs.clear', {}) }, label('logs.clear')),
+            },
             logs.length
               ? h(
                   'div',
@@ -1442,6 +1520,14 @@ window.__ModuleLoader__.load({
                       ),
                     ),
                     h('div', { className: 'vb-mono vb-muted vb-ellipsis' }, `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}`),
+                    connection.daemon
+                      ? h(
+                          'div',
+                          { className: 'vb-row vb-gap6' },
+                          h('span', { className: `vb-chip daemon-${connection.daemon.state || 'unknown'}` }, `${label('daemon.title')}: ${daemonLabel(connection.daemon)}`),
+                          connection.daemon.summary ? h('span', { className: 'vb-muted vb-ellipsis' }, connection.daemon.summary) : null,
+                        )
+                      : null,
                     h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
                   ),
                 )

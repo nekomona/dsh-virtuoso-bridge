@@ -46,6 +46,7 @@ export function apply(ctx, config = {}) {
       store,
       setup,
       credentials: ctx.get('credentials'),
+      userQuestions: ctx.get('userQuestions'),
       log,
       version: pkg.version,
     })
