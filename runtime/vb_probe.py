@@ -37,5 +37,15 @@ try:
     }
 except Exception as exc:  # noqa: BLE001 - the Host reports this verbatim
     report["error"] = f"{type(exc).__name__}: {exc}"
+
+for module_name, label in (("paramiko", "paramiko"), ("socks", "PySocks")):
+    try:
+        module = __import__(module_name)
+        report[label] = {
+            "ok": True,
+            "version": getattr(module, "__version__", "unknown"),
+        }
+    except Exception as exc:  # noqa: BLE001
+        report[label] = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
 print(json.dumps(report), flush=True)
 raise SystemExit(0 if report["error"] is None else 2)

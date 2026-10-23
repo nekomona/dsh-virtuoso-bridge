@@ -35,8 +35,9 @@ Then install the local bundle through DSH, for example by asking the agent:
 
 which runs the plugin manager's `install_bundle` on that directory. The bundle
 patch inserts the Host row `virtuoso-bridge` and the browser half is discovered
-through `dsh.client`. Reload the Web page once after installation so the
-dashboard HTTP token is injected into the page.
+through `dsh.client`. The client bootstraps its dashboard token through a
+loopback-only endpoint, so a page loaded before installation can recover; a
+reload still picks up the newest browser bundle.
 
 The plugin targets the profile it is installed into. Runtimes, settings, the
 venv and script jobs live under:
@@ -65,9 +66,13 @@ Open **Settings → Virtuoso Bridge** (or ask the agent to run
   plugin data directory, then installs it. *Update* fetches the ref again.
 
 Press **Install**. The plugin creates a private venv, installs the tool and its
-dependencies, and verifies `import virtuoso_bridge` with
-`runtime/vb_probe.py`. The same operation is available as
-`virtuoso_bridge_setup` action `install` (or `update`).
+dependencies, installs the **SSH extra** (`paramiko` + `PySocks`) by default,
+and verifies `import virtuoso_bridge` with `runtime/vb_probe.py`. If OpenSSH
+(`ssh`) is not on `PATH`, installation stops and asks for confirmation before
+continuing with the Paramiko backend only. The same operation is available as
+`virtuoso_bridge_setup` action `install` (or `update`), with `confirm: true` for
+the Paramiko-only case; action `preflight` reports supported backends and the
+extra definition.
 
 Python 3.9+ and `git` must be on `PATH`. The Python executable is configurable
 as `source.pythonPath` / `settings.pythonPath`.
@@ -82,14 +87,31 @@ Add a connection in Settings or with
   "name": "lab-virtuoso",
   "host": "virtuoso01.example.com",
   "user": "designer",
-  "port": 65432,
+  "port": null,
+  "sshPort": 22,
   "jumpHost": "",
   "sshBackend": "openssh",
   "spectreHost": "",
-  "envShell": "csh",
+  "envShell": "auto",
+  "cadenceEnvScript": "/site/cadence/setup.csh",
   "identityFile": "C:\\Users\\me\\.ssh\\id_ed25519"
 }
 ```
+
+Leaving `port` blank derives the bridge's stable per-user daemon port from the
+SSH user name (SHA-1, range 65000–65499), matching
+`virtuoso_bridge.basic.bridge._default_remote_port`. `envShell: "auto"` runs
+the configured Cadence environment script under both csh and sh and chooses the
+one that exposes `virtuoso`; the result is cached per connection and can also be
+refreshed with `detect_shell` in Settings.
+
+On the first connection the plugin reads the offered host keys and stops in
+the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
+add a key until the user confirms it (the dashboard button, or a `trust_host`
+tool call made only after the user confirms the fingerprint). Trust writes that
+single key to `~/.ssh/known_hosts`. A changed key is reported as a conflict and
+never silently replaced. Failed starts report the stage, SSH/daemon output,
+traceback and host-key probe result in the dashboard and tool error.
 
 Auth uses the system `ssh` configuration (agent, keys, `~/.ssh/config`) or the
 optional paramiko backend. `identityFile` writes a per-connection SSH config
@@ -109,6 +131,9 @@ authoritative for that runtime.
 deploys the remote setup and connects the sidecar. A runtime reports:
 
 * **starting / connecting** — sidecar and tunnel are being established.
+* **needs-trust** — a first connection offered an unknown SSH host key. The
+  runtime is intentionally not started; confirm the fingerprint in the
+  dashboard or with `trust_host`, then start again.
 * **waiting** — the tunnel is up but the Virtuoso CIW has not loaded the bridge
   setup yet. The dashboard shows the exact `load("...")` command; run it in the
   CIW, then the health poll flips the runtime to **running**.
@@ -124,6 +149,15 @@ the dashboard/tool (`orphans`, `stop_orphan`).
 Health polling runs every 20 seconds and deliberately does not write to the
 CIW (`log_to_ciw=False` unless `settings.logToCiw` is enabled).
 
+## Local cache directory
+
+**Settings → Virtuoso Bridge → Runtime defaults** has an editable cache
+directory (text field plus a directory picker when the host provides one).
+It holds pip wheels, git checkouts, script jobs and large results. The venv,
+`settings.json` and plugin logs stay in the data directory; changing the cache
+path does not move existing files, and the dashboard immediately shows the new
+paths. Leave it blank to use the data directory.
+
 ## Agent tools
 
 All tools are registered on the Host and are available in every conversation of
@@ -132,8 +166,8 @@ the profile.
 ### `virtuoso_bridge_runtime`
 
 `status`, `list`, `start`, `stop`, `restart`, `ping`, `connections`,
-`save_connection`, `delete_connection`, `test_connection`, `orphans`,
-`stop_orphan`.
+`save_connection`, `delete_connection`, `test_connection`, `detect_shell`,
+`host_key`, `trust_host`, `orphans`, `stop_orphan`.
 
 ### `virtuoso_bridge_api`
 
@@ -179,8 +213,11 @@ last 40 job directories are indexed when the plugin starts.
 
 ### `virtuoso_bridge_setup`
 
-`status`, `install`, `update`, `diagnose`, `configure`, `set_source`,
-`caches`, `clear_cache`.
+`status`, `preflight`, `install`, `update`, `diagnose`, `configure`,
+`set_source`, `caches`, `clear_cache`. `preflight` reports the Python, source,
+venv and both SSH backends plus the `ssh` extra definition. If OpenSSH is
+missing, `install` returns a confirmation request; retry with `confirm: true`
+to continue with Paramiko only.
 
 ## Dashboard
 

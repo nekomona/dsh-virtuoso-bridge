@@ -144,7 +144,10 @@ def _summarize_payload(payload: Any) -> dict[str, Any]:
     text = json.dumps(payload, ensure_ascii=False, default=str)
     if len(text) <= MAX_INLINE_CHARS:
         return {"payload": payload, "truncated": False}
-    target_dir = Path(os.environ.get("VB_PLUGIN_DATA_DIR", ".")) / "results"
+    target_dir = Path(
+        os.environ.get("VB_PLUGIN_CACHE_DIR")
+        or os.environ.get("VB_PLUGIN_DATA_DIR", ".")
+    ) / "results"
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / f"result-{int(time.time() * 1000)}-{os.getpid()}.json"
     target.write_text(text, encoding="utf-8")

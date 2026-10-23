@@ -77,6 +77,9 @@ window.__ModuleLoader__.load({
       'conn.host': 'Server host',
       'conn.user': 'SSH user',
       'conn.port': 'Daemon port',
+      'conn.portHint': 'Leave blank to derive it from the SSH user (the bridge uses SHA-1 of the user, 65000–65499).',
+      'conn.portAuto': 'Derive port from SSH user',
+      'conn.sshPort': 'SSH port',
       'conn.localPort': 'Local tunnel port',
       'conn.jumpHost': 'Jump host',
       'conn.jumpUser': 'Jump host user',
@@ -84,6 +87,14 @@ window.__ModuleLoader__.load({
       'conn.identityFile': 'SSH identity file',
       'conn.spectreHost': 'Spectre host',
       'conn.envShell': 'Remote shell',
+      'conn.envShell.auto': 'Auto-detect',
+      'conn.envShell.csh': 'csh',
+      'conn.envShell.sh': 'sh',
+      'conn.envShellHint': 'Auto sources the Cadence environment script under csh and sh and picks the one where virtuoso is available.',
+      'conn.cadenceEnvScript': 'Cadence environment script',
+      'conn.cadenceEnvScriptHint': 'VB_CADENCE_CSHRC: the site script that sets up the Cadence environment (csh or sh).',
+      'conn.detectShell': 'Detect shell',
+      'conn.detectedShell': 'Detected shell',
       'conn.notes': 'Notes',
       'conn.token': 'Daemon token',
       'conn.tokenStored': 'A daemon token is stored for this connection.',
@@ -96,6 +107,29 @@ window.__ModuleLoader__.load({
       'conn.default': 'Default',
       'conn.autoStart': 'Start with DSH',
       'conn.deleteConfirm': 'Delete this connection? Its stored token is removed too.',
+      'conn.hostKey': 'SSH host key',
+      'conn.hostKeyUnknown': 'This server has not been trusted yet. Confirm the fingerprint before connecting.',
+      'conn.hostKeyChanged': 'The server offered a different key than known_hosts. Verify it with the server administrator before replacing the old entry.',
+      'conn.trust': 'Trust and start',
+      'conn.trustHint': 'Only trust a fingerprint you verified out of band. This appends the key to your ~/.ssh/known_hosts.',
+      'conn.fingerprint': 'Fingerprint',
+      'conn.details': 'Failure details',
+      'conn.sshPortShort': 'SSH',
+      'backends.title': 'SSH backends',
+      'backends.openssh': 'OpenSSH',
+      'backends.paramiko': 'Paramiko',
+      'backends.missing': 'not found',
+      'backends.installed': 'installed',
+      'backends.installAnyway': 'Install with Paramiko only',
+      'backends.confirmMissing': 'OpenSSH (ssh) is not on PATH. Continue installing the Paramiko backend? The OpenSSH backend will remain unavailable until ssh is installed.',
+      'backends.extraHint': 'Paramiko and PySocks are installed by default from the bridge’s ssh extra.',
+      'backends.installExtra': 'Install the Paramiko SSH extra by default',
+      'setup.cacheDir': 'Local cache directory',
+      'setup.cacheDirHint': 'Holds pip wheels, git checkouts, script jobs and large results. The venv, settings and logs stay in the data directory. Existing files are not moved.',
+      'setup.cacheDirDefault': 'Use the data directory',
+      'setup.browse': 'Browse…',
+      'setup.backendsTitle': 'SSH backends',
+      'setup.preflight': 'Refresh backends',
       'agents.empty': 'No agent has used a runtime yet.',
       'agents.calls': 'calls',
       'agents.last': 'last used',
@@ -111,6 +145,7 @@ window.__ModuleLoader__.load({
       'state.starting': 'starting',
       'state.connecting': 'connecting',
       'state.waiting': 'waiting for CIW',
+      'state.needs-trust': 'host key confirmation',
       'state.running': 'running',
       'state.stopping': 'stopping',
       'state.stopped': 'stopped',
@@ -192,6 +227,12 @@ window.__ModuleLoader__.load({
       'setup.gitRef': 'Git 引用',
       'setup.pythonPath': 'Python 可执行文件',
       'setup.recreate': '安装前重建虚拟环境',
+      'setup.cacheDir': '本地缓存目录',
+      'setup.cacheDirHint': '存放 pip 轮子、Git 检出、脚本任务和大结果。虚拟环境、设置和日志仍留在数据目录。现有文件不会移动。',
+      'setup.cacheDirDefault': '使用数据目录',
+      'setup.browse': '浏览…',
+      'setup.backendsTitle': 'SSH 后端',
+      'setup.preflight': '刷新后端',
       'conn.empty': '尚无服务器连接。在下方或“设置 → Virtuoso 桥接”中添加。',
       'conn.add': '添加连接',
       'conn.new': '新连接',
@@ -199,6 +240,9 @@ window.__ModuleLoader__.load({
       'conn.host': '服务器主机',
       'conn.user': 'SSH 用户',
       'conn.port': '守护进程端口',
+      'conn.portHint': '留空则按 SSH 用户名生成（桥接使用用户名的 SHA-1，范围 65000–65499）。',
+      'conn.portAuto': '按 SSH 用户名生成端口',
+      'conn.sshPort': 'SSH 端口',
       'conn.localPort': '本地隧道端口',
       'conn.jumpHost': '跳板机',
       'conn.jumpUser': '跳板机用户',
@@ -206,6 +250,14 @@ window.__ModuleLoader__.load({
       'conn.identityFile': 'SSH 私钥文件',
       'conn.spectreHost': 'Spectre 主机',
       'conn.envShell': '远端 shell',
+      'conn.envShell.auto': '自动检测',
+      'conn.envShell.csh': 'csh',
+      'conn.envShell.sh': 'sh',
+      'conn.envShellHint': '自动在 csh 与 sh 下加载 Cadence 环境脚本，并选择能找到 virtuoso 的那个。',
+      'conn.cadenceEnvScript': 'Cadence 环境脚本',
+      'conn.cadenceEnvScriptHint': 'VB_CADENCE_CSHRC：用于设置 Cadence 环境的站点脚本（csh 或 sh）。',
+      'conn.detectShell': '检测 shell',
+      'conn.detectedShell': '已检测 shell',
       'conn.notes': '备注',
       'conn.token': '守护进程令牌',
       'conn.tokenStored': '此连接已存储守护进程令牌。',
@@ -218,6 +270,23 @@ window.__ModuleLoader__.load({
       'conn.default': '默认',
       'conn.autoStart': '随 DSH 启动',
       'conn.deleteConfirm': '删除此连接？已存储的令牌也会被移除。',
+      'conn.hostKey': 'SSH 主机密钥',
+      'conn.hostKeyUnknown': '此服务器尚未被信任。连接前请确认指纹。',
+      'conn.hostKeyChanged': '服务器提供的密钥与 known_hosts 不同。请先与管理员核实，再替换旧条目。',
+      'conn.trust': '信任并启动',
+      'conn.trustHint': '只信任你已通过其他渠道核实的指纹。这会把密钥追加到 ~/.ssh/known_hosts。',
+      'conn.fingerprint': '指纹',
+      'conn.details': '失败详情',
+      'conn.sshPortShort': 'SSH',
+      'backends.title': 'SSH 后端',
+      'backends.openssh': 'OpenSSH',
+      'backends.paramiko': 'Paramiko',
+      'backends.missing': '未找到',
+      'backends.installed': '已安装',
+      'backends.installAnyway': '仅使用 Paramiko 安装',
+      'backends.confirmMissing': 'PATH 中未找到 OpenSSH（ssh）。是否继续安装 Paramiko 后端？OpenSSH 后端在安装 ssh 之前不可用。',
+      'backends.extraHint': '默认会从桥接的 ssh extra 安装 Paramiko 与 PySocks。',
+      'backends.installExtra': '默认安装 Paramiko SSH 扩展',
       'agents.empty': '尚无智能体使用运行时。',
       'agents.calls': '次调用',
       'agents.last': '最近使用',
@@ -233,6 +302,7 @@ window.__ModuleLoader__.load({
       'state.starting': '启动中',
       'state.connecting': '连接中',
       'state.waiting': '等待 CIW',
+      'state.needs-trust': '等待确认主机密钥',
       'state.running': '运行中',
       'state.stopping': '停止中',
       'state.stopped': '已停止',
@@ -288,11 +358,13 @@ window.__ModuleLoader__.load({
 .vb-dot{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dsw-alias-state-idle-primary)}
 .vb-dot.running{background:var(--dsw-alias-state-success-primary)}
 .vb-dot.waiting{background:var(--dsw-alias-state-warn-primary)}
+.vb-dot.needs-trust{background:var(--dsw-alias-state-warn-primary)}
 .vb-dot.starting,.vb-dot.connecting,.vb-dot.stopping{background:var(--dsw-alias-brand-primary)}
 .vb-dot.error{background:var(--dsw-alias-state-error-primary)}
 .vb-pill{display:inline-flex;align-items:center;border-radius:999px;padding:1px 7px;font-size:10px;line-height:1.6;white-space:nowrap;border:1px solid var(--dsw-alias-border-l1);color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2)}
 .vb-pill.running,.vb-pill.succeeded{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
 .vb-pill.waiting{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}
+.vb-pill.needs-trust{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}
 .vb-pill.error,.vb-pill.failed,.vb-pill.timeout{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
 .vb-pill.starting,.vb-pill.connecting,.vb-pill.stopping{color:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary)}
 .vb-btn{appearance:none;border:1px solid var(--dsw-alias-border-l1);background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);border-radius:7px;padding:3px 9px;font-size:11px;line-height:1.5;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -650,6 +722,9 @@ window.__ModuleLoader__.load({
         const stop = () => invoke('runtime.stop', { connection: connection.id, runtime: runtime?.id })
         const restart = () => invoke('runtime.restart', { connection: connection.id, waitMs: 15000 })
         const test = () => invoke('connection.test', { connection: connection.id })
+        if (state === 'needs-trust') {
+          return h('div', { className: 'vb-actions' }, h(Button, { disabled, onClick: test }, label('test')))
+        }
         return h(
           'div',
           { className: 'vb-actions' },
@@ -658,6 +733,42 @@ window.__ModuleLoader__.load({
             : h(Button, { disabled, onClick: stop }, label('stop')),
           ['running', 'waiting'].includes(state) ? h(Button, { disabled, onClick: restart }, label('restart')) : null,
           h(Button, { disabled, onClick: test }, label('test')),
+        )
+      }
+
+      function HostKeyPrompt(props) {
+        const { connection, pending, busy, invoke } = props
+        if (!pending) return null
+        const trust = async (fingerprint) => {
+          const result = await invoke('runtime.trust_host', { connection: connection.id, fingerprint })
+          if (result?.trust?.trusted === false) return
+          await invoke('runtime.start', { connection: connection.id, waitMs: 15000 })
+        }
+        const conflicts = pending.conflicts ?? []
+        const unknown = pending.unknown ?? []
+        return h(
+          'div',
+          { className: 'vb-warn' },
+          h('div', { className: 'vb-strong' }, label('conn.hostKey')),
+          h('div', null, conflicts.length ? label('conn.hostKeyChanged') : label('conn.hostKeyUnknown')),
+          conflicts.length
+            ? conflicts.map((conflict) =>
+                h(
+                  'div',
+                  { className: 'vb-error', key: conflict.incoming?.fingerprint },
+                  `${conflict.incoming?.type || ''} ${conflict.incoming?.fingerprint || ''} — known: ${(conflict.existing || []).map((item) => item.fingerprint).join(', ')}`,
+                ),
+              )
+            : null,
+          unknown.map((entry) =>
+            h(
+              'div',
+              { className: 'vb-row vb-between vb-wrap', key: entry.fingerprint },
+              h('span', { className: 'vb-mono' }, `${entry.type} ${entry.fingerprint}`),
+              h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => trust(entry.fingerprint) }, label('conn.trust')),
+            ),
+          ),
+          h('div', { className: 'vb-muted' }, label('conn.trustHint')),
         )
       }
 
@@ -684,8 +795,9 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
-            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
+            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
           ),
+          h(HostKeyPrompt, { connection, pending: runtime?.pendingHostKey, busy, invoke }),
           runtime?.health?.summary ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
           runtime?.setupHint
             ? h(
@@ -697,6 +809,15 @@ window.__ModuleLoader__.load({
               )
             : null,
           runtime?.error ? h('div', { className: 'vb-error' }, runtime.error) : null,
+          runtime?.stage ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
+          runtime?.errorDetail
+            ? h(
+                'details',
+                { className: 'vb-field' },
+                h('summary', { className: 'vb-muted' }, label('conn.details')),
+                h('pre', { className: 'vb-pre' }, JSON.stringify(runtime.errorDetail, null, 2)),
+              )
+            : null,
           runtime?.pending ? h('div', { className: 'vb-muted' }, `${label('state.starting')}…`) : null,
           agents.length
             ? h(
@@ -713,7 +834,30 @@ window.__ModuleLoader__.load({
 
       function SetupBanner(props) {
         const { setup, busy, invoke } = props
+        const [prompt, setPrompt] = React.useState(null)
         if (!setup) return null
+        const install = async (confirm = false) => {
+          const result = await invoke('setup.install', { confirm })
+          if (result?.needsConfirmation) setPrompt(result)
+          else setPrompt(null)
+        }
+        const backends = setup.backends
+        const backendLine = backends
+          ? `${label('backends.openssh')}: ${backends.openssh?.available ? backends.openssh.version || 'ok' : label('backends.missing')} · ${label('backends.paramiko')}: ${backends.paramiko?.installed ? backends.paramiko.version || label('backends.installed') : label('backends.missing')}`
+          : null
+        const promptCard = prompt
+          ? h(
+              'div',
+              { className: 'vb-warn' },
+              h('div', null, prompt.message || label('backends.confirmMissing')),
+              h(
+                'div',
+                { className: 'vb-actions' },
+                h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => install(true) }, label('backends.installAnyway')),
+                h(Button, { disabled: Boolean(busy), onClick: () => setPrompt(null) }, label('cancel')),
+              ),
+            )
+          : null
         if (setup.installed) {
           return h(
             'div',
@@ -722,19 +866,26 @@ window.__ModuleLoader__.load({
               h('span', null, h('strong', null, `${label('setup.installed')}`), ` · ${setup.source?.mode ?? ''}${setup.venv?.package?.version ? ` · v${setup.venv.package.version}` : ''}`),
               h('span', { className: 'vb-muted vb-ellipsis' }, setup.venv?.path || ''),
             ),
+            backendLine ? h('div', { className: 'vb-muted' }, backendLine) : null,
+            backends?.openssh?.available === false
+              ? h('div', { className: 'vb-error' }, label('backends.confirmMissing'))
+              : null,
+            promptCard,
           )
         }
         return h(
           'div',
           { className: 'vb-warn' },
           h('div', null, label('setup.notInstalled')),
+          backendLine ? h('div', { className: 'vb-muted' }, backendLine) : null,
           h(
             'div',
             { className: 'vb-row vb-wrap' },
-            h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => invoke('setup.install', {}) }, busy ? label('setup.installing') : label('install')),
+            h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => install(false) }, busy ? label('setup.installing') : label('install')),
             h(Button, { disabled: Boolean(busy), onClick: () => invoke('setup.refresh', {}) }, label('refresh')),
             setup.error ? h('span', { className: 'vb-error' }, setup.error) : null,
           ),
+          promptCard,
         )
       }
 
@@ -860,7 +1011,7 @@ window.__ModuleLoader__.load({
                   'div',
                   { className: 'vb-card' },
                   state.disk
-                    ? h('div', { className: 'vb-muted' }, `${formatBytes(state.disk.free)} ${label('caches.free')} · ${state.dataDir}`)
+                    ? h('div', { className: 'vb-muted' }, `${formatBytes(state.disk.free)} ${label('caches.free')} · ${state.cacheDir || state.dataDir}`)
                     : null,
                   caches.map((cache) =>
                     h(
@@ -941,6 +1092,7 @@ window.__ModuleLoader__.load({
       function ConnectionEditor(props) {
         const { draft, setDraft, onSave, onCancel, busy, hasSecret } = props
         const update = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
+        const [derivePort, setDerivePort] = React.useState(draft.port === '' || draft.port === undefined)
         return h(
           'div',
           { className: 'vb-card' },
@@ -951,7 +1103,9 @@ window.__ModuleLoader__.load({
             h(TextField, { label: label('conn.name'), value: draft.name, onChange: update('name'), placeholder: 'lab-virtuoso' }),
             h(TextField, { label: label('conn.host'), value: draft.host, onChange: update('host'), placeholder: 'gpu01.example.com' }),
             h(TextField, { label: label('conn.user'), value: draft.user || '', onChange: update('user'), placeholder: 'designer' }),
-            h(TextField, { label: label('conn.port'), value: draft.port ?? 65432, onChange: update('port'), inputMode: 'numeric' }),
+            h(TextField, { label: label('conn.port'), value: draft.port ?? '', onChange: update('port'), inputMode: 'numeric', hint: label('conn.portHint'), placeholder: 'auto from SSH user', disabled: derivePort }),
+            h(CheckField, { checked: derivePort, onChange: (event) => { setDerivePort(event.target.checked); if (event.target.checked) setDraft({ ...draft, port: '' }) } }, label('conn.portAuto')),
+            h(TextField, { label: label('conn.sshPort'), value: draft.sshPort ?? 22, onChange: update('sshPort'), inputMode: 'numeric' }),
             h(TextField, { label: label('conn.localPort'), value: draft.localPort ?? '', onChange: update('localPort'), inputMode: 'numeric', placeholder: 'optional' }),
             h(TextField, { label: label('conn.jumpHost'), value: draft.jumpHost || '', onChange: update('jumpHost'), placeholder: 'optional' }),
             h(TextField, { label: label('conn.jumpUser'), value: draft.jumpUser || '', onChange: update('jumpUser'), placeholder: 'optional' }),
@@ -960,12 +1114,23 @@ window.__ModuleLoader__.load({
               h('option', { value: 'openssh' }, 'openssh'),
               h('option', { value: 'paramiko' }, 'paramiko'),
             ),
-            h(SelectField, { label: label('conn.envShell'), value: draft.envShell || 'csh', onChange: update('envShell') },
+            h(SelectField, { label: label('conn.envShell'), value: draft.envShell || 'auto', onChange: update('envShell'), hint: label('conn.envShellHint') },
+              h('option', { value: 'auto' }, label('conn.envShell.auto')),
               h('option', { value: 'csh' }, 'csh'),
               h('option', { value: 'sh' }, 'sh'),
             ),
+            h(TextField, { label: label('conn.cadenceEnvScript'), value: draft.cadenceEnvScript || '', onChange: update('cadenceEnvScript'), hint: label('conn.cadenceEnvScriptHint'), placeholder: '/site/cadence/setup.csh' }),
             h(TextField, { label: label('conn.identityFile'), value: draft.identityFile || '', onChange: update('identityFile'), hint: label('conn.identityHint'), placeholder: 'C:\\Users\\me\\.ssh\\id_ed25519' }),
             h(TextField, { label: label('conn.notes'), value: draft.notes || '', onChange: update('notes') }),
+          ),
+          h(
+            'div',
+            { className: 'vb-row vb-wrap' },
+            h(Button, { disabled: Boolean(busy) || !draft.cadenceEnvScript || !draft.id, onClick: () => props.onDetectShell?.(draft) }, label('conn.detectShell')),
+            draft.detectedShell
+              ? h('span', { className: 'vb-chip' }, `${label('conn.detectedShell')}: ${draft.detectedShell}`)
+              : null,
+            props.detectMessage ? h('span', { className: 'vb-error' }, props.detectMessage) : null,
           ),
           h(
             'div',
@@ -1001,6 +1166,9 @@ window.__ModuleLoader__.load({
         const [token, setToken] = React.useState('')
         const [clearToken, setClearToken] = React.useState(false)
         const [diagnosis, setDiagnosis] = React.useState(null)
+        const [installPrompt, setInstallPrompt] = React.useState(null)
+        const [detectMessage, setDetectMessage] = React.useState('')
+        const workspacePicker = ctx.get?.('uiWorkspace')
         React.useEffect(() => {
           if (!state || draft) return
           setDraft({
@@ -1011,6 +1179,8 @@ window.__ModuleLoader__.load({
             defaultConnection: state.settings.defaultConnection || '',
             logToCiw: Boolean(state.settings.logToCiw),
             maxScripts: state.settings.maxScripts,
+            cacheDir: state.settings.cacheDir || '',
+            installSshExtra: state.settings.installSshExtra !== false,
           })
         }, [state, draft])
         if (!state || !draft) {
@@ -1033,18 +1203,54 @@ window.__ModuleLoader__.load({
         const saveSource = async () => {
           await invoke('setup.set_source', { source: draft.source })
         }
+        const runInstall = async (confirm = false, recreate = false) => {
+          const result = await invoke('setup.install', { confirm, recreate })
+          if (result?.needsConfirmation) setInstallPrompt({ ...result, recreate })
+          else setInstallPrompt(null)
+        }
+        const runUpdate = async (confirm = false) => {
+          const result = await invoke('setup.update', { confirm })
+          if (result?.needsConfirmation) setInstallPrompt(result)
+          else setInstallPrompt(null)
+        }
+        const browseCacheDir = async () => {
+          try {
+            const chosen = await workspacePicker?.pickDirectory?.()
+            if (chosen) setDraft({ ...draft, cacheDir: chosen })
+          } catch (failure) {
+            // The directory picker is optional; the text field remains usable.
+          }
+        }
+        const detectShell = async (connection) => {
+          const saved = await invoke('connection.save', { connection })
+          if (!saved) return undefined
+          const result = await invoke('connection.detect_shell', { connection: saved.id })
+          if (result?.detection?.recommended) {
+            setDetectMessage('')
+            setEditing((current) =>
+              current?.id === saved.id
+                ? { ...current, detectedShell: result.detection.recommended, detectedAt: Date.now(), detectedScript: current.cadenceEnvScript }
+                : current,
+            )
+          } else {
+            setDetectMessage(result?.detection?.reason || 'shell detection found no Virtuoso environment')
+          }
+          return result
+        }
         const beginNew = () => {
           setEditing({
             name: '',
             host: '',
             user: '',
-            port: 65432,
+            port: '',
+            sshPort: 22,
             localPort: '',
             jumpHost: '',
             jumpUser: '',
             spectreHost: '',
             sshBackend: 'openssh',
-            envShell: 'csh',
+            envShell: 'auto',
+            cadenceEnvScript: '',
             identityFile: '',
             notes: '',
             enabled: true,
@@ -1052,11 +1258,13 @@ window.__ModuleLoader__.load({
           })
           setToken('')
           setClearToken(false)
+          setDetectMessage('')
         }
         const beginEdit = (connection) => {
-          setEditing({ ...connection, port: connection.port ?? 65432, localPort: connection.localPort ?? '' })
+          setEditing({ ...connection, port: connection.port ?? '', sshPort: connection.sshPort ?? 22, localPort: connection.localPort ?? '' })
           setToken('')
           setClearToken(false)
+          setDetectMessage('')
         }
         const saveConnection = async () => {
           if (!editing) return
@@ -1095,9 +1303,9 @@ window.__ModuleLoader__.load({
               actions: h(
                 'div',
                 { className: 'vb-actions' },
-                h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => invoke('setup.install', { recreate: false }) }, setup.installing ? label('setup.installing') : label('install')),
-                h(Button, { disabled: Boolean(busy), onClick: () => invoke('setup.install', { recreate: true }) }, label('repair')),
-                h(Button, { disabled: Boolean(busy), onClick: () => invoke('setup.update', {}) }, label('update')),
+                h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => runInstall(false, false) }, setup.installing ? label('setup.installing') : label('install')),
+                h(Button, { disabled: Boolean(busy), onClick: () => runInstall(false, true) }, label('repair')),
+                h(Button, { disabled: Boolean(busy), onClick: () => runUpdate(false) }, label('update')),
                 h(Button, { disabled: Boolean(busy), onClick: runDiagnosis }, label('diagnose')),
               ),
             },
@@ -1115,6 +1323,30 @@ window.__ModuleLoader__.load({
                 { className: 'vb-mono vb-muted' },
                 `${label('setup.version')}: ${setup.venv?.package?.version || '—'} · ${label('setup.python')}: ${setup.python?.version || '—'} · ${label('setup.source')}: ${setup.source?.mode || '—'}`,
               ),
+              setup.backends
+                ? h(
+                    'div',
+                    { className: 'vb-muted' },
+                    `${label('backends.openssh')}: ${setup.backends.openssh?.available ? setup.backends.openssh.version || setup.backends.openssh.path : label('backends.missing')} · ` +
+                      `${label('backends.paramiko')}: ${setup.backends.paramiko?.installed ? setup.backends.paramiko.version || label('backends.installed') : label('backends.missing')}`,
+                  )
+                : null,
+              setup.backends?.needsConfirmation
+                ? h('div', { className: 'vb-error' }, label('backends.confirmMissing'))
+                : null,
+              installPrompt
+                ? h(
+                    'div',
+                    { className: 'vb-warn' },
+                    h('div', null, installPrompt.message || label('backends.confirmMissing')),
+                    h(
+                      'div',
+                      { className: 'vb-actions' },
+                      h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => runInstall(true, Boolean(installPrompt.recreate)) }, label('backends.installAnyway')),
+                      h(Button, { disabled: Boolean(busy), onClick: () => setInstallPrompt(null) }, label('cancel')),
+                    ),
+                  )
+                : null,
               setup.lastInstall?.installedAt
                 ? h('div', { className: 'vb-muted' }, `${label('settings.installedAt')}: ${new Date(setup.lastInstall.installedAt).toLocaleString()} · ${setup.lastInstall.sourceInfo?.commit ? setup.lastInstall.sourceInfo.commit.slice(0, 12) : ''}`)
                 : null,
@@ -1199,13 +1431,14 @@ window.__ModuleLoader__.load({
                         h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
                       ),
                     ),
-                    h('div', { className: 'vb-mono vb-muted vb-ellipsis' }, `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port}`),
+                    h('div', { className: 'vb-mono vb-muted vb-ellipsis' }, `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}`),
                     h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
                   ),
                 )
               : h('div', { className: 'vb-card flat vb-muted' }, label('settings.noConnections')),
             editing
               ? h(ConnectionEditor, {
+                  key: editing.id || 'new',
                   draft: editing,
                   setDraft: setEditing,
                   onSave: saveConnection,
@@ -1216,6 +1449,8 @@ window.__ModuleLoader__.load({
                   setToken,
                   clearToken,
                   setClearToken,
+                  onDetectShell: detectShell,
+                  detectMessage,
                 })
               : null,
           ),
@@ -1232,8 +1467,24 @@ window.__ModuleLoader__.load({
                 connections.map((connection) => h('option', { value: connection.id, key: connection.id }, connection.name)),
               ),
               h(TextField, { label: label('settings.maxScripts'), value: draft.maxScripts, onChange: updateDraft('maxScripts'), inputMode: 'numeric' }),
+              h(
+                'div',
+                { className: 'vb-row vb-wrap' },
+                h(TextField, {
+                  label: label('setup.cacheDir'),
+                  value: draft.cacheDir || '',
+                  onChange: updateDraft('cacheDir'),
+                  hint: label('setup.cacheDirHint'),
+                  placeholder: state.cacheDir || state.dataDir || '',
+                }),
+                workspacePicker?.pickDirectory
+                  ? h(Button, { disabled: Boolean(busy), onClick: browseCacheDir }, label('setup.browse'))
+                  : null,
+                h(Button, { disabled: Boolean(busy), onClick: () => setDraft({ ...draft, cacheDir: '' }) }, label('setup.cacheDirDefault')),
+              ),
               h(CheckField, { checked: draft.autoInstall, onChange: (event) => setDraft({ ...draft, autoInstall: event.target.checked }) }, label('settings.autoInstall')),
               h(CheckField, { checked: draft.logToCiw, onChange: (event) => setDraft({ ...draft, logToCiw: event.target.checked }) }, label('settings.logToCiw')),
+              h(CheckField, { checked: draft.installSshExtra !== false, onChange: (event) => setDraft({ ...draft, installSshExtra: event.target.checked }) }, label('backends.installExtra')),
               h('div', { className: 'vb-muted' }, label('settings.autoStartHint')),
               h(
                 'div',
