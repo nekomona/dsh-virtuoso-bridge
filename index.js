@@ -80,6 +80,7 @@ export function apply(ctx, config = {}) {
     })().catch((error) => {
       log('error', `initialization failed: ${error instanceof Error ? error.message : String(error)}`)
     })
+    manager.ready = ready
 
     return async () => {
       if (disposed) return
