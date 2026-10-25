@@ -4,7 +4,7 @@ A persistent DSH profile plugin for [virtuoso-bridge-lite](https://github.com/Ar
 It turns the bridge's background SSH tunnel and CIW-side daemon into **managed
 runtimes** that survive conversations, exposes the whole Python API to the
 agent, runs batched Python inside an isolated venv, and projects all of it into
-a right-sidebar dashboard.
+a **Virtuoso Bridge** panel in the left sidebar's global panel list.
 
 The plugin bundles a source snapshot of virtuoso-bridge-lite, so it works
 without a separate checkout, and can instead follow a local development repo or
@@ -17,7 +17,7 @@ clone a git repository at a chosen ref.
 | Tool source and isolated Python environment | Host setup manager, Settings page, `virtuoso_bridge_setup` |
 | Server connections and credentials | Settings page, `virtuoso_bridge_runtime`, DSH credentials service |
 | Managed tunnels / daemons across conversations | Process-wide runtime manager, Host service |
-| Connection status, attached agents, caches, ongoing actions | Right-sidebar **Virtuoso Bridge** tab |
+| Connection status, attached agents, caches, ongoing actions | Left-sidebar **Virtuoso Bridge** panel |
 | Every public virtuoso-bridge-lite function | `virtuoso_bridge_api` (`describe` / `call`) |
 | Batched Python in the venv | `virtuoso_bridge_script` (jobs, status, cancel) |
 
@@ -240,8 +240,9 @@ to continue with Paramiko only.
 
 ## Dashboard
 
-Open the right sidebar and click **Virtuoso Bridge** in the Start/guide page, or
-use the waveform button at the left of the composer. The tab shows:
+Open the **Virtuoso Bridge** waveform icon in the left sidebar's global panel
+list (beside Plugins and Automation tasks); it selects the main panel. The
+panel shows:
 
 * connection and runtime state, separate daemon state (responsive / no response /
   auth failed / unreachable), tunnel summary and the CIW `load(...)` hint;
@@ -268,7 +269,7 @@ the current bundle.
 
 ```
 index.js              Host plugin: manager wiring, effect lifecycle
-client.js             Browser plugin: dashboard tab, settings page, opener
+client.js             Browser plugin: main panel, sidebar icon, settings page
 cordis.patch.yml      Bundle patch (Host row)
 lib/store.js          settings.json, connections, validation
 lib/setup.js          python/venv/source selection, install, diagnostics, caches

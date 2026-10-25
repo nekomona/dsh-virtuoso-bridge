@@ -12,8 +12,7 @@ window.__ModuleLoader__.load({
     const React = require('react')
     const h = React.createElement
     const NS = 'virtuosoBridge'
-    const KIND = 'virtuoso-bridge'
-    const TYPE_ID = 'dsh-virtuoso-bridge/dashboard'
+    const PANEL_ID = 'virtuoso-bridge'
     const BASE_PATH = '/__dsh/virtuoso-bridge'
     const SETTINGS_SECTION = 'virtuoso-bridge'
 
@@ -348,6 +347,9 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
+.vb-main-panel{height:100%;min-height:0;padding-top:var(--dsh-frame-top-clearance,0px);overflow:hidden;background:var(--dsw-alias-bg-base, transparent)}
+.vb-main-panel .vb-root{height:100%;max-height:100%}
+.vb-panel-icon{display:block;color:currentColor}
 .vb-root{align-self:stretch;display:flex;flex-direction:column;gap:12px;padding:14px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.45;box-sizing:border-box;height:100%;min-height:0;max-height:calc(100vh - 16px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable}
 .vb-root *{box-sizing:border-box}
 .vb-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
@@ -1615,57 +1617,56 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function OpenButton() {
+      function PanelIcon(props) {
+        const size = Number(props?.size) || 16
         return h(
-          'button',
+          'svg',
           {
-            type: 'button',
-            className: 'vb-open',
-            title: label('open'),
-            'aria-label': label('open'),
-            onClick: () => {
-              try {
-                ctx.sidebarRight.openTab(KIND)
-              } catch (error) {
-                console.error('virtuoso-bridge: could not open the dashboard', error)
-              }
-            },
+            className: 'vb-panel-icon',
+            width: size,
+            height: size,
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            'aria-hidden': true,
           },
-          h(
-            'svg',
-            { viewBox: '0 0 24 24', fill: 'none', 'aria-hidden': true },
-            h('path', { d: 'M3 15c1.7 0 2-6 3.7-6s1.6 8 3.3 8 1.7-9 3.4-9 1.6 7 3.3 7H21', stroke: 'currentColor', strokeWidth: '1.6', strokeLinecap: 'round', strokeLinejoin: 'round' }),
-            h('circle', { cx: '21', cy: '15', r: '1.8', fill: 'currentColor' }),
-          ),
+          h('path', {
+            d: 'M3 15c1.7 0 2-6 3.7-6s1.6 8 3.3 8 1.7-9 3.4-9 1.6 7 3.3 7H21',
+            stroke: 'currentColor',
+            strokeWidth: '1.6',
+            strokeLinecap: 'round',
+            strokeLinejoin: 'round',
+          }),
+          h('circle', { cx: '21', cy: '15', r: '1.8', fill: 'currentColor' }),
         )
+      }
+
+      function DashboardPanel() {
+        return h('div', { className: 'vb-main-panel' }, h(DashboardBody))
       }
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')
       ctx.effect(
         () =>
-          ctx.sidebarRightTabs.register({
-            id: TYPE_ID,
-            kind: KIND,
-            priority: 'extension',
-            keepMounted: true,
-            title: () => label('tab.title'),
-            guide: [
+          ctx.slots.inject('sidebar.panellist', () =>
+            ctx.slots.register(
               {
-                id: 'dashboard',
-                order: 40,
-                title: () => label('tab.title'),
-                description: () => label('tab.description'),
+                name: 'sidebar.panellist',
+                id: PANEL_ID,
+                order: 20,
+                label: () => label('tab.title'),
+                locale: NS,
               },
-            ],
-          }),
-        'virtuoso-bridge: tab type',
+              PanelIcon,
+            ),
+          ),
+        'virtuoso-bridge: sidebar panel icon',
       )
       ctx.effect(
         () =>
-          ctx.slots.inject('sidebar.right.pane.tab', () =>
-            ctx.slots.register({ name: 'sidebar.right.pane.tab', key: TYPE_ID, locale: NS }, DashboardBody),
+          ctx.slots.inject('main', () =>
+            ctx.slots.register({ name: 'main', key: PANEL_ID }, DashboardPanel),
           ),
-        'virtuoso-bridge: dashboard body',
+        'virtuoso-bridge: main panel',
       )
       ctx.effect(
         () =>
@@ -1677,17 +1678,10 @@ window.__ModuleLoader__.load({
           ),
         'virtuoso-bridge: settings page',
       )
-      ctx.effect(
-        () =>
-          ctx.slots.inject('conversation.input.left', () =>
-            ctx.slots.register({ name: 'conversation.input.left', id: 'virtuoso-bridge', order: 20, locale: NS }, OpenButton),
-          ),
-        'virtuoso-bridge: composer opener',
-      )
     }
 
     return {
-      inject: ['slots', 'locale', 'sidebarRight', 'sidebarRightTabs'],
+      inject: ['slots', 'locale'],
       apply,
     }
   },
