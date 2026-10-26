@@ -1688,8 +1688,8 @@ window.__ModuleLoader__.load({
           } catch {
             current = undefined
           }
-          const currentKind = current?.kind ?? current?.record?.kind ?? current?.definition?.kind
-          const currentId = current?.id ?? current?.tabId
+          const currentKind = current?.kind ?? current?.record?.kind ?? current?.definition?.kind ?? current?.tab?.kind ?? current?.tab?.record?.kind
+          const currentId = current?.id ?? current?.tabId ?? current?.tab?.id
           try {
             if (sidebar.isExpanded?.() && currentKind === KIND && currentId) sidebar.close(currentId)
             else sidebar.openTab(KIND)
