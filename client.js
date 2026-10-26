@@ -13,12 +13,19 @@ window.__ModuleLoader__.load({
     const h = React.createElement
     const NS = 'virtuosoBridge'
     const PANEL_ID = 'virtuoso-bridge'
+    const KIND = 'virtuoso-bridge'
+    const TYPE_ID = 'dsh-virtuoso-bridge/dashboard'
     const BASE_PATH = '/__dsh/virtuoso-bridge'
-    const SETTINGS_SECTION = 'virtuoso-bridge'
 
     const en = {
       'tab.title': 'Virtuoso Bridge',
       'tab.description': 'Connections, attached agents, caches and ongoing actions for virtuoso-bridge-lite.',
+      'runtime.title': 'Bridge runtime',
+      'runtime.description': 'Live connection, daemon, agent and operation status.',
+      'runtime.open': 'Toggle the Virtuoso Bridge runtime panel',
+      'config.title': 'Virtuoso Bridge',
+      'config.intro': 'Configure the managed environment, SSH connections and runtime defaults.',
+      'config.open': 'Configure',
       'open': 'Open Virtuoso Bridge dashboard',
       'settings.title': 'Virtuoso Bridge',
       'loading': 'Loading Virtuoso Bridge state…',
@@ -184,6 +191,12 @@ window.__ModuleLoader__.load({
     const zh = {
       'tab.title': 'Virtuoso 桥接',
       'tab.description': 'virtuoso-bridge-lite 的连接、已接入智能体、缓存和进行中的操作。',
+      'runtime.title': '桥接运行时',
+      'runtime.description': '实时显示连接、守护进程、智能体和操作状态。',
+      'runtime.open': '切换 Virtuoso 桥接运行时面板',
+      'config.title': 'Virtuoso 桥接',
+      'config.intro': '配置托管环境、SSH 连接和运行时默认值。',
+      'config.open': '配置',
       'open': '打开 Virtuoso 桥接仪表盘',
       'settings.title': 'Virtuoso 桥接',
       'loading': '正在加载 Virtuoso 桥接状态…',
@@ -347,12 +360,12 @@ window.__ModuleLoader__.load({
     }
 
     const CSS = `
-.vb-main-panel{height:100%;min-height:0;padding-top:var(--dsh-frame-top-clearance,0px);overflow:hidden;background:var(--dsw-alias-bg-base, transparent)}
+.vb-main-panel{height:100%;min-height:0;padding-top:var(--dsh-frame-top-clearance,0px);overflow:hidden;background:var(--dsw-alias-bg-base, transparent);box-sizing:border-box}
 .vb-main-panel .vb-root{height:100%;max-height:100%}
 .vb-panel-icon{display:block;color:currentColor}
 .vb-root{align-self:stretch;display:flex;flex-direction:column;gap:12px;padding:14px;color:var(--dsw-alias-label-primary);font-size:12px;line-height:1.45;box-sizing:border-box;height:100%;min-height:0;max-height:calc(100vh - 16px);overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;scrollbar-gutter:stable}
 .vb-root *{box-sizing:border-box}
-.vb-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.vb-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .vb-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px;min-width:0}
 .vb-sub{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .vb-live{display:inline-flex;align-items:center;gap:5px;color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap}
@@ -395,6 +408,9 @@ window.__ModuleLoader__.load({
 .vb-btn.primary{background:transparent;border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-brand-primary)}
 .vb-btn.danger{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
 .vb-btn.ghost{background:transparent}
+.vb-page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding-bottom:4px}
+.vb-page-title{font-size:20px;line-height:1.3;font-weight:650;letter-spacing:-.01em;margin:0;color:var(--dsw-alias-label-primary)}
+.vb-page-sub{font-size:12px;line-height:1.55;color:var(--dsw-alias-label-secondary);margin:4px 0 0;max-width:640px}
 .vb-hint{border-left:2px solid var(--dsw-alias-state-warn-primary);padding:4px 8px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-2);border-radius:0 6px 6px 0;font-size:11px}
 .vb-error{color:var(--dsw-alias-state-error-primary);font-size:11px;word-break:break-word}
 .vb-banner{border:1px solid var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary);border-radius:8px;padding:8px 10px;font-size:11px;display:flex;align-items:flex-start;gap:8px}
@@ -425,14 +441,20 @@ window.__ModuleLoader__.load({
 .vb-logmsg{min-width:0;word-break:break-word}
 .vb-logline.warn .vb-logmsg{color:var(--dsw-alias-state-warn-primary)}
 .vb-logline.error .vb-logmsg{color:var(--dsw-alias-state-error-primary)}
-.vb-settings{padding:18px 22px;gap:18px;max-width:900px}
-.vb-settings .vb-card{padding:14px 16px;gap:12px}
-.vb-settings .vb-section-title{font-size:12px}
+.vb-settings{padding:32px 40px 56px;gap:24px;max-width:1040px;width:100%;margin:0 auto;height:100%;font-size:13px;line-height:1.55}
+.vb-settings .vb-card{padding:16px 18px;gap:12px;border-radius:12px}
+.vb-settings .vb-section-title{font-size:13px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--dsw-alias-label-primary)}
+.vb-settings .vb-section{gap:10px}
+.vb-settings .vb-section-head{margin-top:2px}
+.vb-settings .vb-btn{padding:5px 11px;font-size:12px;border-radius:8px}
+.vb-settings .vb-input{padding:7px 9px;font-size:12px;border-radius:8px}
+.vb-settings .vb-label{font-size:11px}
+.vb-settings .vb-muted{font-size:12px}
 .vb-open{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .vb-open:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .vb-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .vb-open svg{width:16px;height:16px;display:block}
-@media (max-width:520px){.vb-grid{grid-template-columns:1fr}.vb-settings{padding:14px}}
+@media (max-width:520px){.vb-grid{grid-template-columns:1fr}.vb-settings{padding:20px 16px 40px}.vb-page-header{flex-direction:column;align-items:stretch}}
 `
 
     function bridgeGlobal() {
@@ -967,7 +989,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function DashboardBody(props) {
+      function RuntimePanelBody(props) {
         const { state, error, live, reload } = useBridgeState()
         const { busy, error: actionError, invoke } = useAction(reload, props?.sessionId)
         if (!state) {
@@ -979,7 +1001,6 @@ window.__ModuleLoader__.load({
             error ? h(Button, { onClick: reload }, label('retry')) : null,
           )
         }
-        const setup = state.setup || {}
         const connections = state.connections || []
         const runtimes = state.runtimes || []
         const actions = state.actions || []
@@ -998,13 +1019,29 @@ window.__ModuleLoader__.load({
             h(
               'div',
               { className: 'vb-title vb-grow' },
-              h('span', null, label('tab.title')),
+              h('span', null, label('runtime.title')),
               h('span', { className: 'vb-live' }, h('span', { className: `vb-live-dot${live ? '' : ' off'}` }), live ? label('live') : label('polling')),
             ),
-            h(Button, { onClick: reload, disabled: Boolean(busy) }, label('refresh')),
+            h(
+              'div',
+              { className: 'vb-actions' },
+              h(
+                Button,
+                {
+                  onClick: () => {
+                    try {
+                      ctx.layout.selectPanel(PANEL_ID)
+                    } catch (failure) {
+                      console.error('virtuoso-bridge: could not open the configuration panel', failure)
+                    }
+                  },
+                },
+                label('config.open'),
+              ),
+              h(Button, { onClick: reload, disabled: Boolean(busy) }, label('refresh')),
+            ),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
-          h(SetupBanner, { setup, busy, invoke }),
           h(
             Section,
             { title: label('section.connections'), count: connections.length },
@@ -1248,7 +1285,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function SettingsPage() {
+      function ConfigPage() {
         const { state, error, reload } = useBridgeState()
         const { busy, error: actionError, invoke } = useAction(reload)
         const [draft, setDraft] = React.useState(null)
@@ -1278,7 +1315,6 @@ window.__ModuleLoader__.load({
         }
         const setup = state.setup || {}
         const connections = state.connections || []
-        const caches = state.caches || []
         const updateSource = (key) => (event) => setDraft({ ...draft, source: { ...draft.source, [key]: event.target.value } })
         const updateDraft = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
         const toggleAutoStart = (connectionId) => (event) => {
@@ -1380,9 +1416,14 @@ window.__ModuleLoader__.load({
           { className: 'vb-root vb-settings' },
           styleElement,
           h(
-            'div',
-            { className: 'vb-top' },
-            h('div', null, h('div', { className: 'vb-title' }, label('settings.title')), h('div', { className: 'vb-muted' }, label('settings.intro'))),
+            'header',
+            { className: 'vb-page-header' },
+            h(
+              'div',
+              null,
+              h('h1', { className: 'vb-page-title' }, label('config.title')),
+              h('p', { className: 'vb-page-sub' }, label('config.intro')),
+            ),
             h(Button, { onClick: reload, disabled: Boolean(busy) }, label('refresh')),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
@@ -1591,33 +1632,10 @@ window.__ModuleLoader__.load({
               ),
             ),
           ),
-          h(
-            Section,
-            { title: label('section.caches'), count: caches.length, actions: h(Button, { onClick: () => invoke('cache.refresh', {}) }, label('refresh')) },
-            caches.length
-              ? h(
-                  'div',
-                  { className: 'vb-card' },
-                  caches.map((cache) =>
-                    h(
-                      'div',
-                      { className: 'vb-row vb-between vb-wrap', key: cache.id },
-                      h('div', { className: 'vb-grow' }, h('div', null, cache.label), h('div', { className: 'vb-mono vb-muted vb-ellipsis', title: cache.path }, cache.path)),
-                      h(
-                        'div',
-                        { className: 'vb-row vb-gap6' },
-                        h('span', { className: 'vb-muted' }, `${formatBytes(cache.bytes)}${cache.files ? ` · ${cache.files} ${label('caches.files')}` : ''}`),
-                        cache.clearable ? h(Button, { disabled: Boolean(busy), onClick: () => invoke('cache.clear', { cache: cache.id }) }, label('clear')) : null,
-                      ),
-                    ),
-                  ),
-                )
-              : h('div', { className: 'vb-card flat vb-muted' }, label('caches.empty')),
-          ),
         )
       }
 
-      function PanelIcon(props) {
+      function BridgeGlyph(props) {
         const size = Number(props?.size) || 16
         return h(
           'svg',
@@ -1640,8 +1658,56 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function DashboardPanel() {
-        return h('div', { className: 'vb-main-panel' }, h(DashboardBody))
+      function PanelIcon(props) {
+        return h(BridgeGlyph, { size: props?.size })
+      }
+
+      function ConfigPanel() {
+        return h('div', { className: 'vb-main-panel' }, h(ConfigPage))
+      }
+
+      function RuntimeOpener(props) {
+        const { state } = useBridgeState()
+        const sessionId = props?.sessionId
+        const activeStates = ['running', 'waiting', 'starting', 'connecting']
+        const active = Boolean(
+          sessionId &&
+            state?.runtimes?.some(
+              (runtime) =>
+                activeStates.includes(runtime.state) &&
+                (runtime.agents ?? []).some((agent) => String(agent.sessionId) === String(sessionId)),
+            ),
+        )
+        if (!active) return null
+        const toggle = () => {
+          const sidebar = ctx.sidebarRight
+          if (!sidebar?.openTab) return
+          let current
+          try {
+            current = sidebar.active?.()
+          } catch {
+            current = undefined
+          }
+          const currentKind = current?.kind ?? current?.record?.kind ?? current?.definition?.kind
+          const currentId = current?.id ?? current?.tabId
+          try {
+            if (sidebar.isExpanded?.() && currentKind === KIND && currentId) sidebar.close(currentId)
+            else sidebar.openTab(KIND)
+          } catch (failure) {
+            console.error('virtuoso-bridge: could not toggle the runtime panel', failure)
+          }
+        }
+        return h(
+          'button',
+          {
+            type: 'button',
+            className: 'vb-open',
+            title: label('runtime.open'),
+            'aria-label': label('runtime.open'),
+            onClick: toggle,
+          },
+          h(BridgeGlyph, { size: 16 }),
+        )
       }
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')
@@ -1664,24 +1730,47 @@ window.__ModuleLoader__.load({
       ctx.effect(
         () =>
           ctx.slots.inject('main', () =>
-            ctx.slots.register({ name: 'main', key: PANEL_ID }, DashboardPanel),
+            ctx.slots.register({ name: 'main', key: PANEL_ID }, ConfigPanel),
           ),
-        'virtuoso-bridge: main panel',
+        'virtuoso-bridge: configuration panel',
       )
       ctx.effect(
         () =>
-          ctx.slots.inject('settings.section', () =>
-            ctx.slots.register(
-              { name: 'settings.section', id: SETTINGS_SECTION, order: 60, label: () => label('settings.title') },
-              SettingsPage,
-            ),
+          ctx.sidebarRightTabs.register({
+            id: TYPE_ID,
+            kind: KIND,
+            priority: 'extension',
+            keepMounted: true,
+            title: () => label('runtime.title'),
+            guide: [
+              {
+                id: 'runtime',
+                order: 40,
+                title: () => label('runtime.title'),
+                description: () => label('runtime.description'),
+              },
+            ],
+          }),
+        'virtuoso-bridge: runtime tab type',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('sidebar.right.pane.tab', () =>
+            ctx.slots.register({ name: 'sidebar.right.pane.tab', key: TYPE_ID, locale: NS }, RuntimePanelBody),
           ),
-        'virtuoso-bridge: settings page',
+        'virtuoso-bridge: runtime panel body',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('conversation.input.left', () =>
+            ctx.slots.register({ name: 'conversation.input.left', id: PANEL_ID, order: 20, locale: NS }, RuntimeOpener),
+          ),
+        'virtuoso-bridge: runtime toggle',
       )
     }
 
     return {
-      inject: ['slots', 'locale'],
+      inject: ['slots', 'locale', 'layout', 'sidebarRight', 'sidebarRightTabs'],
       apply,
     }
   },

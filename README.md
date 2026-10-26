@@ -3,8 +3,9 @@
 A persistent DSH profile plugin for [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite).
 It turns the bridge's background SSH tunnel and CIW-side daemon into **managed
 runtimes** that survive conversations, exposes the whole Python API to the
-agent, runs batched Python inside an isolated venv, and projects all of it into
-a **Virtuoso Bridge** panel in the left sidebar's global panel list.
+agent, runs batched Python inside an isolated venv, and projects runtime state
+into a right-sidebar **Bridge runtime** panel while keeping configuration in a
+full-page **Virtuoso Bridge** panel in the left sidebar.
 
 The plugin bundles a source snapshot of virtuoso-bridge-lite, so it works
 without a separate checkout, and can instead follow a local development repo or
@@ -14,10 +15,10 @@ clone a git repository at a chosen ref.
 
 | Concern | Surface |
 | --- | --- |
-| Tool source and isolated Python environment | Host setup manager, Settings page, `virtuoso_bridge_setup` |
-| Server connections and credentials | Settings page, `virtuoso_bridge_runtime`, DSH credentials service |
+| Tool source and isolated Python environment | Host setup manager, left **Virtuoso Bridge** config page, `virtuoso_bridge_setup` |
+| Server connections and credentials | Left **Virtuoso Bridge** config page, `virtuoso_bridge_runtime`, DSH credentials service |
 | Managed tunnels / daemons across conversations | Process-wide runtime manager, Host service |
-| Connection status, attached agents, caches, ongoing actions | Left-sidebar **Virtuoso Bridge** panel |
+| Connection status, attached agents, caches, ongoing actions | Right-sidebar **Bridge runtime** panel |
 | Every public virtuoso-bridge-lite function | `virtuoso_bridge_api` (`describe` / `call`) |
 | Batched Python in the venv | `virtuoso_bridge_script` (jobs, status, cancel) |
 
@@ -35,7 +36,7 @@ Then install the local bundle through DSH, for example by asking the agent:
 
 which runs the plugin manager's `install_bundle` on that directory. The bundle
 patch inserts the Host row `virtuoso-bridge` and the browser half is discovered
-through `dsh.client`. The client bootstraps its dashboard token through a
+through `dsh.client`. The client bootstraps its panel token through a
 loopback-only endpoint, so a page loaded before installation can recover; a
 reload still picks up the newest browser bundle.
 
@@ -52,8 +53,10 @@ folder is `default`). Override with `config.dataDir` or
 
 ## First setup
 
-Open **Settings → Virtuoso Bridge** (or ask the agent to run
-`virtuoso_bridge_setup` with action `status`). Choose a source:
+Open the **Virtuoso Bridge** waveform icon in the left sidebar's global panel
+list (beside Plugins and Automation tasks); it selects the full-page
+configuration panel. You can also ask the agent to run
+`virtuoso_bridge_setup` with action `status`. Choose a source:
 
 * **Bundled snapshot** (default) — installs `vendor/` from this plugin. No
   network access to the tool repository; pip still needs its normal package
@@ -79,7 +82,7 @@ as `source.pythonPath` / `settings.pythonPath`.
 
 ## Connections and credentials
 
-Add a connection in Settings or with
+Add a connection in the left **Virtuoso Bridge** configuration panel or with
 `virtuoso_bridge_runtime` action `save_connection`:
 
 ```json
@@ -103,21 +106,21 @@ SSH user name (SHA-1, range 65000–65499), matching
 `virtuoso_bridge.basic.bridge._default_remote_port`. `envShell: "auto"` runs
 the configured Cadence environment script under both csh and sh and chooses the
 one that exposes `virtuoso`; the result is cached per connection and can also be
-refreshed with `detect_shell` in Settings.
+refreshed with `detect_shell` in the **Virtuoso Bridge** configuration panel.
 
 On the first connection the plugin reads the offered host keys and stops in
 the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
-add a key until the user confirms it (the dashboard button, or a `trust_host`
+add a key until the user confirms it (the runtime-panel button, or a `trust_host`
 tool call made only after the user confirms the fingerprint). Trust writes that
 single key to `~/.ssh/known_hosts`. A changed key is reported as a conflict and
 never silently replaced. Failed starts report the stage, SSH/daemon output,
-traceback and host-key probe result in the dashboard and tool error.
+traceback and host-key probe result in the runtime panel and tool error.
 
 Auth uses the system `ssh` configuration (agent, keys, `~/.ssh/config`) or the
 optional paramiko backend. `identityFile` writes a per-connection SSH config
 that includes the user's own config. The optional **daemon token** is stored
 through the DSH `credentials` service as a grant record; it is write-only in
-the UI and is never returned by the dashboard, tools or logs. Local
+the UI and is never returned by the panels, tools or logs. Local
 connections (`localhost`, `127.0.0.1`, `::1`) skip SSH and use the local
 bridge token file exactly like `virtuoso-bridge` local mode.
 
@@ -132,39 +135,39 @@ deploys the remote setup and connects the sidecar. A runtime reports:
 
 * **starting / connecting** — sidecar and tunnel are being established.
 * **needs-trust** — a first connection offered an unknown SSH host key. The
-  runtime is intentionally not started; confirm the fingerprint in the
-  dashboard or with `trust_host`, then start again. When a live agent/session is
+  runtime is intentionally not started; confirm the fingerprint in the runtime
+  panel or with `trust_host`, then start again. When a live agent/session is
   available the plugin also raises the same confirmation as a question in the
-  main conversation, so the sidebar does not have to be open.
+  main conversation, so the right sidebar does not have to be open.
 * **waiting** — the tunnel is up but the Virtuoso CIW has not loaded the bridge
-  setup yet. The dashboard shows the exact `load("...")` command; run it in the
-  CIW, then the health poll flips the runtime to **running**.
+  setup yet. The runtime panel shows the exact `load("...")` command; run it in
+  the CIW, then the health poll flips the runtime to **running**.
 * **running** — `execute_skill("1+1")` answered through the daemon.
 * **stopped / error** — no sidecar, or the last start failed.
 
 Runtime snapshots carry a separate `daemon` object and `connectionStatus`:
 `ready`, `no-response`, `auth-failed`, `unreachable` or `unknown`. Startup
 records it from the connect handshake, and **Test** queries it again when a
-runtime sidecar is available. The dashboard shows it as its own chip next to the
-connection state.
+runtime sidecar is available. The runtime panel shows it as its own chip next to
+the connection state.
 
 Runtimes are process-wide, so they survive conversation changes, forks and
 subagent sessions. They stop when the plugin is disabled/unloaded or DSH exits,
 or explicitly with action `stop`. An orphaned tunnel left by a crashed earlier
 process is detected from the virtuoso-bridge state file and can be stopped from
-the dashboard/tool (`orphans`, `stop_orphan`).
+the runtime panel/tool (`orphans`, `stop_orphan`).
 
 Health polling runs every 20 seconds and deliberately does not write to the
 CIW (`log_to_ciw=False` unless `settings.logToCiw` is enabled).
 
 ## Local cache directory
 
-**Settings → Virtuoso Bridge → Runtime defaults** has an editable cache
-directory (text field plus a directory picker when the host provides one).
-It holds pip wheels, git checkouts, script jobs and large results. The venv,
-`settings.json` and plugin logs stay in the data directory; changing the cache
-path does not move existing files, and the dashboard immediately shows the new
-paths. Leave it blank to use the data directory.
+**Virtuoso Bridge → Runtime defaults** in the left configuration page has an
+editable cache directory (text field plus a directory picker when the host
+provides one). It holds pip wheels, git checkouts, script jobs and large
+results. The venv, `settings.json` and plugin logs stay in the data directory;
+changing the cache path does not move existing files, and the runtime panel
+immediately shows the new paths. Leave it blank to use the data directory.
 
 ## Agent tools
 
@@ -180,7 +183,7 @@ the profile.
 `status`/`list` return a compact projection: setup readiness, connection
 endpoints, runtime state, daemon state, attached agents and running actions.
 Verbose install logs, source/venv debug paths, tunnel internals and full
-tracebacks stay in the dashboard, which keeps the full state. `status` with
+tracebacks stay in the UI, which keeps the full state. `status` with
 `waitMs` waits until an in-flight start settles (or the budget expires) instead
 of returning immediately while the runtime is still starting. `test_connection`
 uses the same SSH backend as the bridge — Paramiko sessions never launch
@@ -233,29 +236,34 @@ last 40 job directories are indexed when the plugin starts.
 `status`, `preflight`, `install`, `update`, `diagnose`, `configure`,
 `set_source`, `caches`, `clear_cache`. `status` and `preflight` return only the
 installed/source/venv/backend facts needed to decide the next step; the full
-install log and source snapshot remain in the dashboard. `diagnose` is the
-explicit plugin-debugging action. If OpenSSH is
+install log and source snapshot remain in the configuration page. `diagnose` is
+the explicit plugin-debugging action. If OpenSSH is
 missing, `install` returns a confirmation request; retry with `confirm: true`
 to continue with Paramiko only.
 
-## Dashboard
+## Panels
 
-Open the **Virtuoso Bridge** waveform icon in the left sidebar's global panel
-list (beside Plugins and Automation tasks); it selects the main panel. The
-panel shows:
+The plugin has two complementary surfaces, following the stock panel pattern:
 
-* connection and runtime state, separate daemon state (responsive / no response /
-  auth failed / unreachable), tunnel summary and the CIW `load(...)` hint;
-* attached agents (session id, call count, last use, live/closed);
-* local cache storages with size, file count and clear actions;
-* ongoing and recent actions with a **Clear history** button, plus a clear
-  button for the activity log;
-* a scrollable, viewport-bounded body; every category header is foldable.
+* **Virtuoso Bridge** in the left sidebar's global panel list opens the
+  full-page configuration view: setup source and backends, connection editing,
+  runtime defaults, cache directory and diagnostics. This replaces the former
+  DSH Settings page. Styling follows the stock management pages (page header,
+  constrained content column, section cards, shared buttons and theme tokens).
+* **Bridge runtime** is a right-sidebar tab. It shows connection/runtime and
+  daemon state, attached agents, caches, ongoing/recent operations and activity.
+  It has a **Configure** button that selects the left configuration page.
 
-The same state is served by a same-origin endpoint at
-`/__dsh/virtuoso-bridge` with an SSE stream. The Host registers the route
-through `ctx.inject(['webServer'])`, so a cold boot where the webserver
-activates after feature plugins still exposes it. The browser half bootstraps
+The composer shows a waveform toggle only while this Session has an active
+bridge runtime attached (running, waiting, starting or connecting) via a tool
+call or a panel start. Clicking it opens or closes the **Bridge runtime** tab
+for the current Session. A Session with no active bridge keeps the composer
+clean.
+
+Both surfaces read the same same-origin endpoint at `/__dsh/virtuoso-bridge`
+with an SSE stream. The Host registers the route through
+`ctx.inject(['webServer'])`, so a cold boot where the webserver activates after
+feature plugins still exposes it. The browser half bootstraps
 `{ token, origin, basePath }` from a loopback-only `/bootstrap`, tries the
 injected origin first and then the page's own origin, and retries after a 404
 or a stale token. The endpoint requires the per-process token or a local
@@ -269,7 +277,7 @@ the current bundle.
 
 ```
 index.js              Host plugin: manager wiring, effect lifecycle
-client.js             Browser plugin: main panel, sidebar icon, settings page
+client.js             Browser plugin: config page, runtime panel, sidebar icon
 cordis.patch.yml      Bundle patch (Host row)
 lib/store.js          settings.json, connections, validation
 lib/setup.js          python/venv/source selection, install, diagnostics, caches
