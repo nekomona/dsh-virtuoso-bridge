@@ -103,6 +103,13 @@ window.__ModuleLoader__.load({
       'conn.guiHost': 'GUI host',
       'conn.clientId': 'Client identity',
       'conn.autoBadge': 'auto sessions',
+      'conn.subInstances': 'Workdir sub-instances',
+      'conn.subInstancesHint': 'Each workdir is a separate Virtuoso CIW sub-instance using an OS-assigned daemon port. Select it by workdir; no port is required.',
+      'conn.addSub': 'Add workdir',
+      'conn.subName': 'Sub-instance name',
+      'conn.subWorkDir': 'Remote workdir',
+      'conn.removeSub': 'Remove workdir',
+      'conn.noSubInstances': 'No workdir sub-instances.',
       'instances.title': 'Discovered Virtuoso instances',
       'instances.discover': 'Discover instances',
       'instances.empty': 'No instances discovered.',
@@ -114,6 +121,14 @@ window.__ModuleLoader__.load({
       'instances.selected': 'Selected',
       'instances.selectHint': 'Selecting an instance stores its port as the connection instance selector; start the runtime afterwards.',
       'instances.failed': 'Instance discovery failed',
+      'deploy.title': 'Daemon deployment',
+      'deploy.deploy': 'Deploy daemon setup',
+      'deploy.replace': 'Replace setup',
+      'deploy.shared': 'Using shared daemon setup (install-daemon); a client cannot replace it.',
+      'deploy.ready': 'Daemon setup prepared.',
+      'deploy.loadHint': 'Load this in the intended idle CIW, then restart the runtime:',
+      'deploy.copy': 'Copy load line',
+      'deploy.confirmReplace': 'Replace differing generated daemon files? The old bundle is retained by the bridge.',
       'conn.sshPort': 'SSH port',
       'conn.localPort': 'Local tunnel port',
       'conn.jumpHost': 'Jump host',
@@ -309,6 +324,13 @@ window.__ModuleLoader__.load({
       'conn.guiHost': 'GUI 主机',
       'conn.clientId': '客户端标识',
       'conn.autoBadge': '自动会话',
+      'conn.subInstances': '工作目录子实例',
+      'conn.subInstancesHint': '每个工作目录对应一个独立的 Virtuoso CIW 子实例，使用系统分配的守护进程端口；按工作目录选择，无需指定端口。',
+      'conn.addSub': '添加工作目录',
+      'conn.subName': '子实例名称',
+      'conn.subWorkDir': '远程工作目录',
+      'conn.removeSub': '移除工作目录',
+      'conn.noSubInstances': '尚无工作目录子实例。',
       'instances.title': '已发现的 Virtuoso 实例',
       'instances.discover': '发现实例',
       'instances.empty': '未发现实例。',
@@ -320,6 +342,14 @@ window.__ModuleLoader__.load({
       'instances.selected': '已选择',
       'instances.selectHint': '选择实例后，其端口会保存为连接的实例选择器；随后启动运行时。',
       'instances.failed': '实例发现失败',
+      'deploy.title': '守护进程部署',
+      'deploy.deploy': '部署守护进程设置',
+      'deploy.replace': '替换设置',
+      'deploy.shared': '使用共享守护进程设置（install-daemon）；客户端不能替换。',
+      'deploy.ready': '守护进程设置已准备。',
+      'deploy.loadHint': '在目标空闲 CIW 中加载以下命令，然后重启运行时：',
+      'deploy.copy': '复制加载命令',
+      'deploy.confirmReplace': '替换不同的生成文件？桥接会保留旧版本。',
       'conn.sshPort': 'SSH 端口',
       'conn.localPort': '本地隧道端口',
       'conn.jumpHost': '跳板机',
@@ -841,12 +871,12 @@ window.__ModuleLoader__.load({
       }
 
       function RuntimeActions(props) {
-        const { connection, runtime, busy, invoke, t: translate } = props
+        const { connection, runtime, busy, invoke, subInstanceId } = props
         const state = runtime?.state || 'stopped'
         const disabled = Boolean(busy)
-        const start = () => invoke('runtime.start', { connection: connection.id, waitMs: 15000 })
+        const start = () => invoke('runtime.start', { connection: connection.id, subInstance: subInstanceId, waitMs: 15000 })
         const stop = () => invoke('runtime.stop', { connection: connection.id, runtime: runtime?.id })
-        const restart = () => invoke('runtime.restart', { connection: connection.id, waitMs: 15000 })
+        const restart = () => invoke('runtime.restart', { connection: connection.id, subInstance: subInstanceId, waitMs: 15000 })
         const test = async () => {
           const result = await invoke('connection.test', { connection: connection.id })
           props.onTestResult?.(result)
@@ -866,12 +896,12 @@ window.__ModuleLoader__.load({
       }
 
       function HostKeyPrompt(props) {
-        const { connection, pending, busy, invoke } = props
+        const { connection, pending, busy, invoke, subInstanceId } = props
         if (!pending) return null
         const trust = async (fingerprint) => {
-          const result = await invoke('runtime.trust_host', { connection: connection.id, fingerprint })
+          const result = await invoke('runtime.trust_host', { connection: connection.id, fingerprint, subInstance: subInstanceId })
           if (result?.trust?.trusted === false) return
-          await invoke('runtime.start', { connection: connection.id, waitMs: 15000 })
+          await invoke('runtime.start', { connection: connection.id, subInstance: subInstanceId, waitMs: 15000 })
         }
         const conflicts = pending.conflicts ?? []
         const unknown = pending.unknown ?? []
@@ -902,7 +932,7 @@ window.__ModuleLoader__.load({
       }
 
       function ConnectionCard(props) {
-        const { connection, runtime, busy, invoke } = props
+        const { connection, runtime, busy, invoke, subInstanceId } = props
         const state = runtime?.state || 'stopped'
         const agents = runtime?.agents || []
         const [testInfo, setTestInfo] = React.useState(null)
@@ -922,14 +952,14 @@ window.__ModuleLoader__.load({
               connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
               connection.hasSecret ? h('span', { className: 'vb-chip', title: label('conn.tokenStored') }, 'token') : null,
             ),
-            h(RuntimeActions, { connection, runtime, busy, invoke, onTestResult: setTestInfo }),
+            h(RuntimeActions, { connection, runtime, busy, invoke, subInstanceId, onTestResult: setTestInfo }),
           ),
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
-            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
+            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.remoteWorkDir ? ` ${connection.remoteWorkDir}` : connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
           ),
-          h(HostKeyPrompt, { connection, pending, busy, invoke }),
+          h(HostKeyPrompt, { connection, pending, busy, invoke, subInstanceId }),
           testInfo && !testInfo.ok
             ? h('div', { className: 'vb-error' }, `SSH test: ${testInfo.detail || 'failed'}`)
             : testInfo?.ok
@@ -1115,15 +1145,39 @@ window.__ModuleLoader__.load({
             Section,
             { title: label('section.connections'), count: connections.length },
             connections.length
-              ? connections.map((connection) =>
-                  h(ConnectionCard, {
-                    key: connection.id,
-                    connection,
-                    runtime: runtimes.find((runtime) => runtime.connectionId === connection.id || runtime.id === connection.runtimeId),
-                    busy,
-                    invoke,
-                  }),
-                )
+              ? connections.flatMap((connection) => {
+                  const subs = connection.subInstances ?? []
+                  if (!subs.length) {
+                    return [
+                      h(ConnectionCard, {
+                        key: connection.id,
+                        connection,
+                        runtime: runtimes.find((runtime) => runtime.connectionId === connection.id && !runtime.subInstanceId),
+                        busy,
+                        invoke,
+                      }),
+                    ]
+                  }
+                  return subs.map((sub) => {
+                    const name = sub.name || String(sub.workDir || '').replace(/\/+$/, '').split('/').filter(Boolean).at(-1) || 'workdir'
+                    const subConnection = {
+                      ...connection,
+                      name: `${connection.name} / ${name}`,
+                      autoSessions: true,
+                      remoteWorkDir: sub.workDir,
+                      instancePort: sub.instancePort,
+                      subInstanceId: sub.id,
+                    }
+                    return h(ConnectionCard, {
+                      key: `${connection.id}:${sub.id}`,
+                      connection: subConnection,
+                      runtime: runtimes.find((runtime) => runtime.connectionId === connection.id && runtime.subInstanceId === sub.id),
+                      subInstanceId: sub.id,
+                      busy,
+                      invoke,
+                    })
+                  })
+                })
               : h('div', { className: 'vb-card flat vb-muted' }, label('conn.empty')),
           ),
           h(
@@ -1289,6 +1343,23 @@ window.__ModuleLoader__.load({
         const { draft, setDraft, onSave, onCancel, busy, hasSecret } = props
         const update = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
         const autoSessions = Boolean(draft.autoSessions)
+        const subInstances = Array.isArray(draft.subInstances) ? draft.subInstances : []
+        const addSubInstance = () => {
+          const id = `sub_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`
+          setDraft({
+            ...draft,
+            subInstances: [...subInstances, { id, name: '', workDir: '', autoSessions: true }],
+          })
+        }
+        const updateSubInstance = (id, key) => (event) => {
+          setDraft({
+            ...draft,
+            subInstances: subInstances.map((item) => (item.id === id ? { ...item, [key]: event.target.value } : item)),
+          })
+        }
+        const removeSubInstance = (id) => {
+          setDraft({ ...draft, subInstances: subInstances.filter((item) => item.id !== id) })
+        }
         const [derivePort, setDerivePort] = React.useState(!autoSessions && (draft.port === '' || draft.port === undefined))
         const toggleAutoSessions = (event) => {
           const next = event.target.checked
@@ -1345,6 +1416,32 @@ window.__ModuleLoader__.load({
             h(TextField, { label: label('conn.identityFile'), value: draft.identityFile || '', onChange: update('identityFile'), hint: label('conn.identityHint'), placeholder: 'C:\\Users\\me\\.ssh\\id_ed25519' }),
             h(TextField, { label: label('conn.notes'), value: draft.notes || '', onChange: update('notes') }),
           ),
+          h(
+            'div',
+            { className: 'vb-field' },
+            h(
+              'div',
+              { className: 'vb-row vb-between vb-wrap' },
+              h('span', { className: 'vb-label' }, label('conn.subInstances')),
+              h(Button, { disabled: Boolean(busy), onClick: addSubInstance }, label('conn.addSub')),
+            ),
+            subInstances.length
+              ? h(
+                  'div',
+                  { className: 'vb-card flat' },
+                  subInstances.map((sub) =>
+                    h(
+                      'div',
+                      { className: 'vb-grid', key: sub.id },
+                      h(TextField, { label: label('conn.subName'), value: sub.name || '', onChange: updateSubInstance(sub.id, 'name'), placeholder: 'project-a' }),
+                      h(TextField, { label: label('conn.subWorkDir'), value: sub.workDir || '', onChange: updateSubInstance(sub.id, 'workDir'), placeholder: '/projects/project-a' }),
+                      h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeSubInstance(sub.id) }, label('conn.removeSub')),
+                    ),
+                  ),
+                )
+              : h('div', { className: 'vb-muted' }, label('conn.noSubInstances')),
+            h('div', { className: 'vb-muted' }, label('conn.subInstancesHint')),
+          ),
           autoSessions ? h('div', { className: 'vb-muted' }, label('conn.autoSessionsHint')) : null,
           h(
             'div',
@@ -1393,6 +1490,8 @@ window.__ModuleLoader__.load({
         const [detectMessage, setDetectMessage] = React.useState('')
         const [instanceResults, setInstanceResults] = React.useState({})
         const [instanceBusy, setInstanceBusy] = React.useState('')
+        const [deployResults, setDeployResults] = React.useState({})
+        const [deployBusy, setDeployBusy] = React.useState('')
         const workspacePicker = ctx.get?.('uiWorkspace')
         React.useEffect(() => {
           if (!state || draft) return
@@ -1483,6 +1582,7 @@ window.__ModuleLoader__.load({
             daemonSetup: '',
             remoteScratchRoot: '',
             clientId: '',
+            subInstances: [],
             sshBackend: 'openssh',
             envShell: 'auto',
             cadenceEnvScript: '',
@@ -1541,6 +1641,25 @@ window.__ModuleLoader__.load({
               ...current,
               [connection.id]: { ...(current[connection.id] ?? {}), selected: row },
             }))
+          }
+        }
+        const deployDaemon = async (connection, replace = false) => {
+          if (replace && !window.confirm(label('deploy.confirmReplace'))) return
+          setDeployBusy(connection.id)
+          try {
+            const result = await invoke('connection.deploy', { connection: connection.id, replace })
+            if (result) {
+              setDeployResults((current) => ({ ...current, [connection.id]: result }))
+            }
+          } finally {
+            setDeployBusy('')
+          }
+        }
+        const copyDeployLine = async (line) => {
+          try {
+            await navigator.clipboard.writeText(line)
+          } catch {
+            // Clipboard access is optional.
           }
         }
         return h(
@@ -1684,6 +1803,7 @@ window.__ModuleLoader__.load({
                         h('span', { className: `vb-dot ${connection.runtime || 'stopped'}` }),
                         h('span', { className: 'vb-strong vb-ellipsis' }, connection.name),
                         connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
+                        connection.subInstances?.length ? h('span', { className: 'vb-chip' }, `${connection.subInstances.length} ${label('conn.subInstances')}`) : null,
                         connection.hasSecret ? h('span', { className: 'vb-chip' }, 'token') : null,
                         connection.id === state.settings.defaultConnection ? h('span', { className: 'vb-chip' }, label('conn.default')) : null,
                       ),
@@ -1693,6 +1813,8 @@ window.__ModuleLoader__.load({
                         connection.autoSessions
                           ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
                           : null,
+                        h(Button, { disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, false) }, deployBusy === connection.id ? label('loading') : label('deploy.deploy')),
+                        h(Button, { tone: 'danger', disabled: Boolean(busy) || deployBusy === connection.id || Boolean(connection.daemonSetup), onClick: () => deployDaemon(connection, true) }, label('deploy.replace')),
                         h(Button, { disabled: Boolean(busy), onClick: () => beginEdit(connection) }, label('edit')),
                         h(Button, { disabled: Boolean(busy), onClick: () => invoke('connection.test', { connection: connection.id }) }, label('test')),
                         h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
@@ -1727,6 +1849,30 @@ window.__ModuleLoader__.load({
                                 ),
                               )
                             : h('div', { className: 'vb-muted' }, label('instances.empty')),
+                        )
+                      : null,
+                    deployResults[connection.id]
+                      ? h(
+                          'div',
+                          { className: 'vb-warn' },
+                          h('div', { className: 'vb-strong' }, label('deploy.title')),
+                          deployResults[connection.id].shared
+                            ? h('div', { className: 'vb-muted' }, deployResults[connection.id].message || label('deploy.shared'))
+                            : h('div', { className: 'vb-muted' }, label('deploy.ready')),
+                          deployResults[connection.id].setupPath
+                            ? h('div', { className: 'vb-mono vb-muted vb-ellipsis', title: deployResults[connection.id].setupPath }, deployResults[connection.id].setupPath)
+                            : null,
+                          deployResults[connection.id].loadLine
+                            ? h(
+                                'div',
+                                { className: 'vb-field' },
+                                h('span', { className: 'vb-label' }, label('deploy.loadHint')),
+                                h('div', { className: 'vb-row vb-wrap' },
+                                  h('code', { className: 'vb-code' }, deployResults[connection.id].loadLine),
+                                  h(Button, { onClick: () => copyDeployLine(deployResults[connection.id].loadLine) }, label('deploy.copy')),
+                                ),
+                              )
+                            : null,
                         )
                       : null,
                     connection.daemon

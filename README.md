@@ -137,6 +137,26 @@ Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
 share that setup; changing a client environment cannot retroactively update a
 running CIW.
 
+#### Daemon deployment control
+
+Each configuration connection row has **Deploy daemon setup** and **Replace
+setup** controls. Deployment prepares/uploads the generated account bootstrap
+without starting a tunnel or daemon connection, then shows the exact
+`load("...")` line to use in the intended idle CIW. Replace is explicit and
+retains the previous generated bundle; a shared `daemonSetup` is reported as
+read-only and is never replaced by a client. The same action is available as
+`virtuoso_bridge_runtime` action `deploy_daemon` with `replace: true`.
+
+#### Workdir sub-instances
+
+A connection can carry a list of **workdir sub-instances**, each with a name and
+an absolute remote working directory. Each sub-instance starts with automatic
+sessions and an OS-assigned daemon port, gets its own VBL profile/sidecar, and
+is discovered/selected by workdir rather than by a fixed port. The runtime panel
+shows one card per sub-instance; tool calls select one with
+`subInstance: "<id|name|/absolute/workdir>"`. This allows multiple project CIWs
+under one connection without assigning fixed ports.
+
 On the first connection the plugin reads the offered host keys and stops in
 the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
 add a key until the user confirms it (the runtime-panel button, or a `trust_host`
@@ -213,8 +233,13 @@ the profile.
 
 `status`, `list`, `start`, `stop`, `restart`, `ping`, `connections`,
 `save_connection`, `delete_connection`, `test_connection`, `instances`,
-`select_instance`, `detect_shell`, `host_key`, `trust_host`, `orphans`,
-`stop_orphan`.
+`select_instance`, `deploy_daemon`, `detect_shell`, `host_key`, `trust_host`,
+`orphans`, `stop_orphan`.
+
+`start`/`restart` accept `subInstance` (a configured workdir id, name or absolute
+path) for multi-workdir connections. `deploy_daemon` prepares the account
+bootstrap and returns its load line; `replace: true` is the explicit upgrade
+path for generated files, while a shared setup stays read-only.
 
 `status`/`list` return a compact projection: setup readiness, connection
 endpoints, runtime state, daemon/instance state, attached agents and running
@@ -289,10 +314,11 @@ The plugin has two complementary surfaces, following the stock panel pattern:
 
 * **Virtuoso Bridge** in the left sidebar's global panel list opens the
   full-page configuration view: setup source and backends, fixed or automatic
-  session settings, connection editing, instance discovery/selection, runtime
-  defaults, cache directory and diagnostics. This replaces the former DSH
-  Settings page. Styling follows the stock management pages (page header,
-  constrained content column, section cards, shared buttons and theme tokens).
+  session settings, daemon deployment, workdir sub-instances, connection
+  editing, instance discovery/selection, runtime defaults, cache directory and
+  diagnostics. This replaces the former DSH Settings page. Styling follows the
+  stock management pages (page header, constrained content column, section
+  cards, shared buttons and theme tokens).
 * **Bridge runtime** is a right-sidebar tab. It shows connection/runtime,
   daemon and selected-instance state, attached agents, caches, ongoing/recent
   operations and activity. It has a **Configure** button that selects the left
@@ -332,6 +358,7 @@ lib/tools.js          four agent tools + prompt section
 runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
 runtime/vb_script.py  isolated batch script runner
 runtime/vb_instances.py read-only automatic-session discovery
+runtime/vb_deploy.py daemon bootstrap deployment
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
 vendor/               virtuoso-bridge-lite source snapshot + VENDOR.json
