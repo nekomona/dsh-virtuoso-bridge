@@ -127,7 +127,9 @@ panel.
 Advanced connections can set `daemonHost`, `deployHost`, `guiHost`,
 `remoteScratchRoot`, `clientId`, `sshMaxSessions` and a Paramiko
 `sshProxy` (`socks5://host:port`). These map to the upstream split-host,
-private-scratch and proxy settings.
+private-scratch and proxy settings. Host-key preflight and the SSH test target
+the primary `host`; trust additional role-host keys through `ssh`/known_hosts
+before using a split topology.
 
 For a site-wide bootstrap, install the upstream shared bundle on the Linux
 Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
