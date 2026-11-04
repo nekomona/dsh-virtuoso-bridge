@@ -9,7 +9,11 @@ full-page **Virtuoso Bridge** panel in the left sidebar.
 
 The plugin bundles a source snapshot of virtuoso-bridge-lite, so it works
 without a separate checkout, and can instead follow a local development repo or
-clone a git repository at a chosen ref.
+clone a git repository at a chosen ref. The bundled snapshot tracks upstream
+commit `1f186ab` (2026-11-03), including automatic session/instance discovery,
+instance-bound daemon authentication, shared daemon setup, split host roles,
+the expanded layout/bbox/group APIs, Maestro engine configuration and the newer
+Spectre presets.
 
 ## What it provides
 
@@ -18,7 +22,8 @@ clone a git repository at a chosen ref.
 | Tool source and isolated Python environment | Host setup manager, left **Virtuoso Bridge** config page, `virtuoso_bridge_setup` |
 | Server connections and credentials | Left **Virtuoso Bridge** config page, `virtuoso_bridge_runtime`, DSH credentials service |
 | Managed tunnels / daemons across conversations | Process-wide runtime manager, Host service |
-| Connection status, attached agents, caches, ongoing actions | Right-sidebar **Bridge runtime** panel |
+| Fixed-port or automatic-session daemon discovery and selection | Config page, `instances` / `select_instance` tool actions |
+| Connection status, daemon/instance state, attached agents, caches, ongoing actions | Right-sidebar **Bridge runtime** panel |
 | Every public virtuoso-bridge-lite function | `virtuoso_bridge_api` (`describe` / `call`) |
 | Batched Python in the venv | `virtuoso_bridge_script` (jobs, status, cancel) |
 
@@ -87,10 +92,13 @@ Add a connection in the left **Virtuoso Bridge** configuration panel or with
 
 ```json
 {
-  "name": "lab-virtuoso",
+  "name": "lab-virtuoso-auto",
   "host": "virtuoso01.example.com",
   "user": "designer",
-  "port": null,
+  "autoSessions": true,
+  "instancePort": null,
+  "remoteWorkDir": "/projects/example",
+  "daemonSetup": "/opt/virtuoso-bridge/v1/virtuoso_setup.il",
   "sshPort": 22,
   "jumpHost": "",
   "sshBackend": "openssh",
@@ -101,12 +109,31 @@ Add a connection in the left **Virtuoso Bridge** configuration panel or with
 }
 ```
 
-Leaving `port` blank derives the bridge's stable per-user daemon port from the
-SSH user name (SHA-1, range 65000–65499), matching
-`virtuoso_bridge.basic.bridge._default_remote_port`. `envShell: "auto"` runs
-the configured Cadence environment script under both csh and sh and chooses the
-one that exposes `virtuoso`; the result is cached per connection and can also be
-refreshed with `detect_shell` in the **Virtuoso Bridge** configuration panel.
+In fixed mode, leaving `port` blank derives the bridge's stable per-user daemon
+port from the SSH user name (SHA-1, range 65000–65499), matching
+`virtuoso_bridge.basic.bridge._default_remote_port`. In automatic mode
+(`autoSessions: true`), `port` is unused; the daemon uses an OS-assigned port.
+`remoteWorkDir` is an absolute filter, `daemonSetup` optionally names a shared
+`virtuoso_setup.il` installed by `virtuoso-bridge install-daemon`, and
+`instancePort` selects one discovered instance. Use the configuration page's
+**Discover instances** action or `virtuoso_bridge_runtime` action `instances`,
+then `select_instance` or **Use this instance** when more than one matches.
+
+`envShell: "auto"` runs the configured Cadence environment script under both
+csh and sh and chooses the one that exposes `virtuoso`; the result is cached per
+connection and can also be refreshed with `detect_shell` in the configuration
+panel.
+
+Advanced connections can set `daemonHost`, `deployHost`, `guiHost`,
+`remoteScratchRoot`, `clientId`, `sshMaxSessions` and a Paramiko
+`sshProxy` (`socks5://host:port`). These map to the upstream split-host,
+private-scratch and proxy settings.
+
+For a site-wide bootstrap, install the upstream shared bundle on the Linux
+Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
+`daemonSetup` to the printed `virtuoso_setup.il`. All automatic-session clients
+share that setup; changing a client environment cannot retroactively update a
+running CIW.
 
 On the first connection the plugin reads the offered host keys and stops in
 the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
@@ -151,6 +178,12 @@ records it from the connect handshake, and **Test** queries it again when a
 runtime sidecar is available. The runtime panel shows it as its own chip next to
 the connection state.
 
+Automatic-session runtimes also expose the selected `instance` (`port`, Virtuoso
+`pid`, `work_dir`, user) and the upstream daemon-build compatibility message.
+Discovery is read-only until a selection is stored; a missing selection or
+multiple matching instances fails with the available list rather than silently
+picking one.
+
 Runtimes are process-wide, so they survive conversation changes, forks and
 subagent sessions. They stop when the plugin is disabled/unloaded or DSH exits,
 or explicitly with action `stop`. An orphaned tunnel left by a crashed earlier
@@ -177,17 +210,20 @@ the profile.
 ### `virtuoso_bridge_runtime`
 
 `status`, `list`, `start`, `stop`, `restart`, `ping`, `connections`,
-`save_connection`, `delete_connection`, `test_connection`, `detect_shell`,
-`host_key`, `trust_host`, `orphans`, `stop_orphan`.
+`save_connection`, `delete_connection`, `test_connection`, `instances`,
+`select_instance`, `detect_shell`, `host_key`, `trust_host`, `orphans`,
+`stop_orphan`.
 
 `status`/`list` return a compact projection: setup readiness, connection
-endpoints, runtime state, daemon state, attached agents and running actions.
-Verbose install logs, source/venv debug paths, tunnel internals and full
+endpoints, runtime state, daemon/instance state, attached agents and running
+actions. Verbose install logs, source/venv debug paths, tunnel internals and full
 tracebacks stay in the UI, which keeps the full state. `status` with
 `waitMs` waits until an in-flight start settles (or the budget expires) instead
-of returning immediately while the runtime is still starting. `test_connection`
-uses the same SSH backend as the bridge — Paramiko sessions never launch
-`ssh.exe` — and includes the daemon status when a runtime is already reachable.
+of returning immediately while the runtime is still starting. `instances`
+performs read-only automatic-session discovery; `select_instance` stores the
+chosen port on the connection before a restart. `test_connection` uses the same
+SSH backend as the bridge — Paramiko sessions never launch `ssh.exe` — and
+includes the daemon status when a runtime is already reachable.
 
 ### `virtuoso_bridge_api`
 
@@ -200,6 +236,10 @@ client.schematic   client.layout    client.library   client.symbol
 client.maestro     client.sos       client.dialogs   client.requests
 spectre
 ```
+
+The dynamic `describe` follows the installed bridge, so the newer layout
+bbox/group builders, Maestro engine/X-preset operations, unified search and
+dialog helpers appear without plugin-specific wrappers.
 
 Example:
 
@@ -246,13 +286,15 @@ to continue with Paramiko only.
 The plugin has two complementary surfaces, following the stock panel pattern:
 
 * **Virtuoso Bridge** in the left sidebar's global panel list opens the
-  full-page configuration view: setup source and backends, connection editing,
-  runtime defaults, cache directory and diagnostics. This replaces the former
-  DSH Settings page. Styling follows the stock management pages (page header,
+  full-page configuration view: setup source and backends, fixed or automatic
+  session settings, connection editing, instance discovery/selection, runtime
+  defaults, cache directory and diagnostics. This replaces the former DSH
+  Settings page. Styling follows the stock management pages (page header,
   constrained content column, section cards, shared buttons and theme tokens).
-* **Bridge runtime** is a right-sidebar tab. It shows connection/runtime and
-  daemon state, attached agents, caches, ongoing/recent operations and activity.
-  It has a **Configure** button that selects the left configuration page.
+* **Bridge runtime** is a right-sidebar tab. It shows connection/runtime,
+  daemon and selected-instance state, attached agents, caches, ongoing/recent
+  operations and activity. It has a **Configure** button that selects the left
+  configuration page.
 
 The composer shows a waveform toggle only while this Session has an active
 bridge runtime attached (running, waiting, starting or connecting) via a tool
@@ -287,6 +329,7 @@ lib/http.js           token-protected state/action/SSE transport
 lib/tools.js          four agent tools + prompt section
 runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
 runtime/vb_script.py  isolated batch script runner
+runtime/vb_instances.py read-only automatic-session discovery
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
 vendor/               virtuoso-bridge-lite source snapshot + VENDOR.json

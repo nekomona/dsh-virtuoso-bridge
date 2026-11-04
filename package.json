@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Virtuoso Bridge for DeepSeek Harness: managed virtuoso-bridge-lite runtimes, an isolated Python environment, agent tools, a left-sidebar configuration page and a right-sidebar runtime panel.",
+  "description": "Virtuoso Bridge for DeepSeek Harness: managed virtuoso-bridge-lite runtimes, fixed or automatic-session daemon discovery, an isolated Python environment, agent tools, a left-sidebar configuration page and a right-sidebar runtime panel.",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",

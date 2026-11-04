@@ -377,11 +377,18 @@ def _layout_read_cellview(
     body: str,
 ) -> str:
     """Borrow an open view; release only a view opened by this read."""
-    names = " ".join(f'"{escape_skill_string(name)}"' for name in (lib, cell, view))
+    lib_name, cell_name, view_name = (
+        f'"{escape_skill_string(name)}"' for name in (lib, cell, view)
+    )
+    names = f"{lib_name} {cell_name} {view_name}"
     kind = escape_skill_string(view_type or default_view_type_for(view))
     return (
-        f"prog((cv ownsCv {variables}) "
+        f"prog((cv ownsCv libId {variables}) "
+        "if(isCallable('dbFindOpenCellViewByName) then "
         f"cv = dbFindOpenCellViewByName({names}) "
+        "else "
+        f"libId = ddGetObj({lib_name}) "
+        f"when(libId cv = dbFindOpenCellView(libId {cell_name} {view_name}))) "
         f'unless(cv cv = dbOpenCellViewByType({names} "{kind}" "r") ownsCv = cv) '
         f'unless(cv return(sprintf(nil "ERROR: cannot open %s/%s/%s" {names}))) '
         f"return(unwindProtect(progn({body}) "
@@ -426,6 +433,7 @@ def layout_read_geometry(
     *,
     view: str = "layout",
     view_type: str | None = None,
+    include_groups: bool = False,
 ) -> str:
     """Build SKILL to dump geometry, releasing only a view it opens.
 
@@ -456,7 +464,13 @@ def layout_read_geometry(
         'inst~>bBox inst~>transform)))) '
         "out"
     )
-    return _layout_read_cellview(lib, cell, view, view_type, "out", body)
+    variables = "out"
+    if include_groups:
+        from virtuoso_bridge.virtuoso.layout.groups import _group_rows
+
+        body = body.removesuffix("out") + _group_rows() + 'out = strcat(out sprintf(nil "groups\\tdata=%L\\n" reverse(rows))) out'
+        variables += " rows members"
+    return _layout_read_cellview(lib, cell, view, view_type, variables, body)
 
 # Set by LayoutEditor for the duration of a create()/modify() batch, so the
 # content operations below act on the edited cellview there rather than on

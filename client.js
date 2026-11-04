@@ -85,6 +85,35 @@ window.__ModuleLoader__.load({
       'conn.port': 'Daemon port',
       'conn.portHint': 'Leave blank to derive it from the SSH user (the bridge uses SHA-1 of the user, 65000–65499).',
       'conn.portAuto': 'Derive port from SSH user',
+      'conn.autoSessions': 'Automatic sessions (OS-assigned daemon ports)',
+      'conn.autoSessionsHint': 'Opt in to instance discovery. Leave the fixed daemon port unused and optionally filter by a remote working directory or select one instance port.',
+      'conn.instancePort': 'Instance port selector',
+      'conn.instancePortHint': 'Optional. Select exactly one discovered instance; leave blank to use the only match.',
+      'conn.remoteWorkDir': 'Remote work directory filter',
+      'conn.remoteWorkDirHint': 'VB_REMOTE_WORK_DIR: an absolute remote path used to narrow automatic session discovery.',
+      'conn.daemonSetup': 'Shared daemon setup',
+      'conn.daemonSetupHint': 'VB_DAEMON_SETUP: optional shared virtuoso_setup.il installed by install-daemon.',
+      'conn.remoteScratchRoot': 'Remote scratch root',
+      'conn.remoteScratchRootHint': 'VB_REMOTE_SCRATCH_ROOT: shared parent for deployment, records and discovery (absolute or ~/).',
+      'conn.sshProxy': 'SSH proxy',
+      'conn.sshProxyHint': 'Paramiko only: socks5://host:port for the first SSH hop.',
+      'conn.sshMaxSessions': 'Max SSH sessions',
+      'conn.daemonHost': 'Daemon host',
+      'conn.deployHost': 'Deployment host',
+      'conn.guiHost': 'GUI host',
+      'conn.clientId': 'Client identity',
+      'conn.autoBadge': 'auto sessions',
+      'instances.title': 'Discovered Virtuoso instances',
+      'instances.discover': 'Discover instances',
+      'instances.empty': 'No instances discovered.',
+      'instances.port': 'Port',
+      'instances.pid': 'Virtuoso PID',
+      'instances.workDir': 'Working directory',
+      'instances.instance': 'Instance',
+      'instances.use': 'Use this instance',
+      'instances.selected': 'Selected',
+      'instances.selectHint': 'Selecting an instance stores its port as the connection instance selector; start the runtime afterwards.',
+      'instances.failed': 'Instance discovery failed',
       'conn.sshPort': 'SSH port',
       'conn.localPort': 'Local tunnel port',
       'conn.jumpHost': 'Jump host',
@@ -262,6 +291,35 @@ window.__ModuleLoader__.load({
       'conn.port': '守护进程端口',
       'conn.portHint': '留空则按 SSH 用户名生成（桥接使用用户名的 SHA-1，范围 65000–65499）。',
       'conn.portAuto': '按 SSH 用户名生成端口',
+      'conn.autoSessions': '自动会话（守护进程使用系统分配端口）',
+      'conn.autoSessionsHint': '启用实例发现。不要设置固定守护进程端口；可选按远程工作目录过滤，或直接选择一个实例端口。',
+      'conn.instancePort': '实例端口选择',
+      'conn.instancePortHint': '可选。只选择一个已发现实例；留空表示使用唯一匹配项。',
+      'conn.remoteWorkDir': '远程工作目录过滤',
+      'conn.remoteWorkDirHint': 'VB_REMOTE_WORK_DIR：用于缩小自动会话发现范围的远程绝对路径。',
+      'conn.daemonSetup': '共享守护进程安装',
+      'conn.daemonSetupHint': 'VB_DAEMON_SETUP：可选的共享 virtuoso_setup.il（由 install-daemon 安装）。',
+      'conn.remoteScratchRoot': '远程暂存根目录',
+      'conn.remoteScratchRootHint': 'VB_REMOTE_SCRATCH_ROOT：部署、记录和发现的共享父目录（绝对路径或 ~/）。',
+      'conn.sshProxy': 'SSH 代理',
+      'conn.sshProxyHint': '仅 Paramiko：第一跳使用 socks5://host:port。',
+      'conn.sshMaxSessions': '最大 SSH 会话数',
+      'conn.daemonHost': '守护进程主机',
+      'conn.deployHost': '部署主机',
+      'conn.guiHost': 'GUI 主机',
+      'conn.clientId': '客户端标识',
+      'conn.autoBadge': '自动会话',
+      'instances.title': '已发现的 Virtuoso 实例',
+      'instances.discover': '发现实例',
+      'instances.empty': '未发现实例。',
+      'instances.port': '端口',
+      'instances.pid': 'Virtuoso PID',
+      'instances.workDir': '工作目录',
+      'instances.instance': '实例',
+      'instances.use': '使用此实例',
+      'instances.selected': '已选择',
+      'instances.selectHint': '选择实例后，其端口会保存为连接的实例选择器；随后启动运行时。',
+      'instances.failed': '实例发现失败',
       'conn.sshPort': 'SSH 端口',
       'conn.localPort': '本地隧道端口',
       'conn.jumpHost': '跳板机',
@@ -861,6 +919,7 @@ window.__ModuleLoader__.load({
               h('span', { className: `vb-dot ${state}` }),
               h('span', { className: 'vb-strong vb-ellipsis' }, connection.name),
               h(Pill, { state }),
+              connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
               connection.hasSecret ? h('span', { className: 'vb-chip', title: label('conn.tokenStored') }, 'token') : null,
             ),
             h(RuntimeActions, { connection, runtime, busy, invoke, onTestResult: setTestInfo }),
@@ -868,7 +927,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
-            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
+            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
           ),
           h(HostKeyPrompt, { connection, pending, busy, invoke }),
           testInfo && !testInfo.ok
@@ -898,6 +957,16 @@ window.__ModuleLoader__.load({
                   ? h('span', { className: 'vb-muted vb-ellipsis' }, (runtime?.daemon ?? connection.daemon).summary)
                   : null,
               )
+            : null,
+          runtime?.instance
+            ? h(
+                'div',
+                { className: 'vb-mono vb-muted vb-wrap' },
+                `instance port ${runtime.instance.port} · pid ${runtime.instance.pid} · ${runtime.instance.work_dir}`,
+              )
+            : null,
+          runtime?.daemonCompatibility
+            ? h('div', { className: 'vb-hint' }, runtime.daemonCompatibility)
             : null,
           runtime?.setupHint
             ? h(
@@ -1219,7 +1288,18 @@ window.__ModuleLoader__.load({
       function ConnectionEditor(props) {
         const { draft, setDraft, onSave, onCancel, busy, hasSecret } = props
         const update = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
-        const [derivePort, setDerivePort] = React.useState(draft.port === '' || draft.port === undefined)
+        const autoSessions = Boolean(draft.autoSessions)
+        const [derivePort, setDerivePort] = React.useState(!autoSessions && (draft.port === '' || draft.port === undefined))
+        const toggleAutoSessions = (event) => {
+          const next = event.target.checked
+          setDraft({
+            ...draft,
+            autoSessions: next,
+            port: next ? undefined : draft.port,
+            instancePort: next ? draft.instancePort : undefined,
+          })
+          if (next) setDerivePort(false)
+        }
         return h(
           'div',
           { className: 'vb-card' },
@@ -1230,13 +1310,28 @@ window.__ModuleLoader__.load({
             h(TextField, { label: label('conn.name'), value: draft.name, onChange: update('name'), placeholder: 'lab-virtuoso' }),
             h(TextField, { label: label('conn.host'), value: draft.host, onChange: update('host'), placeholder: 'gpu01.example.com' }),
             h(TextField, { label: label('conn.user'), value: draft.user || '', onChange: update('user'), placeholder: 'designer' }),
-            h(TextField, { label: label('conn.port'), value: draft.port ?? '', onChange: update('port'), inputMode: 'numeric', hint: label('conn.portHint'), placeholder: 'auto from SSH user', disabled: derivePort }),
-            h(CheckField, { checked: derivePort, onChange: (event) => { setDerivePort(event.target.checked); if (event.target.checked) setDraft({ ...draft, port: '' }) } }, label('conn.portAuto')),
             h(TextField, { label: label('conn.sshPort'), value: draft.sshPort ?? 22, onChange: update('sshPort'), inputMode: 'numeric' }),
             h(TextField, { label: label('conn.localPort'), value: draft.localPort ?? '', onChange: update('localPort'), inputMode: 'numeric', placeholder: 'optional' }),
             h(TextField, { label: label('conn.jumpHost'), value: draft.jumpHost || '', onChange: update('jumpHost'), placeholder: 'optional' }),
             h(TextField, { label: label('conn.jumpUser'), value: draft.jumpUser || '', onChange: update('jumpUser'), placeholder: 'optional' }),
+            h(CheckField, { checked: autoSessions, onChange: toggleAutoSessions }, label('conn.autoSessions')),
+            autoSessions
+              ? h(TextField, { label: label('conn.instancePort'), value: draft.instancePort ?? '', onChange: update('instancePort'), inputMode: 'numeric', hint: label('conn.instancePortHint'), placeholder: 'optional' })
+              : h(TextField, { label: label('conn.port'), value: draft.port ?? '', onChange: update('port'), inputMode: 'numeric', hint: label('conn.portHint'), placeholder: 'auto from SSH user', disabled: derivePort }),
+            autoSessions
+              ? h(TextField, { label: label('conn.remoteWorkDir'), value: draft.remoteWorkDir || '', onChange: update('remoteWorkDir'), hint: label('conn.remoteWorkDirHint'), placeholder: '/projects/example' })
+              : h(CheckField, { checked: derivePort, onChange: (event) => { setDerivePort(event.target.checked); if (event.target.checked) setDraft({ ...draft, port: '' }) } }, label('conn.portAuto')),
+            autoSessions
+              ? h(TextField, { label: label('conn.daemonSetup'), value: draft.daemonSetup || '', onChange: update('daemonSetup'), hint: label('conn.daemonSetupHint'), placeholder: '/opt/virtuoso-bridge/v1/virtuoso_setup.il' })
+              : null,
+            h(TextField, { label: label('conn.remoteScratchRoot'), value: draft.remoteScratchRoot || '', onChange: update('remoteScratchRoot'), hint: label('conn.remoteScratchRootHint'), placeholder: 'optional' }),
+            h(TextField, { label: label('conn.sshProxy'), value: draft.sshProxy || '', onChange: update('sshProxy'), hint: label('conn.sshProxyHint'), placeholder: 'socks5://127.0.0.1:10800' }),
+            h(TextField, { label: label('conn.sshMaxSessions'), value: draft.sshMaxSessions ?? '', onChange: update('sshMaxSessions'), inputMode: 'numeric', placeholder: 'optional' }),
+            h(TextField, { label: label('conn.daemonHost'), value: draft.daemonHost || '', onChange: update('daemonHost'), placeholder: 'optional role override' }),
+            h(TextField, { label: label('conn.deployHost'), value: draft.deployHost || '', onChange: update('deployHost'), placeholder: 'optional role override' }),
+            h(TextField, { label: label('conn.guiHost'), value: draft.guiHost || '', onChange: update('guiHost'), placeholder: 'optional role override' }),
             h(TextField, { label: label('conn.spectreHost'), value: draft.spectreHost || '', onChange: update('spectreHost'), placeholder: 'optional' }),
+            h(TextField, { label: label('conn.clientId'), value: draft.clientId || '', onChange: update('clientId'), placeholder: 'optional' }),
             h(SelectField, { label: label('conn.backend'), value: draft.sshBackend || 'openssh', onChange: update('sshBackend') },
               h('option', { value: 'openssh' }, 'openssh'),
               h('option', { value: 'paramiko' }, 'paramiko'),
@@ -1250,6 +1345,7 @@ window.__ModuleLoader__.load({
             h(TextField, { label: label('conn.identityFile'), value: draft.identityFile || '', onChange: update('identityFile'), hint: label('conn.identityHint'), placeholder: 'C:\\Users\\me\\.ssh\\id_ed25519' }),
             h(TextField, { label: label('conn.notes'), value: draft.notes || '', onChange: update('notes') }),
           ),
+          autoSessions ? h('div', { className: 'vb-muted' }, label('conn.autoSessionsHint')) : null,
           h(
             'div',
             { className: 'vb-row vb-wrap' },
@@ -1295,6 +1391,8 @@ window.__ModuleLoader__.load({
         const [diagnosis, setDiagnosis] = React.useState(null)
         const [installPrompt, setInstallPrompt] = React.useState(null)
         const [detectMessage, setDetectMessage] = React.useState('')
+        const [instanceResults, setInstanceResults] = React.useState({})
+        const [instanceBusy, setInstanceBusy] = React.useState('')
         const workspacePicker = ctx.get?.('uiWorkspace')
         React.useEffect(() => {
           if (!state || draft) return
@@ -1369,11 +1467,22 @@ window.__ModuleLoader__.load({
             host: '',
             user: '',
             port: '',
+            autoSessions: false,
+            instancePort: '',
             sshPort: 22,
             localPort: '',
             jumpHost: '',
             jumpUser: '',
+            sshMaxSessions: '',
+            sshProxy: '',
+            daemonHost: '',
+            deployHost: '',
+            guiHost: '',
             spectreHost: '',
+            remoteWorkDir: '',
+            daemonSetup: '',
+            remoteScratchRoot: '',
+            clientId: '',
             sshBackend: 'openssh',
             envShell: 'auto',
             cadenceEnvScript: '',
@@ -1410,6 +1519,29 @@ window.__ModuleLoader__.load({
         const runDiagnosis = async () => {
           const result = await invoke('setup.diagnose', {})
           if (result?.diagnosis) setDiagnosis(result.diagnosis)
+        }
+        const discoverInstances = async (connection) => {
+          setInstanceBusy(connection.id)
+          try {
+            const result = await invoke('connection.instances', { connection: connection.id })
+            if (result) {
+              setInstanceResults((current) => ({ ...current, [connection.id]: result }))
+            }
+          } finally {
+            setInstanceBusy('')
+          }
+        }
+        const useInstance = async (connection, row) => {
+          const saved = await invoke('connection.save', {
+            connection: { ...connection, instancePort: row.port },
+            restart: true,
+          })
+          if (saved) {
+            setInstanceResults((current) => ({
+              ...current,
+              [connection.id]: { ...(current[connection.id] ?? {}), selected: row },
+            }))
+          }
         }
         return h(
           'div',
@@ -1551,18 +1683,52 @@ window.__ModuleLoader__.load({
                         { className: 'vb-row vb-grow' },
                         h('span', { className: `vb-dot ${connection.runtime || 'stopped'}` }),
                         h('span', { className: 'vb-strong vb-ellipsis' }, connection.name),
+                        connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
                         connection.hasSecret ? h('span', { className: 'vb-chip' }, 'token') : null,
                         connection.id === state.settings.defaultConnection ? h('span', { className: 'vb-chip' }, label('conn.default')) : null,
                       ),
                       h(
                         'div',
                         { className: 'vb-actions' },
+                        connection.autoSessions
+                          ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
+                          : null,
                         h(Button, { disabled: Boolean(busy), onClick: () => beginEdit(connection) }, label('edit')),
                         h(Button, { disabled: Boolean(busy), onClick: () => invoke('connection.test', { connection: connection.id }) }, label('test')),
                         h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
                       ),
                     ),
-                    h('div', { className: 'vb-mono vb-muted vb-ellipsis' }, `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}`),
+                    h(
+                      'div',
+                      { className: 'vb-mono vb-muted vb-ellipsis' },
+                      `${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto · ${label('conn.instancePort')} ${connection.instancePort || 'auto'}` : `${connection.port}`} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}`,
+                    ),
+                    instanceResults[connection.id]
+                      ? h(
+                          'div',
+                          { className: 'vb-field' },
+                          h('div', { className: 'vb-row vb-between' }, h('span', { className: 'vb-label' }, label('instances.title')), h('span', { className: 'vb-muted' }, label('instances.selectHint'))),
+                          (instanceResults[connection.id].instances ?? []).length
+                            ? h(
+                                'div',
+                                null,
+                                instanceResults[connection.id].instances.map((row) =>
+                                  h(
+                                    'div',
+                                    { className: 'vb-row vb-between vb-wrap', key: `${row.port}-${row.instance}` },
+                                    h('div', { className: 'vb-row vb-grow vb-wrap' },
+                                      h('span', { className: 'vb-mono' }, `${label('instances.port')} ${row.port}`),
+                                      h('span', { className: 'vb-mono vb-muted' }, `pid ${row.pid}`),
+                                      h('span', { className: 'vb-mono vb-muted vb-ellipsis', title: row.work_dir }, row.work_dir),
+                                      connection.instancePort === row.port ? h('span', { className: 'vb-chip' }, label('instances.selected')) : null,
+                                    ),
+                                    h(Button, { disabled: Boolean(busy) || connection.instancePort === row.port, onClick: () => useInstance(connection, row) }, label('instances.use')),
+                                  ),
+                                ),
+                              )
+                            : h('div', { className: 'vb-muted' }, label('instances.empty')),
+                        )
+                      : null,
                     connection.daemon
                       ? h(
                           'div',

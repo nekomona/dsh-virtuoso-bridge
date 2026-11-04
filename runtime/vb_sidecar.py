@@ -410,7 +410,17 @@ class BridgeRuntime:
                     "spectre_host",
                     "remote_user",
                     "started_at",
+                    "instance_record",
+                    "remote_work_dir",
+                    "scratch_root",
                 )
+            },
+            "instances": {
+                "autoSessions": bool(getattr(self.tunnel, "_discover_instances", False)) if self.tunnel else None,
+                "selected": getattr(self.tunnel, "instance_record", None) if self.tunnel else None,
+                "expectedWorkDir": getattr(self.tunnel, "expected_work_dir", "") if self.tunnel else "",
+                "setupPath": getattr(self.tunnel, "setup_path", None) if self.tunnel else None,
+                "compatibility": getattr(self.tunnel, "daemon_compatibility", None) if self.tunnel else None,
             },
             "stderrTail": _STDERR_TAIL[-40:],
         }
@@ -421,6 +431,8 @@ class BridgeRuntime:
                 "remoteHost": getattr(self.client, "remote_host", None),
                 "isRemote": getattr(self.client, "is_remote", None),
                 "tunnelAlive": getattr(self.client, "is_tunnel_alive", None),
+                "instanceRecord": getattr(self.tunnel, "instance_record", None) if self.tunnel else None,
+                "daemonCaps": getattr(self.client, "_daemon_caps", None),
             }
             # A health probe executes SKILL.  Never interleave it with an
             # in-flight API call on the same socket.
@@ -437,11 +449,50 @@ class BridgeRuntime:
 
     # -- connect ------------------------------------------------------------
 
+    def instances(self, params: dict[str, Any]) -> dict[str, Any]:
+        """List daemon instances without selecting, provisioning or connecting."""
+        from virtuoso_bridge.transport.tunnel import SSHClient
+
+        selected_port = params.get("instancePort")
+        try:
+            selected_port = int(selected_port) if selected_port not in (None, "") else None
+        except (TypeError, ValueError):
+            selected_port = None
+        owned = self.tunnel is None
+        ssh = self.tunnel or SSHClient.from_env(
+            keep_remote_files=True,
+            profile=self.profile,
+            selected_port=selected_port,
+        )
+        try:
+            rows = ssh.list_instances(timeout=self.timeout)
+            return {
+                "autoSessions": bool(getattr(ssh, "_discover_instances", False)),
+                "instances": rows,
+                "selected": getattr(ssh, "instance_record", None),
+                "expectedWorkDir": getattr(ssh, "expected_work_dir", ""),
+                "setupPath": getattr(ssh, "setup_path", None),
+                "compatibility": getattr(ssh, "daemon_compatibility", None),
+            }
+        finally:
+            if owned:
+                try:
+                    ssh.close()
+                except Exception:
+                    pass
+
     def connect(self, params: dict[str, Any]) -> dict[str, Any]:
         if self.client is not None:
             return self.status()
         timeout = int(params.get("timeoutSec") or self.timeout or 120)
         token = params.get("daemonToken") or None
+        selected_port = params.get("instancePort")
+        try:
+            selected_port = int(selected_port) if selected_port not in (None, "") else None
+        except (TypeError, ValueError):
+            selected_port = None
+        if selected_port is not None and not 1 <= selected_port <= 65535:
+            selected_port = None
         self.log_to_ciw = bool(params.get("logToCiw", False))
         self.connect_started = time.time()
         self.connect_error = None
@@ -450,9 +501,13 @@ class BridgeRuntime:
                 from virtuoso_bridge import VirtuosoClient
                 from virtuoso_bridge.transport.tunnel import SSHClient
 
-                ssh = SSHClient.from_env(keep_remote_files=True, profile=self.profile)
-                ssh.warm(timeout=timeout)
+                ssh = SSHClient.from_env(
+                    keep_remote_files=True,
+                    profile=self.profile,
+                    selected_port=selected_port,
+                )
                 self.tunnel = ssh
+                ssh.warm(timeout=timeout)
                 if self.local:
                     client = VirtuosoClient.local(
                         host="127.0.0.1",
@@ -717,6 +772,8 @@ def _dispatch(runtime: BridgeRuntime, method: str, params: dict[str, Any]) -> An
         return {"pong": time.time(), "pid": os.getpid()}
     if method == "status":
         return runtime.status()
+    if method == "instances":
+        return runtime.instances(params)
     if method == "connect":
         return runtime.connect(params)
     if method == "disconnect":
