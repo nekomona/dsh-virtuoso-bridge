@@ -197,7 +197,8 @@ deploys the remote setup and connects the sidecar. A runtime reports:
   main conversation, so the right sidebar does not have to be open.
 * **waiting** — the tunnel is up but the Virtuoso CIW has not loaded the bridge
   setup yet. The runtime panel shows the exact `load("...")` command; run it in
-  the CIW, then the health poll flips the runtime to **running**.
+  the CIW, then the health poll flips the runtime to **running**. A responsive
+  daemon clears that load hint, so healthy connections show no CIW prompt.
 * **running** — `execute_skill("1+1")` answered through the daemon.
 * **stopped / error** — no sidecar, or the last start failed.
 
