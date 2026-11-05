@@ -85,6 +85,24 @@ extra definition.
 Python 3.9+ and `git` must be on `PATH`. The Python executable is configurable
 as `source.pythonPath` / `settings.pythonPath`.
 
+## Agent instructions and skills
+
+Setup installs the upstream documentation — `skills/`, `README.md` and
+`AGENTS.md` — into:
+
+```
+<dataDir>/instructions/
+```
+
+The plugin registers a **`virtuoso-bridge`** skill in the DSH skill catalog with
+that directory as its resource base and lists every installed `SKILL.md`.
+The system prompt also gives the absolute path and tells the agent to read the
+matching skill/reference before issuing bridge commands. Agents must not guess
+`virtuoso-bridge` CLI flags; they should use the plugin tools for live
+operations and read `skills/virtuoso/references/connection.md` for connection,
+deployment, automatic-session and instance-selection behavior. Reinstall or
+update the bridge to refresh the installed documentation.
+
 ## Connections and credentials
 
 Add a connection in the left **Virtuoso Bridge** configuration panel or with

@@ -8,6 +8,7 @@
   "contents": [
     "pyproject.toml",
     "README.md",
+    "AGENTS.md",
     "LICENSE",
     "mcp_server.py",
     "src/virtuoso_bridge",

@@ -75,6 +75,7 @@ window.__ModuleLoader__.load({
       'setup.repoUrl': 'Git repository URL',
       'setup.gitRef': 'Git ref',
       'setup.pythonPath': 'Python executable',
+      'setup.agentDocs': 'Agent documentation',
       'setup.recreate': 'Recreate the virtualenv before installing',
       'conn.empty': 'No server connection yet. Add one below or in Settings → Virtuoso Bridge.',
       'conn.add': 'Add connection',
@@ -292,6 +293,7 @@ window.__ModuleLoader__.load({
       'setup.repoUrl': 'Git 仓库地址',
       'setup.gitRef': 'Git 引用',
       'setup.pythonPath': 'Python 可执行文件',
+      'setup.agentDocs': '智能体文档',
       'setup.recreate': '安装前重建虚拟环境',
       'setup.cacheDir': '本地缓存目录',
       'setup.cacheDirHint': '存放 pip 轮子、Git 检出、脚本任务和大结果。虚拟环境、设置和日志仍留在数据目录。现有文件不会移动。',
@@ -1722,6 +1724,13 @@ window.__ModuleLoader__.load({
                     { className: 'vb-muted' },
                     `${label('backends.openssh')}: ${setup.backends.openssh?.available ? setup.backends.openssh.version || setup.backends.openssh.path : label('backends.missing')} · ` +
                       `${label('backends.paramiko')}: ${setup.backends.paramiko?.installed ? setup.backends.paramiko.version || label('backends.installed') : label('backends.missing')}`,
+                  )
+                : null,
+              setup.instructions?.dir
+                ? h(
+                    'div',
+                    { className: 'vb-mono vb-muted vb-ellipsis', title: setup.instructions.dir },
+                    `${label('setup.agentDocs')}: ${setup.instructions.dir}${setup.instructions.skills?.length ? ` · ${setup.instructions.skills.length} skills` : ''}`,
                   )
                 : null,
               setup.backends?.needsConfirmation

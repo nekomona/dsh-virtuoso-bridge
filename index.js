@@ -31,6 +31,7 @@ export function apply(ctx, config = {}) {
     let manager
     let tools
     let http
+    let skillDisposer
     let disposed = false
     const store = new SettingsStore({ dataDir, baseConfig: config })
     const setup = new SetupManager({
@@ -77,6 +78,11 @@ export function apply(ctx, config = {}) {
       await store.load()
       manager.credentials = ctx.get('credentials')
       await manager.init()
+      try {
+        skillDisposer = await registerBridgeSkill(ctx, manager, log)
+      } catch (error) {
+        log('warn', `could not register the bridge skill: ${error instanceof Error ? error.message : String(error)}`)
+      }
       log('info', 'host plugin ready')
     })().catch((error) => {
       log('error', `initialization failed: ${error instanceof Error ? error.message : String(error)}`)
@@ -93,6 +99,11 @@ export function apply(ctx, config = {}) {
         // ignore
       }
       try {
+        skillDisposer?.()
+      } catch {
+        // ignore
+      }
+      try {
         http?.dispose()
       } catch {
         // ignore
@@ -102,6 +113,22 @@ export function apply(ctx, config = {}) {
       log('info', 'host plugin unloaded')
     }
   }, 'virtuoso-bridge: host plugin')
+}
+
+async function registerBridgeSkill(ctx, manager, log) {
+  const skills = ctx.get('skills')
+  if (!skills?.register) {
+    log('warn', 'skills service is unavailable; bridge documentation remains on disk')
+    return undefined
+  }
+  const definition = await manager.setup.skillDefinition()
+  if (!definition) {
+    log('warn', 'bridge skill definition is unavailable; documentation path remains in the prompt')
+    return undefined
+  }
+  const dispose = skills.register(definition)
+  log('info', `registered skill "${definition.name}" from ${manager.setup.instructionsDir}`)
+  return dispose
 }
 
 function resolveDataDir(config) {
