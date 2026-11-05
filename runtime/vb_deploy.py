@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -36,6 +37,19 @@ def main() -> int:
             selected_port=selected_port,
             replace_setup=args.replace,
         )
+        scratch = os.environ.get("VB_REMOTE_SCRATCH_ROOT", "")
+        if scratch.startswith("~/"):
+            runner = getattr(ssh, "ssh_runner", None)
+            if runner is not None:
+                result = runner.run_command('getent passwd "$(id -u)" | cut -d: -f6')
+                home = (result.stdout or "").strip()
+                if result.returncode or not home.startswith("/"):
+                    raise RuntimeError(f"Cannot resolve the remote home for scratch root {scratch!r}")
+            else:
+                home = str(Path.home())
+            resolved = home.rstrip("/") + scratch[1:]
+            os.environ["VB_REMOTE_SCRATCH_ROOT"] = resolved
+            os.environ[f"VB_REMOTE_SCRATCH_ROOT_{args.profile}"] = resolved
         shared = str(getattr(ssh, "_shared_setup", "") or "")
         if shared:
             payload = {

@@ -226,6 +226,8 @@ window.__ModuleLoader__.load({
       'settings.maxScripts': 'Maximum concurrent scripts',
       'settings.defaultConnection': 'Default connection',
       'settings.autoStartHint': 'Checked connections start when DSH launches.',
+      'settings.defaultRemoteScratchRoot': 'Default remote scratch root',
+      'settings.defaultRemoteScratchRootHint': 'VB_REMOTE_SCRATCH_ROOT used when a connection leaves its own remote scratch root empty. Absolute or ~/.',
       'settings.noConnections': 'No connections yet.',
       'settings.diagnostics': 'Diagnostics',
       'settings.diagnosticsOk': 'All checks passed.',
@@ -441,6 +443,8 @@ window.__ModuleLoader__.load({
       'settings.maxScripts': '最大并发脚本数',
       'settings.defaultConnection': '默认连接',
       'settings.autoStartHint': '勾选的连接会在 DSH 启动时自动启动。',
+      'settings.defaultRemoteScratchRoot': '默认远程暂存根目录',
+      'settings.defaultRemoteScratchRootHint': '当连接未设置自己的远程暂存根目录时使用 VB_REMOTE_SCRATCH_ROOT。绝对路径或 ~/。',
       'settings.noConnections': '尚无连接。',
       'settings.diagnostics': '诊断',
       'settings.diagnosticsOk': '所有检查通过。',
@@ -1505,6 +1509,7 @@ window.__ModuleLoader__.load({
             maxScripts: state.settings.maxScripts,
             cacheDir: state.settings.cacheDir || '',
             installSshExtra: state.settings.installSshExtra !== false,
+            defaultRemoteScratchRoot: state.settings.defaultRemoteScratchRoot || '',
           })
         }, [state, draft])
         if (!state || !draft) {
@@ -1933,6 +1938,13 @@ window.__ModuleLoader__.load({
                   : null,
                 h(Button, { disabled: Boolean(busy), onClick: () => setDraft({ ...draft, cacheDir: '' }) }, label('setup.cacheDirDefault')),
               ),
+              h(TextField, {
+                label: label('settings.defaultRemoteScratchRoot'),
+                value: draft.defaultRemoteScratchRoot || '',
+                onChange: updateDraft('defaultRemoteScratchRoot'),
+                hint: label('settings.defaultRemoteScratchRootHint'),
+                placeholder: '/home/username/.virtuoso-bridge',
+              }),
               h(CheckField, { checked: draft.autoInstall, onChange: (event) => setDraft({ ...draft, autoInstall: event.target.checked }) }, label('settings.autoInstall')),
               h(CheckField, { checked: draft.logToCiw, onChange: (event) => setDraft({ ...draft, logToCiw: event.target.checked }) }, label('settings.logToCiw')),
               h(CheckField, { checked: draft.installSshExtra !== false, onChange: (event) => setDraft({ ...draft, installSshExtra: event.target.checked }) }, label('backends.installExtra')),

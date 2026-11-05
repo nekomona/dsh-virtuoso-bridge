@@ -349,6 +349,29 @@ class BridgeRuntime:
             # The import itself is reported later by package_info().
             pass
 
+    def _resolve_scratch_root(self, ssh: Any) -> None:
+        """Expand a leading ``~/`` for the bridge's remote path helpers.
+
+        The upstream deployment path uses ``VB_REMOTE_SCRATCH_ROOT`` literally
+        in fixed mode, while discovery expands ``~`` itself.  Resolve once here
+        so deployment and daemon startup use the same absolute root.
+        """
+        value = os.environ.get("VB_REMOTE_SCRATCH_ROOT", "")
+        if not value.startswith("~/"):
+            return
+        runner = getattr(ssh, "ssh_runner", None)
+        if runner is not None:
+            result = runner.run_command('getent passwd "$(id -u)" | cut -d: -f6')
+            home = (result.stdout or "").strip()
+            if result.returncode or not home.startswith("/"):
+                raise RuntimeError(f"Cannot resolve the remote home for scratch root {value!r}")
+        else:
+            home = str(Path.home())
+        resolved = home.rstrip("/") + value[1:]
+        os.environ["VB_REMOTE_SCRATCH_ROOT"] = resolved
+        suffix = f"_{self.profile}" if self.profile else ""
+        os.environ[f"VB_REMOTE_SCRATCH_ROOT{suffix}"] = resolved
+
     # -- import / status ----------------------------------------------------
 
     def package_info(self) -> dict[str, Any]:
@@ -506,6 +529,7 @@ class BridgeRuntime:
                     profile=self.profile,
                     selected_port=selected_port,
                 )
+                self._resolve_scratch_root(ssh)
                 self.tunnel = ssh
                 ssh.warm(timeout=timeout)
                 if self.local:

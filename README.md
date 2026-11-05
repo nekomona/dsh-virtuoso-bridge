@@ -131,6 +131,13 @@ private-scratch and proxy settings. Host-key preflight and the SSH test target
 the primary `host`; trust additional role-host keys through `ssh`/known_hosts
 before using a split topology.
 
+The configuration page's **Runtime defaults** also has a global **Default remote
+scratch root**. It is used when a connection leaves its own `remoteScratchRoot`
+empty and is passed to deployment, discovery, shells and scripts as
+`VB_REMOTE_SCRATCH_ROOT`; a per-connection value overrides it. Deployment
+therefore follows the same root as the runtime rather than falling back to
+`/tmp`.
+
 For a site-wide bootstrap, install the upstream shared bundle on the Linux
 Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
 `daemonSetup` to the printed `virtuoso_setup.il`. All automatic-session clients
