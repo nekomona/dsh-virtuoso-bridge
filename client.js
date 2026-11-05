@@ -941,6 +941,12 @@ window.__ModuleLoader__.load({
         const agents = runtime?.agents || []
         const [testInfo, setTestInfo] = React.useState(null)
         const pending = runtime?.pendingHostKey ?? testInfo?.pendingHostKey
+        const daemon = runtime?.daemon ?? connection.daemon
+        const daemonReady = daemon?.state === 'ready' || runtime?.health?.daemonResponsive === true
+        const showSetupHint =
+          Boolean(runtime?.setupHint) &&
+          !daemonReady &&
+          ['waiting', 'starting', 'connecting', 'error'].includes(runtime?.state)
         return h(
           'div',
           { className: 'vb-card' },
@@ -969,7 +975,7 @@ window.__ModuleLoader__.load({
             : testInfo?.ok
               ? h('div', { className: 'vb-muted' }, testInfo.detail || 'SSH test succeeded')
               : null,
-          testInfo?.daemon
+          testInfo?.daemon && (!runtime?.daemon || runtime.daemon.state !== 'ready')
             ? h(
                 'div',
                 { className: 'vb-row vb-gap6' },
@@ -977,18 +983,18 @@ window.__ModuleLoader__.load({
                 testInfo.daemon.summary ? h('span', { className: 'vb-muted vb-ellipsis' }, testInfo.daemon.summary) : null,
               )
             : null,
-          runtime?.health?.summary ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
-          runtime?.daemon || connection.daemon
+          runtime?.health?.summary && !daemonReady ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
+          daemon
             ? h(
                 'div',
                 { className: 'vb-row vb-wrap vb-gap6' },
                 h(
                   'span',
-                  { className: `vb-chip daemon-${(runtime?.daemon ?? connection.daemon).state || 'unknown'}` },
-                  `${label('daemon.title')}: ${daemonLabel(runtime?.daemon ?? connection.daemon)}`,
+                  { className: `vb-chip daemon-${daemon.state || 'unknown'}` },
+                  `${label('daemon.title')}: ${daemonLabel(daemon)}`,
                 ),
-                (runtime?.daemon ?? connection.daemon).summary
-                  ? h('span', { className: 'vb-muted vb-ellipsis' }, (runtime?.daemon ?? connection.daemon).summary)
+                daemon.summary
+                  ? h('span', { className: 'vb-muted vb-ellipsis' }, daemon.summary)
                   : null,
               )
             : null,
@@ -1002,7 +1008,7 @@ window.__ModuleLoader__.load({
           runtime?.daemonCompatibility
             ? h('div', { className: 'vb-hint' }, runtime.daemonCompatibility)
             : null,
-          runtime?.setupHint
+          showSetupHint
             ? h(
                 'div',
                 { className: 'vb-hint' },
@@ -1012,7 +1018,7 @@ window.__ModuleLoader__.load({
               )
             : null,
           runtime?.error ? h('div', { className: 'vb-error' }, runtime.error) : null,
-          runtime?.stage ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
+          runtime?.stage && runtime.state !== 'running' ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
           runtime?.errorDetail
             ? h(
                 'details',
