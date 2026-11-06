@@ -17,6 +17,7 @@
     "locale/*.json",
     "icon.svg",
     "README.md",
+    "docs/*.md",
     "LICENSE",
     "lib/*.js",
     "runtime/*.py",

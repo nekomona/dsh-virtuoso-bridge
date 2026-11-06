@@ -31,6 +31,7 @@ import enum
 import inspect
 import json
 import os
+import shlex
 import sys
 import threading
 import time
@@ -372,6 +373,45 @@ class BridgeRuntime:
         suffix = f"_{self.profile}" if self.profile else ""
         os.environ[f"VB_REMOTE_SCRATCH_ROOT{suffix}"] = resolved
 
+    def _prepare_dialog_helper(self, ssh: Any) -> None:
+        """Predeploy/verify the existing X11 dialog helper for this runtime.
+
+        This is only a wrapper around virtuoso_bridge.virtuoso.x11: the helper
+        path, upload and file are owned by the bridge.  Failures are logged and
+        never fail the runtime; an explicit dismiss call will surface them.
+        """
+        runner = getattr(ssh, "gui_runner", None) or getattr(ssh, "ssh_runner", None)
+        user = getattr(runner, "user", None) or getattr(ssh, "remote_user", None)
+        if runner is None or not user:
+            return
+        try:
+            from virtuoso_bridge.transport.remote_paths import (
+                default_virtuoso_bridge_dir,
+                resolve_client_id,
+            )
+            from virtuoso_bridge.virtuoso import x11
+
+            remote_dir = default_virtuoso_bridge_dir(
+                user, "x11", resolve_client_id(self.profile)
+            )
+            remote_path = f"{remote_dir}/x11_dismiss_dialog.py"
+            check = runner.run_command(f"test -s {shlex.quote(remote_path)}")
+            if getattr(check, "returncode", 1) == 0:
+                return
+            path = x11._ensure_helper(runner, user, self.profile)
+            check = runner.run_command(f"test -s {shlex.quote(path)}")
+            if getattr(check, "returncode", 1) != 0:
+                # The upstream helper upload is best-effort; retry its own
+                # upload primitive once and verify before giving up.
+                runner.run_command(f"mkdir -p {shlex.quote(remote_dir)}")
+                runner.upload(x11._HELPER_SCRIPT, remote_path)
+                check = runner.run_command(f"test -s {shlex.quote(remote_path)}")
+            if getattr(check, "returncode", 1) != 0:
+                raise RuntimeError(f"X11 dialog helper is missing at {remote_path}")
+            log(f"X11 dialog helper ready at {remote_path}")
+        except Exception as error:
+            log(f"X11 dialog helper predeployment skipped: {error}", "warn")
+
     # -- import / status ----------------------------------------------------
 
     def package_info(self) -> dict[str, Any]:
@@ -532,6 +572,7 @@ class BridgeRuntime:
                 self._resolve_scratch_root(ssh)
                 self.tunnel = ssh
                 ssh.warm(timeout=timeout)
+                self._prepare_dialog_helper(ssh)
                 if self.local:
                     client = VirtuosoClient.local(
                         host="127.0.0.1",

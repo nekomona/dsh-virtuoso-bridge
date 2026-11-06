@@ -103,6 +103,12 @@ operations and read `skills/virtuoso/references/connection.md` for connection,
 deployment, automatic-session and instance-selection behavior. Reinstall or
 update the bridge to refresh the installed documentation.
 
+The plugin also installs `references/agent-workflows.md`, a short wrapper guide
+over existing VBL APIs: `MaestroJobManager` for durable Maestro jobs,
+`client.dialogs` plus `x11.dismiss_window` for dialogs, and the existing
+save/history/job-policy calls. It intentionally adds no Maestro runner, job
+store, dialog manager, history manager or scheduler of its own.
+
 ## Connections and credentials
 
 Add a connection in the left **Virtuoso Bridge** configuration panel or with
@@ -385,6 +391,7 @@ runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
 runtime/vb_script.py  isolated batch script runner
 runtime/vb_instances.py read-only automatic-session discovery
 runtime/vb_deploy.py daemon bootstrap deployment
+docs/agent-workflows.md wrapper recipes over existing VBL APIs
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
 vendor/               virtuoso-bridge-lite source snapshot + VENDOR.json
