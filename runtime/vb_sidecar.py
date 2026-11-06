@@ -444,6 +444,40 @@ class BridgeRuntime:
         except Exception:
             return {}
 
+    def inspect_dialogs(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Read-only X11 observation used when the daemon is not answering."""
+        if self.client is None:
+            return {"ok": False, "error": "the bridge is not connected"}
+        try:
+            pid = params.get("pid") or getattr(self.client, "remote_virtuoso_pid", None)
+            if not pid:
+                pid = self.client.get_virtuoso_pid(timeout=10)
+            if not pid:
+                return {"ok": False, "error": "the Virtuoso process id is not known"}
+            report = self.client.dialogs.inspect(
+                pid=int(pid),
+                timeout=min(20.0, max(2.0, float(params.get("timeout") or 12))),
+            )
+            data = report.model_dump() if hasattr(report, "model_dump") else report
+            return {"ok": True, **(data if isinstance(data, dict) else {})}
+        except Exception as error:  # noqa: BLE001 - expose as status, not a crash
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+
+    def working_dir(self) -> dict[str, Any]:
+        if self.client is None:
+            return {"ok": False, "error": "the bridge is not connected"}
+        try:
+            result = self.client.execute_skill("getWorkingDir()", timeout=10)
+            value = getattr(result, "output", None)
+            if value is None and isinstance(result, dict):
+                value = result.get("output")
+            text = str(value).strip()
+            if len(text) >= 2 and text[0] == text[-1] and text[0] in {'"', "'"}:
+                text = text[1:-1]
+            return {"ok": True, "workDir": text}
+        except Exception as error:  # noqa: BLE001
+            return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+
     def status(self) -> dict[str, Any]:
         info = self.package_info()
         state = self.read_state()
@@ -839,6 +873,10 @@ def _dispatch(runtime: BridgeRuntime, method: str, params: dict[str, Any]) -> An
         return runtime.status()
     if method == "instances":
         return runtime.instances(params)
+    if method == "dialogs":
+        return runtime.inspect_dialogs(params)
+    if method == "working_dir":
+        return runtime.working_dir()
     if method == "connect":
         return runtime.connect(params)
     if method == "disconnect":

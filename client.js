@@ -180,6 +180,10 @@ window.__ModuleLoader__.load({
       'conn.kind.local': 'Local Virtuoso',
       'conn.kind.remote': 'Remote server',
       'conn.ciwHint': 'Run this in the Virtuoso CIW, then refresh:',
+      'conn.dialogHint': 'A CIW popup is blocking the bridge:',
+      'conn.dialogClickHint': 'Click or answer it in the Virtuoso window, then refresh. Do not reinstall the daemon for this.',
+      'conn.daemonLostHint': 'The daemon stopped answering after it was previously connected. Check the CIW for a modal dialog, a busy command, or a crashed session.',
+      'conn.dialogUnknownHint': 'The daemon is not answering and dialog inspection could not complete.',
       'conn.default': 'Default',
       'conn.autoStart': 'Start with DSH',
       'conn.deleteConfirm': 'Delete this connection? Its stored token is removed too.',
@@ -207,6 +211,7 @@ window.__ModuleLoader__.load({
       'setup.backendsTitle': 'SSH backends',
       'setup.preflight': 'Refresh backends',
       'agents.empty': 'No agent has used a runtime yet.',
+      'agents.emptyActive': 'No active agent sessions in the last 10 minutes.',
       'agents.calls': 'calls',
       'agents.last': 'last used',
       'agents.live': 'live',
@@ -429,6 +434,10 @@ window.__ModuleLoader__.load({
       'conn.kind.local': '本地 Virtuoso',
       'conn.kind.remote': '远程服务器',
       'conn.ciwHint': '在 Virtuoso CIW 中执行以下命令后刷新：',
+      'conn.dialogHint': 'CIW 弹窗正在阻塞桥接：',
+      'conn.dialogClickHint': '请在 Virtuoso 窗口中点击或回答该弹窗，然后刷新。不要因此重装守护进程。',
+      'conn.daemonLostHint': '守护进程在连接后停止响应。请检查 CIW 是否被弹窗、正在执行的命令或已崩溃的会话阻塞。',
+      'conn.dialogUnknownHint': '守护进程未响应，且无法完成弹窗检查。',
       'conn.default': '默认',
       'conn.autoStart': '随 DSH 启动',
       'conn.deleteConfirm': '删除此连接？已存储的令牌也会被移除。',
@@ -450,6 +459,7 @@ window.__ModuleLoader__.load({
       'backends.extraHint': '默认会从桥接的 ssh extra 安装 Paramiko 与 PySocks。',
       'backends.installExtra': '默认安装 Paramiko SSH 扩展',
       'agents.empty': '尚无智能体使用运行时。',
+      'agents.emptyActive': '最近 10 分钟内没有活跃的智能体会话。',
       'agents.calls': '次调用',
       'agents.last': '最近使用',
       'agents.live': '在线',
@@ -663,12 +673,21 @@ window.__ModuleLoader__.load({
       return bases
     }
 
+    function fetchSignal(ms) {
+      try {
+        return typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function' ? AbortSignal.timeout(ms) : undefined
+      } catch {
+        return undefined
+      }
+    }
+
     async function bootstrapAt(base) {
       const response = await fetch(`${base}/bootstrap`, {
         method: 'GET',
         headers: { accept: 'application/json' },
         credentials: 'same-origin',
         cache: 'no-store',
+        signal: fetchSignal(8_000),
       })
       if (!response.ok) return undefined
       let data
@@ -681,6 +700,12 @@ window.__ModuleLoader__.load({
     }
 
     async function ensureSession(force = false) {
+      const global = bridgeGlobal()
+      const globalToken = global?.token
+      if (session.token && globalToken && session.token !== globalToken) {
+        session.base = undefined
+        session.token = undefined
+      }
       if (!force && session.base && session.token) return session
       if (session.resolving) return session.resolving
       session.resolving = (async () => {
@@ -699,11 +724,11 @@ window.__ModuleLoader__.load({
             problems.push(`${base} → ${error?.message || error}`)
           }
         }
-        const global = bridgeGlobal()
+        const fallbackGlobal = bridgeGlobal()
         session.base =
           session.base ||
-          (global?.origin ? `${String(global.origin).replace(/\/+$/, '')}${global.basePath || BASE_PATH}` : configuredBase())
-        session.token = session.token || global?.token
+          (fallbackGlobal?.origin ? `${String(fallbackGlobal.origin).replace(/\/+$/, '')}${fallbackGlobal.basePath || BASE_PATH}` : configuredBase())
+        session.token = session.token || fallbackGlobal?.token
         session.lastError = problems.slice(0, 3).join('; ') || 'no dashboard endpoint answered'
         return session
       })().finally(() => {
@@ -723,6 +748,7 @@ window.__ModuleLoader__.load({
         headers,
         credentials: 'same-origin',
         cache: 'no-store',
+        signal: fetchSignal(12_000),
         body: options.body === undefined ? undefined : JSON.stringify(options.body),
       })
       let data
@@ -750,11 +776,12 @@ window.__ModuleLoader__.load({
           return await rawRequest(current.base, current.token, path, options)
         } catch (error) {
           lastError = error
-          if (error?.status === 403) {
+          const status = error?.status
+          const networkFailure =
+            error instanceof TypeError ||
+            /failed to fetch|networkerror|load failed|fetch/i.test(String(error?.message || ''))
+          if (status === 403 || status === 404 || networkFailure) {
             session.token = undefined
-            continue
-          }
-          if (error?.status === 404) {
             session.base = undefined
             continue
           }
@@ -1160,9 +1187,15 @@ window.__ModuleLoader__.load({
         const pending = runtime?.pendingHostKey ?? testInfo?.pendingHostKey
         const daemon = runtime?.daemon ?? connection.daemon
         const daemonReady = daemon?.state === 'ready' || runtime?.health?.daemonResponsive === true
+        const dialogBlocked = runtime?.dialog?.status === 'blocked'
+        const dialogTitle = runtime?.dialog?.dialogs?.map((item) => item.title).filter(Boolean).join(', ')
+        const dialogIndeterminate = runtime?.dialog && runtime.dialog.status !== 'clear' && !dialogBlocked
         const showSetupHint =
           Boolean(runtime?.setupHint) &&
           !daemonReady &&
+          !runtime?.wasReady &&
+          !dialogBlocked &&
+          !dialogIndeterminate &&
           ['waiting', 'starting', 'connecting', 'error'].includes(runtime?.state)
         return h(
           'div',
@@ -1184,7 +1217,7 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
-            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.remoteWorkDir ? ` ${connection.remoteWorkDir}` : connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
+            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.remoteWorkDir ? ` ${connection.remoteWorkDir}` : connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port}${(runtime?.remoteWorkDir || connection.remoteWorkDir) && !connection.autoSessions ? ` · cwd ${runtime?.remoteWorkDir || connection.remoteWorkDir}` : ''} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
           ),
           h(HostKeyPrompt, { connection, pending, busy, invoke, subInstanceId }),
           testInfo && !testInfo.ok
@@ -1225,6 +1258,21 @@ window.__ModuleLoader__.load({
           runtime?.daemonCompatibility
             ? h('div', { className: 'vb-hint' }, runtime.daemonCompatibility)
             : null,
+          dialogBlocked
+            ? h(
+                'div',
+                { className: 'vb-warn' },
+                h('div', { className: 'vb-strong' }, `${label('conn.dialogHint')} ${dialogTitle || 'Virtuoso dialog'}`),
+                h('div', null, label('conn.dialogClickHint')),
+              )
+            : null,
+          dialogIndeterminate
+            ? h(
+                'div',
+                { className: 'vb-hint' },
+                `${label('conn.dialogUnknownHint')}${runtime.dialog.error ? ` ${runtime.dialog.error}` : ''}`,
+              )
+            : null,
           showSetupHint
             ? h(
                 'div',
@@ -1233,6 +1281,9 @@ window.__ModuleLoader__.load({
                 ' ',
                 h('code', { className: 'vb-code' }, runtime.setupHint),
               )
+            : null,
+          !daemonReady && runtime?.wasReady && !dialogBlocked
+            ? h('div', { className: 'vb-hint' }, label('conn.daemonLostHint'))
             : null,
           runtime?.error ? h('div', { className: 'vb-error' }, runtime.error) : null,
           runtime?.stage && runtime.state !== 'running' ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
@@ -1341,10 +1392,12 @@ window.__ModuleLoader__.load({
         const loadJob = React.useCallback(async () => {
           if (!isScript || job || loading) return
           setLoading(true)
+          const timeout = setTimeout(() => setLoading(false), 15_000)
           try {
             const result = await invoke('script.status', { job: item.meta.jobId })
             if (result) setJob(result)
           } finally {
+            clearTimeout(timeout)
             setLoading(false)
           }
         }, [invoke, isScript, item.meta?.jobId, job, loading])
@@ -1489,6 +1542,12 @@ window.__ModuleLoader__.load({
         const actions = state.actions || []
         const agents = state.agents || []
         const caches = state.caches || []
+        const activeSince = Date.now() - 10 * 60_000
+        const activeAgents = agents.filter(
+          (agent) =>
+            (agent.live && Number(agent.lastUsedAt || 0) >= activeSince) ||
+            actions.some((action) => String(action.agentId || '') === String(agent.sessionId) && action.state === 'running'),
+        )
         const sessionName = (sessionId) => {
           const id = String(sessionId)
           const collection = sessionSnapshot?.byId ?? sessionSnapshot?.sessions?.byId
@@ -1573,12 +1632,12 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.agents'), count: agents.length },
-            agents.length
+            { title: label('section.agents'), count: activeAgents.length },
+            activeAgents.length
               ? h(
                   'div',
                   { className: 'vb-card' },
-                  agents.map((agent) =>
+                  activeAgents.map((agent) =>
                     h(AgentHistory, {
                       key: agent.sessionId,
                       agent,
@@ -1588,7 +1647,7 @@ window.__ModuleLoader__.load({
                     }),
                   ),
                 )
-              : h('div', { className: 'vb-card flat vb-muted' }, label('agents.empty')),
+              : h('div', { className: 'vb-card flat vb-muted' }, label('agents.emptyActive')),
           ),
           h(
             Section,
