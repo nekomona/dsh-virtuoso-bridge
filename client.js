@@ -23,7 +23,7 @@ window.__ModuleLoader__.load({
       'runtime.title': 'Bridge runtime',
       'runtime.description': 'Live connection, daemon, agent and operation status.',
       'runtime.open': 'Toggle the Virtuoso Bridge runtime panel',
-      'script.title': 'Python script',
+      'script.title': 'Script',
       'script.code': 'Code',
       'script.result': 'Result',
       'script.running': 'Running...',
@@ -249,7 +249,7 @@ window.__ModuleLoader__.load({
       'runtime.title': '桥接运行时',
       'runtime.description': '实时显示连接、守护进程、智能体和操作状态。',
       'runtime.open': '切换 Virtuoso 桥接运行时面板',
-      'script.title': 'Python 脚本',
+      'script.title': '脚本',
       'script.code': '代码',
       'script.result': '结果',
       'script.running': '运行中...',
@@ -742,7 +742,7 @@ window.__ModuleLoader__.load({
 .vb-script-header:hover{background:var(--dsw-alias-bg-layer-2)}
 .vb-script-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
 .vb-script-glyph{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:600 9px/1 ui-monospace,SFMono-Regular,Consolas,monospace;flex:none}
-.vb-script-title{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.vb-script-title{flex:1 1 auto;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .vb-script-state{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;flex:none}
 .vb-script-state[data-state="error"],.vb-script-state[data-state="stopped"]{color:var(--dsw-alias-state-error-primary)}
 .vb-script-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
@@ -786,7 +786,7 @@ window.__ModuleLoader__.load({
     function ScriptToolView(props) {
       const { block, useDisclosure, inspect } = props
       const fallback = {
-        'script.title': 'Python script',
+        'script.title': 'Script',
         'script.code': 'Code',
         'script.result': 'Result',
         'script.running': 'Running...',
@@ -811,12 +811,12 @@ window.__ModuleLoader__.load({
       const code = typeof args.code === 'string' ? args.code : args.path ? `# script: ${args.path}` : ''
       const result = done ? scriptResultText(block) : ''
       const description = String(args.description ?? '').split(/\r?\n/)[0].trim()
-      const title = description || (code.split(/\r?\n/).find((line) => line.trim()) ?? '').trim() || tr('script.title')
+      const type = tr('script.title')
+      const title = description ? `${type}: ${description}` : type
       const stateLabel = state === 'error' ? tr('script.failed') : state === 'stopped' ? tr('script.stopped') : state === 'running' || state === 'preparing' ? tr('script.running') : ''
-      const expandable = Boolean(code || result)
-      const open = expanded && expandable
+      const open = expanded
       const onKeyDown = (event) => {
-        if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) return
+        if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
         toggle()
       }
@@ -827,16 +827,16 @@ window.__ModuleLoader__.load({
           'div',
           {
             className: 'vb-script-header',
-            role: expandable ? 'button' : undefined,
-            tabIndex: expandable ? 0 : undefined,
-            'aria-expanded': expandable ? open : undefined,
-            onClick: expandable ? toggle : undefined,
+            role: 'button',
+            tabIndex: 0,
+            'aria-expanded': open,
+            onClick: toggle,
             onKeyDown,
           },
           h('span', { className: 'vb-script-glyph' }, 'Py'),
           h('span', { className: 'vb-script-title', title }, title),
           stateLabel ? h('span', { className: 'vb-script-state', 'data-state': state }, stateLabel) : null,
-          h('span', { className: 'vb-script-chevron', 'aria-hidden': true }, open ? 'v' : '>'),
+          h('span', { className: 'vb-script-chevron', 'aria-hidden': true }, open ? '\u25BE' : '\u25B8'),
         ),
         open
           ? h(
