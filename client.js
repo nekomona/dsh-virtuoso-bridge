@@ -62,6 +62,23 @@ window.__ModuleLoader__.load({
       'section.caches': 'Local cache storage',
       'section.actions': 'Ongoing actions',
       'section.logs': 'Recent activity',
+      'section.globalHistory': 'Global history',
+      'history.script': 'Script',
+      'history.runtime': 'Runtime',
+      'history.connection': 'Connection',
+      'history.setup': 'Setup',
+      'history.shell': 'Shell',
+      'history.tool': 'Tool',
+      'history.operation': 'Operation',
+      'history.noHistory': 'No completed history yet.',
+      'history.running': 'Running',
+      'history.operations': 'Operations',
+      'history.code': 'Code',
+      'history.result': 'Result',
+      'history.details': 'Details',
+      'history.loading': 'Loading…',
+      'history.noResult': 'No result yet.',
+      'history.noContent': 'No content.',
       'section.setup': 'Environment',
       'section.defaults': 'Runtime defaults',
       'section.credentials': 'Credentials',
@@ -288,6 +305,23 @@ window.__ModuleLoader__.load({
       'section.caches': '本地缓存存储',
       'section.actions': '进行中的操作',
       'section.logs': '最近活动',
+      'section.globalHistory': '全局历史',
+      'history.script': '脚本',
+      'history.runtime': '运行时',
+      'history.connection': '连接',
+      'history.setup': '设置',
+      'history.shell': 'Shell',
+      'history.tool': '工具',
+      'history.operation': '操作',
+      'history.noHistory': '尚无已完成历史。',
+      'history.running': '运行中',
+      'history.operations': '操作',
+      'history.code': '代码',
+      'history.result': '结果',
+      'history.details': '详情',
+      'history.loading': '加载中…',
+      'history.noResult': '暂无结果。',
+      'history.noContent': '暂无内容。',
       'section.setup': '环境',
       'section.defaults': '运行时默认值',
       'section.credentials': '凭据',
@@ -540,6 +574,37 @@ window.__ModuleLoader__.load({
 .vb-spacer{height:1px;background:var(--dsw-alias-border-l1);margin:2px 0}
 .vb-agent{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .vb-agent:last-child{border-bottom:none}
+.vb-agent-group{border-bottom:1px solid var(--dsw-alias-border-l1);padding:4px 0 8px}
+.vb-agent-group:last-child{border-bottom:none}
+.vb-agent-head{display:flex;align-items:center;gap:8px;min-width:0;padding:4px 0;cursor:pointer;border:0;background:transparent;color:inherit;text-align:left;width:100%;font:inherit}
+.vb-agent-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;border-radius:4px}
+.vb-agent-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500}
+.vb-agent-count{color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
+.vb-agent-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px;flex:none}
+.vb-agent-last{color:var(--dsw-alias-label-secondary);font-size:10px;padding-left:16px}
+.vb-agent-ongoing{display:flex;flex-direction:column;gap:2px;margin:2px 0 0 16px}
+.vb-agent-ongoing-item{display:flex;align-items:center;gap:6px;min-width:0;color:var(--dsw-alias-label-primary);font-size:11px}
+.vb-agent-ongoing-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vb-op-pulse{width:8px;height:8px;border-radius:50%;flex:none;background:var(--dsw-alias-state-success-primary);opacity:0;box-shadow:none;animation:vb-op-pulse 1.15s ease-in-out infinite}
+@keyframes vb-op-pulse{0%,100%{opacity:0;box-shadow:none}50%{opacity:1;box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 24%,transparent)}}
+@media (prefers-reduced-motion: reduce){.vb-op-pulse{animation:none;opacity:1;box-shadow:none}}
+.vb-history-list{display:flex;flex-direction:column;gap:2px;margin:4px 0 0 16px;padding-left:8px;border-left:1px solid var(--dsw-alias-border-l1)}
+.vb-history-item{min-width:0}
+.vb-history-head{display:flex;align-items:center;gap:6px;width:100%;min-width:0;border:0;background:transparent;color:var(--dsw-alias-label-primary);font:inherit;text-align:left;padding:3px 0;cursor:pointer}
+.vb-history-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;border-radius:4px}
+.vb-history-type{color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
+.vb-history-label{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11px}
+.vb-history-state{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
+.vb-history-state[data-state="failed"],.vb-history-state[data-state="error"]{color:var(--dsw-alias-state-error-primary)}
+.vb-history-state[data-state="succeeded"]{color:var(--dsw-alias-state-success-primary)}
+.vb-history-chevron{color:var(--dsw-alias-label-secondary);font-size:11px;flex:none;margin-left:2px;width:12px;text-align:center}
+.vb-history-body{display:flex;flex-direction:column;gap:5px;margin:1px 0 4px 14px}
+.vb-history-section{display:flex;flex-direction:column;gap:2px;min-width:0}
+.vb-history-section-label{color:var(--dsw-alias-label-secondary);font-size:10px}
+.vb-history-code{margin:0 0 3px 0;padding:6px;border-radius:5px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:10px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;overflow:auto;max-height:260px;tab-size:2}
+.vb-history-code[data-state="error"]{color:var(--dsw-alias-state-error-primary)}
+.vb-history-empty{color:var(--dsw-alias-label-secondary);font-size:10px;padding:1px 0}
+.vb-empty-history{color:var(--dsw-alias-label-secondary);font-size:10px;margin:4px 0 0 16px}
 .vb-chip{display:inline-flex;align-items:center;gap:4px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:1px 7px;font-size:10px;color:var(--dsw-alias-label-secondary)}
 .vb-chip.daemon-ready{color:var(--dsw-alias-state-success, #2e7d32);border-color:var(--dsw-alias-state-success, #2e7d32)}
 .vb-chip.daemon-no-response{color:var(--dsw-alias-state-warning, #a15c00);border-color:var(--dsw-alias-state-warning, #a15c00)}
@@ -1250,9 +1315,166 @@ window.__ModuleLoader__.load({
         )
       }
 
+      function pathLeaf(value) {
+        const text = String(value || '').replace(/[\\/]+$/, '')
+        return text.split(/[\\/]/).filter(Boolean).at(-1) || ''
+      }
+
+      function historyTypeKey(kind) {
+        const text = String(kind || '')
+        if (text.startsWith('script.')) return 'history.script'
+        if (text.startsWith('runtime.')) return 'history.runtime'
+        if (text.startsWith('connection.')) return 'history.connection'
+        if (text.startsWith('setup.')) return 'history.setup'
+        if (text.startsWith('shell.')) return 'history.shell'
+        if (text === 'api') return 'history.tool'
+        return 'history.operation'
+      }
+
+      function HistoryItem(props) {
+        const { item, invoke } = props
+        const [open, setOpen] = React.useState(false)
+        const [job, setJob] = React.useState(undefined)
+        const [loading, setLoading] = React.useState(false)
+        const isScript = item.kind === 'script.run' && Boolean(item.meta?.jobId)
+        const running = item.state === 'running'
+        const loadJob = React.useCallback(async () => {
+          if (!isScript || job || loading) return
+          setLoading(true)
+          try {
+            const result = await invoke('script.status', { job: item.meta.jobId })
+            if (result) setJob(result)
+          } finally {
+            setLoading(false)
+          }
+        }, [invoke, isScript, item.meta?.jobId, job, loading])
+        const toggle = () => {
+          const next = !open
+          setOpen(next)
+          if (next && isScript && !job) loadJob()
+        }
+        const code = job?.codePreview ?? item.codePreview
+        const resultValue = job
+          ? job.result !== undefined
+            ? job.result
+            : job.error || job.errorOutput || job.output
+          : item.detail
+        const resultContent = resultValue === undefined || resultValue === null || resultValue === ''
+          ? undefined
+          : typeof resultValue === 'string'
+            ? resultValue
+            : JSON.stringify(resultValue, null, 2)
+        const state = item.state || 'succeeded'
+        return h(
+          'div',
+          { className: 'vb-history-item' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'vb-history-head',
+              'aria-expanded': open,
+              onClick: toggle,
+            },
+            running ? h('span', { className: 'vb-op-pulse' }) : h('span', { className: 'vb-dot running' }),
+            h('span', { className: 'vb-history-type' }, `${label(historyTypeKey(item.kind))}:`),
+            h('span', { className: 'vb-history-label', title: item.label || item.kind }, item.label || item.kind),
+            h('span', { className: 'vb-history-state', 'data-state': state }, stateLabel(state)),
+            h('span', { className: 'vb-history-chevron', 'aria-hidden': true }, open ? '▾' : '▸'),
+          ),
+          open
+            ? h(
+                'div',
+                { className: 'vb-history-body' },
+                isScript
+                  ? h(
+                      React.Fragment,
+                      null,
+                      h(
+                        'div',
+                        { className: 'vb-history-section' },
+                        h('div', { className: 'vb-history-section-label' }, label('history.code')),
+                        code
+                          ? h('pre', { className: 'vb-history-code' }, h('code', null, code))
+                          : h('div', { className: 'vb-history-empty' }, loading ? label('history.loading') : label('history.noContent')),
+                      ),
+                      h(
+                        'div',
+                        { className: 'vb-history-section' },
+                        h('div', { className: 'vb-history-section-label' }, label('history.result')),
+                        resultContent
+                          ? h('pre', { className: 'vb-history-code', 'data-state': state === 'ok' ? undefined : state }, h('code', null, resultContent))
+                          : h('div', { className: 'vb-history-empty' }, loading ? label('history.loading') : running ? label('history.running') : label('history.noResult')),
+                      ),
+                    )
+                  : resultContent
+                    ? h('pre', { className: 'vb-history-code', 'data-state': state === 'ok' ? undefined : state }, h('code', null, resultContent))
+                    : h('div', { className: 'vb-history-empty' }, loading ? label('history.loading') : running ? label('history.running') : label('history.noContent')),
+              )
+            : null,
+        )
+      }
+
+      function AgentHistory(props) {
+        const { agent, actions, sessionName, invoke } = props
+        const [open, setOpen] = React.useState(false)
+        const agentId = String(agent.sessionId)
+        const agentActions = actions.filter((action) => String(action.agentId || '') === agentId)
+        const running = agentActions.filter((action) => action.state === 'running')
+        const completed = agentActions
+          .filter((action) => action.state !== 'running')
+          .sort((left, right) => (right.finishedAt ?? right.startedAt) - (left.finishedAt ?? left.startedAt))
+          .slice(0, 20)
+        const apiHistory = (agent.labels ?? [])
+          .filter((entry) => !/^(script:|runtime\.|connection\.|setup\.|shell\.)/.test(String(entry.label || '')))
+          .slice(0, 8)
+          .map((entry, index) => ({
+            id: `api:${agentId}:${entry.time}:${index}`,
+            kind: 'api',
+            label: entry.label,
+            state: 'succeeded',
+            startedAt: entry.time,
+            finishedAt: entry.time,
+            api: true,
+          }))
+        const history = [...completed, ...apiHistory]
+        return h(
+          'div',
+          { className: 'vb-agent-group' },
+          h(
+            'button',
+            {
+              type: 'button',
+              className: 'vb-agent-head',
+              'aria-expanded': open,
+              onClick: () => setOpen((value) => !value),
+            },
+            h('span', { className: `vb-dot ${agent.live ? 'running' : ''}` }),
+            h('span', { className: 'vb-agent-name', title: agentId }, sessionName(agentId)),
+            h('span', { className: 'vb-agent-count' }, `${agent.calls} ${label('agents.calls')}`),
+            h('span', { className: 'vb-agent-chevron', 'aria-hidden': true }, open ? '▾' : '▸'),
+          ),
+          h('div', { className: 'vb-agent-last' }, `${label('agents.last')} ${relativeTime(agent.lastUsedAt)}`),
+          running.length
+            ? h(
+                'div',
+                { className: 'vb-agent-ongoing' },
+                running.map((action) => h(HistoryItem, { key: action.id, item: action, invoke })),
+              )
+            : null,
+          open
+            ? history.length
+              ? h('div', { className: 'vb-history-list' }, history.map((item) => h(HistoryItem, { key: item.id, item, invoke })))
+              : h('div', { className: 'vb-empty-history' }, label('history.noHistory'))
+            : null,
+        )
+      }
+
       function RuntimePanelBody(props) {
         const { state, error, live, reload } = useBridgeState()
         const { busy, error: actionError, invoke } = useAction(reload, props?.sessionId)
+        const useSessions = props?.useSessions
+        const sessionSnapshot = useSessions ? useSessions((list) => list) : undefined
         if (!state) {
           return h(
             'div',
@@ -1267,9 +1489,16 @@ window.__ModuleLoader__.load({
         const actions = state.actions || []
         const agents = state.agents || []
         const caches = state.caches || []
-        const logs = state.logs || []
-        const running = actions.filter((action) => action.state === 'running')
-        const recent = actions.filter((action) => action.state !== 'running').slice(0, 8)
+        const sessionName = (sessionId) => {
+          const id = String(sessionId)
+          const collection = sessionSnapshot?.byId ?? sessionSnapshot?.sessions?.byId
+          const row = (Array.isArray(collection) ? collection.find((item) => String(item?.id ?? item?.sessionId) === id) : collection?.[id])
+            ?? sessionSnapshot?.items?.find?.((item) => String(item?.id ?? item?.sessionId) === id)
+          const title = row?.title ?? row?.displayTitle ?? row?.name ?? row?.label
+          if (title) return String(title)
+          const fromCwd = pathLeaf(row?.cwd)
+          return fromCwd || shortId(id)
+        }
         return h(
           'div',
           { className: 'vb-root' },
@@ -1350,62 +1579,16 @@ window.__ModuleLoader__.load({
                   'div',
                   { className: 'vb-card' },
                   agents.map((agent) =>
-                    h(
-                      'div',
-                      { className: 'vb-agent', key: agent.sessionId },
-                      h(
-                        'div',
-                        { className: 'vb-row vb-grow' },
-                        h('span', { className: `vb-dot ${agent.live ? 'running' : ''}` }),
-                        h('span', { className: 'vb-mono vb-ellipsis', title: String(agent.sessionId) }, shortId(agent.sessionId)),
-                        h('span', { className: 'vb-muted' }, `${agent.calls} ${label('agents.calls')}`),
-                      ),
-                      h('span', { className: 'vb-muted' }, `${label('agents.last')} ${relativeTime(agent.lastUsedAt)}`),
-                    ),
+                    h(AgentHistory, {
+                      key: agent.sessionId,
+                      agent,
+                      actions,
+                      sessionName,
+                      invoke,
+                    }),
                   ),
                 )
               : h('div', { className: 'vb-card flat vb-muted' }, label('agents.empty')),
-          ),
-          h(
-            Section,
-            {
-              title: label('section.actions'),
-              count: running.length,
-              actions: h(
-                Button,
-                { disabled: Boolean(busy) || !recent.length, onClick: () => invoke('actions.clear', {}) },
-                label('actions.clear'),
-              ),
-            },
-            h(
-              'div',
-              { className: 'vb-card' },
-              running.length
-                ? running.map((action) =>
-                    h(
-                      'div',
-                      { className: 'vb-row vb-between', key: action.id },
-                      h('div', { className: 'vb-row vb-grow' }, h('span', { className: 'vb-dot starting' }), h('span', { className: 'vb-ellipsis' }, action.label || action.kind)),
-                      h('span', { className: 'vb-muted' }, relativeTime(action.startedAt)),
-                    ),
-                  )
-                : h('div', { className: 'vb-muted' }, label('actions.empty')),
-              recent.length
-                ? h(
-                    'div',
-                    null,
-                    h('div', { className: 'vb-spacer' }),
-                    recent.map((action) =>
-                      h(
-                        'div',
-                        { className: 'vb-row vb-between', key: action.id },
-                        h('div', { className: 'vb-row vb-grow' }, h('span', { className: `vb-dot ${action.state === 'succeeded' ? 'running' : 'error'}` }), h('span', { className: 'vb-ellipsis' }, action.label || action.kind)),
-                        h(Pill, { state: action.state }),
-                      ),
-                    ),
-                  )
-                : null,
-            ),
           ),
           h(
             Section,
@@ -1441,31 +1624,6 @@ window.__ModuleLoader__.load({
                   ),
                 )
               : h('div', { className: 'vb-card flat vb-muted' }, label('caches.empty')),
-          ),
-          h(
-            Section,
-            {
-              title: label('section.logs'),
-              count: logs.length,
-              actions: h(Button, { disabled: Boolean(busy) || !logs.length, onClick: () => invoke('logs.clear', {}) }, label('logs.clear')),
-            },
-            logs.length
-              ? h(
-                  'div',
-                  { className: 'vb-card' },
-                  logs
-                    .slice(-14)
-                    .reverse()
-                    .map((entry, index) =>
-                      h(
-                        'div',
-                        { className: `vb-logline ${entry.level || 'info'}`, key: `${entry.time}-${index}` },
-                        h('span', { className: 'vb-logtime' }, new Date(entry.time).toLocaleTimeString()),
-                        h('span', { className: 'vb-logmsg' }, entry.message),
-                      ),
-                    ),
-                )
-              : h('div', { className: 'vb-card flat vb-muted' }, label('logs.empty')),
           ),
         )
       }
@@ -2119,6 +2277,67 @@ window.__ModuleLoader__.load({
                 { className: 'vb-actions' },
                 h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: saveSettings }, busy ? label('saving') : label('settings.settingsSave')),
               ),
+            ),
+          ),
+          h(
+            Section,
+            {
+              title: label('section.globalHistory'),
+              count: (state.actions?.length || 0) + (state.logs?.length || 0),
+              actions: h(
+                'div',
+                { className: 'vb-actions' },
+                h(Button, { disabled: Boolean(busy) || !state.actions?.length, onClick: () => invoke('actions.clear', {}) }, label('actions.clear')),
+                h(Button, { disabled: Boolean(busy) || !state.logs?.length, onClick: () => invoke('logs.clear', {}) }, label('logs.clear')),
+              ),
+            },
+            h(
+              'div',
+              { className: 'vb-card' },
+              state.actions?.length
+                ? h(
+                    'div',
+                    { className: 'vb-field' },
+                    h('div', { className: 'vb-label' }, label('history.operations')),
+                    state.actions
+                      .slice()
+                      .sort((left, right) => (right.finishedAt ?? right.startedAt) - (left.finishedAt ?? left.startedAt))
+                      .slice(0, 20)
+                      .map((action) =>
+                        h(
+                          'div',
+                          { className: 'vb-row vb-between vb-wrap', key: action.id },
+                          h(
+                            'div',
+                            { className: 'vb-row vb-grow' },
+                            h('span', { className: action.state === 'running' ? 'vb-op-pulse' : 'vb-dot' }),
+                            h('span', { className: 'vb-mono vb-muted' }, `${label(historyTypeKey(action.kind))}:`),
+                            h('span', { className: 'vb-ellipsis' }, action.label || action.kind),
+                          ),
+                          h(Pill, { state: action.state }),
+                        ),
+                      ),
+                  )
+                : null,
+              state.logs?.length
+                ? h(
+                    'div',
+                    { className: 'vb-field' },
+                    h('div', { className: 'vb-label' }, label('section.logs')),
+                    state.logs
+                      .slice(-20)
+                      .reverse()
+                      .map((entry, index) =>
+                        h(
+                          'div',
+                          { className: `vb-logline ${entry.level || 'info'}`, key: `${entry.time}-${index}` },
+                          h('span', { className: 'vb-logtime' }, new Date(entry.time).toLocaleTimeString()),
+                          h('span', { className: 'vb-logmsg' }, entry.message),
+                        ),
+                      ),
+                  )
+                : null,
+              !state.actions?.length && !state.logs?.length ? h('div', { className: 'vb-muted' }, label('logs.empty')) : null,
             ),
           ),
         )

@@ -205,6 +205,14 @@ shows one card per sub-instance; tool calls select one with
 `subInstance: "<id|name|/absolute/workdir>"`. This allows multiple project CIWs
 under one connection without assigning fixed ports.
 
+The right runtime panel groups history under each connected agent. The agent
+row is static and uses the DSH session title (falling back to the working
+directory name, then short session id). Running operations stay visible below
+the agent with a pulsing green/black marker; completed history is behind the
+agent chevron. Expanding a history item shows its code and result (or operation
+details) together, without another fold level. Global operations and logs live on
+the configuration page instead of the runtime panel.
+
 On the first connection the plugin reads the offered host keys and stops in
 the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
 add a key until the user confirms it (the runtime-panel button, or a `trust_host`
