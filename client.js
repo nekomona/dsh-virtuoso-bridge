@@ -23,6 +23,14 @@ window.__ModuleLoader__.load({
       'runtime.title': 'Bridge runtime',
       'runtime.description': 'Live connection, daemon, agent and operation status.',
       'runtime.open': 'Toggle the Virtuoso Bridge runtime panel',
+      'script.title': 'Python script',
+      'script.code': 'Code',
+      'script.result': 'Result',
+      'script.running': 'Running...',
+      'script.failed': 'Failed',
+      'script.stopped': 'Stopped',
+      'script.noResult': 'No result',
+      'script.inspect': 'Inspect call',
       'config.title': 'Virtuoso Bridge',
       'config.intro': 'Configure the managed environment, SSH connections and runtime defaults.',
       'config.open': 'Configure',
@@ -241,6 +249,14 @@ window.__ModuleLoader__.load({
       'runtime.title': '桥接运行时',
       'runtime.description': '实时显示连接、守护进程、智能体和操作状态。',
       'runtime.open': '切换 Virtuoso 桥接运行时面板',
+      'script.title': 'Python 脚本',
+      'script.code': '代码',
+      'script.result': '结果',
+      'script.running': '运行中...',
+      'script.failed': '失败',
+      'script.stopped': '已停止',
+      'script.noResult': '无结果',
+      'script.inspect': '查看调用',
       'config.title': 'Virtuoso 桥接',
       'config.intro': '配置托管环境、SSH 连接和运行时默认值。',
       'config.open': '配置',
@@ -716,6 +732,140 @@ window.__ModuleLoader__.load({
       const text = String(value || '')
       if (text.length <= 10) return text
       return `${text.slice(0, 6)}…${text.slice(-4)}`
+    }
+
+    const SCRIPT_TOOL = 'virtuoso_bridge_script'
+
+    const SCRIPT_CSS = `
+.vb-script-card{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);margin:4px 0;overflow:hidden;min-width:0}
+.vb-script-header{display:flex;align-items:center;gap:8px;min-width:0;padding:6px 8px;cursor:pointer;color:var(--dsw-alias-label-primary);font-size:12px;line-height:18px}
+.vb-script-header:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-script-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
+.vb-script-glyph{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:600 9px/1 ui-monospace,SFMono-Regular,Consolas,monospace;flex:none}
+.vb-script-title{font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.vb-script-state{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;flex:none}
+.vb-script-state[data-state="error"],.vb-script-state[data-state="stopped"]{color:var(--dsw-alias-state-error-primary)}
+.vb-script-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
+.vb-script-body{border-top:1px solid var(--dsw-alias-border-l1);padding:8px;display:flex;flex-direction:column;gap:8px;background:var(--dsw-alias-bg-layer-1)}
+.vb-script-label{color:var(--dsw-alias-label-secondary);font-size:10px;letter-spacing:.04em;text-transform:uppercase;margin-bottom:4px}
+.vb-script-code{margin:0;padding:8px;border-radius:6px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary);font:11px/1.45 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre;overflow:auto;max-height:360px;tab-size:2}
+.vb-script-code[data-state="error"]{color:var(--dsw-alias-state-error-primary)}
+.vb-script-empty{color:var(--dsw-alias-label-secondary);font-size:11px}
+.vb-script-inspect{align-self:flex-start;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+`
+
+    function scriptArgs(block) {
+      const raw = block?.call?.argsRaw ?? block?.argsRaw ?? ''
+      let parsed = {}
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        parsed = {}
+      }
+      if (typeof block?.args?.text === 'function') {
+        for (const key of ['description', 'code', 'path']) {
+          if (typeof parsed?.[key] === 'string' && parsed[key] !== '') continue
+          const value = block.args.text(key)
+          if (typeof value === 'string' && value !== '') parsed[key] = value
+        }
+      }
+      return parsed && typeof parsed === 'object' ? parsed : {}
+    }
+
+    function scriptResultText(block) {
+      if (!block || !('kind' in block)) return ''
+      const parts = []
+      for (const item of block.content ?? []) {
+        if (item?.type === 'text') parts.push(String(item.text ?? ''))
+        else parts.push(JSON.stringify(item, null, 2))
+      }
+      if (!parts.length && block.error) parts.push(`${block.error.name ?? 'Error'}: ${block.error.code ?? block.error.message ?? ''}`)
+      return parts.join('\n').trim()
+    }
+
+    function ScriptToolView(props) {
+      const { block, useDisclosure, inspect } = props
+      const fallback = {
+        'script.title': 'Python script',
+        'script.code': 'Code',
+        'script.result': 'Result',
+        'script.running': 'Running...',
+        'script.failed': 'Failed',
+        'script.stopped': 'Stopped',
+        'script.noResult': 'No result',
+        'script.inspect': 'Inspect call',
+      }
+      const tr = (key) => (typeof props.t === 'function' ? props.t(key) : fallback[key] ?? key)
+      const { expanded, toggle } = useDisclosure()
+      const done = Boolean(block && 'kind' in block)
+      const state = done
+        ? block.error?.code === 'interrupted'
+          ? 'stopped'
+          : block.isError
+            ? 'error'
+            : 'ok'
+        : block?.phase === 'preparing'
+          ? 'preparing'
+          : 'running'
+      const args = scriptArgs(block)
+      const code = typeof args.code === 'string' ? args.code : args.path ? `# script: ${args.path}` : ''
+      const result = done ? scriptResultText(block) : ''
+      const description = String(args.description ?? '').split(/\r?\n/)[0].trim()
+      const title = description || (code.split(/\r?\n/).find((line) => line.trim()) ?? '').trim() || tr('script.title')
+      const stateLabel = state === 'error' ? tr('script.failed') : state === 'stopped' ? tr('script.stopped') : state === 'running' || state === 'preparing' ? tr('script.running') : ''
+      const expandable = Boolean(code || result)
+      const open = expanded && expandable
+      const onKeyDown = (event) => {
+        if (!expandable || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        toggle()
+      }
+      return h(
+        'div',
+        { className: 'vb-script-card' },
+        h(
+          'div',
+          {
+            className: 'vb-script-header',
+            role: expandable ? 'button' : undefined,
+            tabIndex: expandable ? 0 : undefined,
+            'aria-expanded': expandable ? open : undefined,
+            onClick: expandable ? toggle : undefined,
+            onKeyDown,
+          },
+          h('span', { className: 'vb-script-glyph' }, 'Py'),
+          h('span', { className: 'vb-script-title', title }, title),
+          stateLabel ? h('span', { className: 'vb-script-state', 'data-state': state }, stateLabel) : null,
+          h('span', { className: 'vb-script-chevron', 'aria-hidden': true }, open ? 'v' : '>'),
+        ),
+        open
+          ? h(
+              'div',
+              { className: 'vb-script-body' },
+              code
+                ? h(
+                    'div',
+                    null,
+                    h('div', { className: 'vb-script-label' }, tr('script.code')),
+                    h('pre', { className: 'vb-script-code' }, h('code', null, code)),
+                  )
+                : null,
+              done
+                ? h(
+                    'div',
+                    null,
+                    h('div', { className: 'vb-script-label' }, tr('script.result')),
+                    result
+                      ? h('pre', { className: 'vb-script-code', 'data-state': state === 'ok' ? undefined : state }, h('code', null, result))
+                      : h('div', { className: 'vb-script-empty' }, tr('script.noResult')),
+                  )
+                : h('div', { className: 'vb-script-empty' }, tr('script.running')),
+              inspect
+                ? h('button', { type: 'button', className: 'vb-script-inspect', onClick: inspect }, tr('script.inspect'))
+                : null,
+            )
+          : null,
+      )
     }
 
     function apply(ctx) {
@@ -2050,6 +2200,19 @@ window.__ModuleLoader__.load({
       }
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')
+      ctx.effect(() => {
+        const style = document.createElement('style')
+        style.textContent = SCRIPT_CSS
+        document.head.appendChild(style)
+        return () => style.remove()
+      }, 'virtuoso-bridge: script tool styles')
+      ctx.effect(
+        () =>
+          ctx.slots.inject('tool.call.toolview', () =>
+            ctx.slots.register({ name: 'tool.call.toolview', key: SCRIPT_TOOL, locale: NS }, ScriptToolView),
+          ),
+        'virtuoso-bridge: script tool view',
+      )
       ctx.effect(
         () =>
           ctx.slots.inject('sidebar.panellist', () =>

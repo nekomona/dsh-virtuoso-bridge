@@ -330,6 +330,13 @@ Jobs have ids, status, incremental stdout/stderr, a hard timeout and
 cancellation. Jobs started by one conversation can be polled from another; the
 last 40 job directories are indexed when the plugin starts.
 
+Every call requires a short one-line `description`, used as the human-facing
+tool-call label and history title. A successful run returns only `Success` plus
+the `result`; a running job returns `Running` plus its job id; failures return
+the error and job id. Internal paths, code previews, status records and
+auto-connect fields are not exposed to the agent. The Web UI renders the call as
+an expandable code card with the Python source and result in code blocks.
+
 ### `virtuoso_bridge_setup`
 
 `status`, `preflight`, `install`, `update`, `diagnose`, `configure`,
