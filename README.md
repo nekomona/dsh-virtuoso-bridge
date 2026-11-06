@@ -85,6 +85,23 @@ extra definition.
 Python 3.9+ and `git` must be on `PATH`. The Python executable is configurable
 as `source.pythonPath` / `settings.pythonPath`.
 
+## Compatibility
+
+Verified against **DSH 0.2.2-rc.1 / Cordis 4.1**:
+
+- all four tools are registered and executable;
+- runtime start, daemon health, dashboard health/state, the installed
+  `virtuoso-bridge` skill and the system-prompt section work;
+- the configuration page, right runtime tab, composer opener and script
+  tool-view registrations are active;
+- DSH's PTC control-channel and SSH-v3 changes do not apply to this plugin's
+  VBL-owned Paramiko/OpenSSH transport.
+
+No tool activation, session-projection or prompt-assembly migration was
+required; the plugin does not call `tools.resolve`/`tools.executable` or register
+session projections. The DSH 0.2.2 release notes mark these as breaking for
+plugins that use those interfaces.
+
 ## Agent instructions and skills
 
 Setup installs the upstream documentation — `skills/`, `README.md` and
