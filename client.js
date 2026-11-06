@@ -664,10 +664,10 @@ window.__ModuleLoader__.load({
         const text = String(value).replace(/\/+$/, '')
         if (text && !bases.includes(text)) bases.push(text)
       }
-      if (global?.origin) add(`${String(global.origin).replace(/\/+$/, '')}${global.basePath || BASE_PATH}`)
       if (typeof location !== 'undefined' && /^https?:$/.test(location.protocol)) {
         add(`${location.origin}${global?.basePath || BASE_PATH}`)
       }
+      if (global?.origin) add(`${String(global.origin).replace(/\/+$/, '')}${global.basePath || BASE_PATH}`)
       add(configuredBase())
       if (String(configuredBase()).startsWith('/')) add(String(configuredBase()).slice(1))
       return bases
