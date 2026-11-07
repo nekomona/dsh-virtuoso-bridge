@@ -212,7 +212,8 @@ and activity are collapsed until needed. Environment setup and its source/log
 details are disclosed only when expanded or unhealthy. The right runtime panel
 keeps environment and manual start/stop controls, highlights the current
 session's agent at the top, and leaves each agent's completed history behind a
-user-controlled chevron. Running tools remain visible below every agent; inactive
+user-controlled chevron. Double-clicking an agent row opens that DSH session.
+Running tools remain visible below every agent; inactive
 agents remain visible in gray. The runtime panel shows the environment section
 only while setup is not ready; storage is a compact size summary there, while the
 full cache list, paths, sizes and clear controls live on the configuration page.

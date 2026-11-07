@@ -231,6 +231,7 @@ window.__ModuleLoader__.load({
       'agents.empty': 'No agent has used a runtime yet.',
       'agents.inactive': 'inactive',
       'agents.current': 'current',
+      'agents.openHint': 'Double-click to open this session',
       'agents.calls': 'calls',
       'agents.last': 'last used',
       'agents.live': 'live',
@@ -497,6 +498,7 @@ window.__ModuleLoader__.load({
       'agents.empty': '尚无智能体使用运行时。',
       'agents.inactive': '非活跃',
       'agents.current': '当前',
+      'agents.openHint': '双击打开此会话',
       'agents.calls': '次调用',
       'agents.last': '最近使用',
       'agents.live': '在线',
@@ -1619,7 +1621,7 @@ window.__ModuleLoader__.load({
       }
 
       function AgentHistory(props) {
-        const { agent, actions, sessionName, invoke, current, runtimes } = props
+        const { agent, actions, sessionName, invoke, current, runtimes, onOpenSession } = props
         const [open, setOpen] = React.useState(false)
         const agentId = String(agent.sessionId)
         const isActive = agent.active !== undefined ? Boolean(agent.active) : Boolean(agent.live)
@@ -1671,7 +1673,9 @@ window.__ModuleLoader__.load({
               type: 'button',
               className: 'vb-agent-head',
               'aria-expanded': open,
+              title: `${agentId} — ${label('agents.openHint')}`,
               onClick: () => setOpen((value) => !value),
+              onDoubleClick: () => onOpenSession?.(agentId),
             },
             h('span', { className: `vb-dot ${isActive ? 'running' : ''}` }),
             h('span', { className: 'vb-agent-name', title: agentId }, sessionName(agentId)),
@@ -1761,6 +1765,13 @@ window.__ModuleLoader__.load({
             ctx.layout.selectPanel(PANEL_ID)
           } catch (failure) {
             console.error('virtuoso-bridge: could not open the configuration panel', failure)
+          }
+        }
+        const openSession = (sessionId) => {
+          try {
+            ctx.get?.('uiWorkspace')?.openSession?.(sessionId)
+          } catch (failure) {
+            console.error('virtuoso-bridge: could not open the session', failure)
           }
         }
         const sessionName = (sessionId) => {
@@ -1901,6 +1912,7 @@ window.__ModuleLoader__.load({
                       sessionName,
                       invoke,
                       runtimes,
+                      onOpenSession: openSession,
                       current: String(agent.sessionId) === currentSessionId,
                     }),
                   ),
