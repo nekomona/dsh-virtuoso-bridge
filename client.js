@@ -680,6 +680,13 @@ window.__ModuleLoader__.load({
 .vb-tab-title{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
 .vb-tab-title .vb-panel-icon{width:14px;height:14px;flex:none}
 .vb-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vb-guide-entry{width:380px;max-width:100%;min-height:56px;box-sizing:border-box;display:flex;align-items:center;gap:14px;padding:14px 20px;border:1px solid var(--dsw-alias-border-l1);border-radius:10px;background:var(--dsw-alias-bg-layer-1);color:var(--dsw-alias-label-primary);text-align:left;font:inherit;cursor:pointer;transition:background-color var(--vb-dur) var(--vb-ease),border-color var(--vb-dur) var(--vb-ease)}
+.vb-guide-entry:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-guide-entry:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.vb-guide-entry-icon{width:26px;height:26px;flex:none;display:flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary)}
+.vb-guide-entry-text{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.vb-guide-entry-title{font-size:14px;line-height:1.4;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vb-guide-entry-description{font-size:11px;line-height:1.4;color:var(--dsw-alias-label-tertiary);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vb-open svg{width:16px;height:16px;display:block}
 .vb-root{--vb-dur:140ms;--vb-ease:cubic-bezier(.2,0,0,1);font-size:13px;line-height:1.5}
 .vb-main-panel{overflow-y:auto}
@@ -2839,6 +2846,27 @@ window.__ModuleLoader__.load({
         )
       }
 
+      function RuntimeGuideEntry(props) {
+        const open = () => {
+          try {
+            ctx.sidebarRight?.openTab?.(props?.kind)
+          } catch (failure) {
+            console.error('virtuoso-bridge: could not open the runtime tab', failure)
+          }
+        }
+        return h(
+          'button',
+          { type: 'button', className: 'vb-guide-entry', onClick: open },
+          h('span', { className: 'vb-guide-entry-icon' }, h(BridgeMark, { size: 22 })),
+          h(
+            'span',
+            { className: 'vb-guide-entry-text' },
+            h('span', { className: 'vb-guide-entry-title' }, props?.title || 'Virtuoso Bridge'),
+            props?.description ? h('span', { className: 'vb-guide-entry-description' }, props.description) : null,
+          ),
+        )
+      }
+
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')
       ctx.effect(() => {
         const style = document.createElement('style')
@@ -2908,6 +2936,13 @@ window.__ModuleLoader__.load({
             ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TYPE_ID }, RuntimeTabTitle),
           ),
         'virtuoso-bridge: runtime tab title',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('sidebar.right.tab.guide.entry', () =>
+            ctx.slots.register({ name: 'sidebar.right.tab.guide.entry', key: TYPE_ID }, RuntimeGuideEntry),
+          ),
+        'virtuoso-bridge: runtime guide entry',
       )
       ctx.effect(
         () =>
