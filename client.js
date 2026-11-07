@@ -90,6 +90,7 @@ window.__ModuleLoader__.load({
       'section.defaults': 'Defaults',
       'section.credentials': 'Credentials',
       'setup.installed': 'Isolated environment ready',
+      'setup.openHint': 'Open settings to install or repair the environment.',
       'setup.notInstalled': 'The isolated virtuoso-bridge environment is not installed yet.',
       'setup.installing': 'Installing…',
       'setup.source': 'Source',
@@ -355,6 +356,7 @@ window.__ModuleLoader__.load({
       'section.defaults': '默认设置',
       'section.credentials': '凭据',
       'setup.installed': '隔离环境已就绪',
+      'setup.openHint': '打开设置以安装或修复环境。',
       'setup.notInstalled': '尚未安装 virtuoso-bridge 隔离环境。',
       'setup.installing': '正在安装…',
       'setup.source': '来源',
@@ -1779,25 +1781,27 @@ window.__ModuleLoader__.load({
                 ),
               )
             : null,
-          h(
-            Section,
-            { title: label('section.setup'), defaultOpen: false },
-            h(
-              'div',
-              { className: 'vb-card' },
-              h(
-                'div',
-                { className: 'vb-row vb-between vb-wrap' },
-                h('span', { className: 'vb-strong' }, setup.installed ? label('setup.installed') : label('setup.notInstalled')),
-                h(Button, { onClick: openConfig }, label('config.open')),
+          setup.installed && !setup.error && !setup.installing
+            ? null
+            : h(
+                Section,
+                { title: label('section.setup'), defaultOpen: true },
+                h(
+                  'div',
+                  { className: 'vb-attention' },
+                  h(
+                    'div',
+                    { className: 'vb-grow' },
+                    h('div', { className: 'vb-strong' }, setup.error || label('setup.notInstalled')),
+                    h('div', { className: 'vb-muted' }, label('setup.openHint')),
+                    h(
+                      'div',
+                      { className: 'vb-attention-actions' },
+                      h(Button, { onClick: openConfig }, label('config.open')),
+                    ),
+                  ),
+                ),
               ),
-              h(
-                'div',
-                { className: 'vb-muted' },
-                `${setup.venv?.package?.version || '—'} · ${setup.source?.mode || '—'} · Python ${setup.python?.version || '—'}`,
-              ),
-            ),
-          ),
           h(
             Section,
             { title: label('section.connections'), count: connections.length, defaultOpen: true },
@@ -1861,7 +1865,6 @@ window.__ModuleLoader__.load({
             'div',
             { className: 'vb-storage-summary' },
             h('span', null, `${label('section.storage')}: ${formatBytes(storageBytes)}${state.disk ? ` · ${formatBytes(state.disk.free)} ${label('caches.free')}` : ''}`),
-            h('button', { type: 'button', className: 'vb-storage-link', onClick: openConfig }, label('config.open')),
           ),
         )
       }
@@ -2100,6 +2103,7 @@ window.__ModuleLoader__.load({
         }
         const setup = state.setup || {}
         const connections = state.connections || []
+        const caches = state.caches || []
         const updateSource = (key) => (event) => setDraft({ ...draft, source: { ...draft.source, [key]: event.target.value } })
         const updateDraft = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
         const toggleAutoStart = (connectionId) => async (event) => {
@@ -2625,6 +2629,43 @@ window.__ModuleLoader__.load({
                 { className: 'vb-actions' },
                 h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: saveSettings }, busy ? label('saving') : label('settings.settingsSave')),
               ),
+            ),
+          ),
+          h(
+            Section,
+            {
+              title: label('section.storage'),
+              className: 'vb-order-storage',
+              defaultOpen: false,
+              count: caches.length,
+              actions: h(Button, { disabled: Boolean(busy), onClick: () => invoke('cache.refresh', {}) }, label('refresh')),
+            },
+            h(
+              'div',
+              { className: 'vb-card' },
+              state.disk
+                ? h('div', { className: 'vb-muted' }, `${formatBytes(state.disk.free)} ${label('caches.free')} · ${state.cacheDir || state.dataDir}`)
+                : null,
+              caches.length
+                ? caches.map((cache) =>
+                    h(
+                      'div',
+                      { className: 'vb-row vb-between vb-wrap', key: cache.id },
+                      h(
+                        'div',
+                        { className: 'vb-grow' },
+                        h('div', { className: 'vb-ellipsis' }, cache.label),
+                        h('div', { className: 'vb-mono vb-muted vb-ellipsis', title: cache.path }, cache.path),
+                      ),
+                      h(
+                        'div',
+                        { className: 'vb-row vb-gap6' },
+                        h('span', { className: 'vb-muted' }, `${formatBytes(cache.bytes)}${cache.files ? ` · ${cache.files} ${label('caches.files')}` : ''}${cache.truncated ? ` · ${label('caches.truncated')}` : ''}`),
+                        cache.clearable ? h(Button, { disabled: Boolean(busy), onClick: () => invoke('cache.clear', { cache: cache.id }) }, label('clear')) : null,
+                      ),
+                    ),
+                  )
+                : h('div', { className: 'vb-muted' }, label('caches.empty')),
             ),
           ),
           h(

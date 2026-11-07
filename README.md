@@ -213,7 +213,9 @@ details are disclosed only when expanded or unhealthy. The right runtime panel
 keeps environment and manual start/stop controls, highlights the current
 session's agent at the top, and leaves each agent's completed history behind a
 user-controlled chevron. Running tools remain visible below every agent; inactive
-agents remain visible in gray. Storage is reduced to a one-line summary.
+agents remain visible in gray. The runtime panel shows the environment section
+only while setup is not ready; storage is a compact size summary there, while the
+full cache list, paths, sizes and clear controls live on the configuration page.
 
 The runtime tab is named `Virtuoso Bridge`; in a narrow tab the text auto-hides
 and the site mark remains as the accessible icon. The configuration page and its
