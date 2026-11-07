@@ -16,6 +16,7 @@ window.__ModuleLoader__.load({
     const KIND = 'virtuoso-bridge'
     const TYPE_ID = 'dsh-virtuoso-bridge/dashboard'
     const BASE_PATH = '/__dsh/virtuoso-bridge'
+    const PROJECT_URL = 'https://github.com/Arcadia-1/virtuoso-bridge-lite'
 
     const en = {
       'tab.title': 'Virtuoso Bridge',
@@ -32,8 +33,10 @@ window.__ModuleLoader__.load({
       'script.noResult': 'No result',
       'script.inspect': 'Inspect call',
       'config.title': 'Virtuoso Bridge settings',
+      'config.sidebarTitle': 'Virtuoso Bridge settings',
       'config.intro': 'Connect to a Virtuoso session and manage its bridge.',
       'config.open': 'Open settings',
+      'config.github': 'GitHub project',
       'open': 'Open Virtuoso Bridge dashboard',
       'settings.title': 'Virtuoso Bridge',
       'loading': 'Loading Virtuoso Bridge state…',
@@ -288,8 +291,10 @@ window.__ModuleLoader__.load({
       'script.noResult': '无结果',
       'script.inspect': '查看调用',
       'config.title': 'Virtuoso Bridge 配置',
+      'config.sidebarTitle': 'Virtuoso Bridge 配置',
       'config.intro': '连接 Virtuoso 会话并管理桥接。',
       'config.open': '打开设置',
+      'config.github': 'GitHub 项目',
       'open': '打开 Virtuoso 桥接仪表盘',
       'settings.title': 'Virtuoso 桥接',
       'loading': '正在加载 Virtuoso 桥接状态…',
@@ -694,6 +699,9 @@ window.__ModuleLoader__.load({
 .vb-page-title{font-size:24px;font-weight:600;letter-spacing:-.02em}
 .vb-page-sub{max-width:620px;font-size:13px;line-height:1.55}
 .vb-page-header{padding-bottom:8px}
+.vb-link{color:var(--dsw-alias-brand-primary);font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:4px;min-height:28px;padding:0 4px;border-radius:6px}
+.vb-link:hover{text-decoration:underline;background:var(--dsw-alias-bg-layer-2)}
+.vb-link:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
 .vb-settings{gap:20px;padding:36px 40px 64px}
 .vb-settings>header{order:0}
 .vb-settings>.vb-banner{order:0}
@@ -2251,7 +2259,17 @@ window.__ModuleLoader__.load({
               h('h1', { className: 'vb-page-title' }, label('config.title')),
               h('p', { className: 'vb-page-sub' }, label('config.intro')),
             ),
-            h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
+            h(
+              'div',
+              { className: 'vb-actions' },
+              h(
+                'a',
+                { className: 'vb-link', href: PROJECT_URL, target: '_blank', rel: 'noreferrer', title: PROJECT_URL },
+                label('config.github'),
+                ' ↗',
+              ),
+              h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
+            ),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
           h(
@@ -2703,29 +2721,28 @@ window.__ModuleLoader__.load({
       }
 
       function runtimeTabTitle() {
-        const width = typeof window !== 'undefined' ? Number(window.innerWidth) : 0
-        return width && width < 1500 ? 'VBridge' : 'Virtuoso Bridge'
+        return 'Virtuoso Bridge'
       }
 
       function RuntimeTabTitle() {
         const ref = React.useRef(null)
-        const [compact, setCompact] = React.useState(() => runtimeTabTitle() === 'VBridge')
+        const [narrow, setNarrow] = React.useState(false)
         React.useEffect(() => {
           const node = ref.current
           if (!node || typeof ResizeObserver === 'undefined') return undefined
           const target = node.closest?.('[role="tab"]') ?? node.parentElement
           if (!target) return undefined
           const observer = new ResizeObserver(([entry]) => {
-            setCompact((entry?.contentRect?.width ?? target.getBoundingClientRect().width) < 126)
+            setNarrow((entry?.contentRect?.width ?? target.getBoundingClientRect().width) < 110)
           })
           observer.observe(target)
           return () => observer.disconnect()
         }, [])
         return h(
           'span',
-          { className: 'vb-tab-title', ref },
+          { className: 'vb-tab-title', ref, title: 'Virtuoso Bridge', 'aria-label': 'Virtuoso Bridge' },
           h(BridgeMark, { size: 14 }),
-          h('span', { className: 'vb-tab-label' }, compact ? 'VBridge' : 'Virtuoso Bridge'),
+          narrow ? null : h('span', { className: 'vb-tab-label' }, 'Virtuoso Bridge'),
         )
       }
 
@@ -2751,7 +2768,7 @@ window.__ModuleLoader__.load({
                 name: 'sidebar.panellist',
                 id: PANEL_ID,
                 order: 20,
-                label: () => label('tab.title'),
+                label: () => label('config.sidebarTitle'),
                 locale: NS,
               },
               PanelIcon,
