@@ -215,8 +215,8 @@ agents remain visible in gray. Storage is reduced to a one-line summary.
 
 The runtime tab is named `Virtuoso Bridge`; in a narrow tab the text auto-hides
 and the site mark remains as the accessible icon. The configuration page and its
-left-sidebar entry are `Virtuoso Bridge 配置`, with a direct GitHub project link
-in the page header. The runtime tab, sidebar entry
+left-sidebar entry are `Virtuoso Bridge 配置`, with a bottom credit line linking
+to the upstream project. The runtime tab, sidebar entry
 and composer use the site's italic **VB** mark. The composer badge has a small
 status dot: green when connected, yellow when blocked/waiting, and breathing
 green while a tool call for that session is running. The UI uses stock-DSH type

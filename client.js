@@ -37,6 +37,7 @@ window.__ModuleLoader__.load({
       'config.intro': 'Connect to a Virtuoso session and manage its bridge.',
       'config.open': 'Open settings',
       'config.github': 'GitHub project',
+      'config.basedOn': 'This plugin is based on ',
       'open': 'Open Virtuoso Bridge dashboard',
       'settings.title': 'Virtuoso Bridge',
       'loading': 'Loading Virtuoso Bridge state…',
@@ -295,6 +296,7 @@ window.__ModuleLoader__.load({
       'config.intro': '连接 Virtuoso 会话并管理桥接。',
       'config.open': '打开设置',
       'config.github': 'GitHub 项目',
+      'config.basedOn': '本插件基于 ',
       'open': '打开 Virtuoso 桥接仪表盘',
       'settings.title': 'Virtuoso 桥接',
       'loading': '正在加载 Virtuoso 桥接状态…',
@@ -710,6 +712,9 @@ window.__ModuleLoader__.load({
 .vb-settings>.vb-order-defaults{order:3}
 .vb-settings>.vb-order-storage{order:4}
 .vb-settings>.vb-order-activity{order:5}
+.vb-project-credit{order:6;margin-top:auto;padding:18px 0 4px;border-top:1px solid var(--dsw-alias-border-l1);text-align:center;color:var(--dsw-alias-label-secondary);font-size:12px}
+.vb-project-credit a{color:var(--dsw-alias-brand-primary);text-decoration:none}
+.vb-project-credit a:hover{text-decoration:underline}
 .vb-section-body{display:flex;flex-direction:column;gap:10px;animation:vb-rise 150ms var(--vb-ease)}
 .vb-settings .vb-section{gap:12px}
 .vb-settings .vb-section+ .vb-section{margin-top:4px}
@@ -2259,17 +2264,7 @@ window.__ModuleLoader__.load({
               h('h1', { className: 'vb-page-title' }, label('config.title')),
               h('p', { className: 'vb-page-sub' }, label('config.intro')),
             ),
-            h(
-              'div',
-              { className: 'vb-actions' },
-              h(
-                'a',
-                { className: 'vb-link', href: PROJECT_URL, target: '_blank', rel: 'noreferrer', title: PROJECT_URL },
-                label('config.github'),
-                ' ↗',
-              ),
-              h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
-            ),
+            h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
           h(
@@ -2640,6 +2635,16 @@ window.__ModuleLoader__.load({
                   )
                 : null,
               !state.actions?.length && !state.logs?.length ? h('div', { className: 'vb-muted' }, label('logs.empty')) : null,
+            ),
+          ),
+          h(
+            'footer',
+            { className: 'vb-project-credit' },
+            label('config.basedOn'),
+            h(
+              'a',
+              { href: PROJECT_URL, target: '_blank', rel: 'noreferrer', title: PROJECT_URL },
+              'Arcadia-1/virtuoso-bridge-lite',
             ),
           ),
         )
