@@ -187,13 +187,15 @@ running CIW.
 
 #### Daemon deployment control
 
-Each configuration connection row has **Deploy daemon setup** and **Replace
-setup** controls. Deployment prepares/uploads the generated account bootstrap
-without starting a tunnel or daemon connection, then shows the exact
-`load("...")` line to use in the intended idle CIW. Replace is explicit and
-retains the previous generated bundle; a shared `daemonSetup` is reported as
-read-only and is never replaced by a client. The same action is available as
-`virtuoso_bridge_runtime` action `deploy_daemon` with `replace: true`.
+Each configuration connection row has a **Deploy daemon setup** control.
+Deployment prepares/uploads the generated account bootstrap without starting a
+tunnel or daemon connection, then shows the exact `load("...")` line to use in
+the intended idle CIW. If the remote generated bundle differs, deployment does
+not overwrite it; the panel shows both available package versions and asks for an
+explicit red **Overwrite** confirmation. The old bundle is retained. A shared
+`daemonSetup` is reported as read-only and is never replaced by a client. The
+same action is available as `virtuoso_bridge_runtime` action `deploy_daemon` with
+`replace: true`.
 
 #### Workdir sub-instances
 

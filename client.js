@@ -163,6 +163,12 @@ window.__ModuleLoader__.load({
       'deploy.loadHint': 'Load this in the intended idle CIW, then restart the runtime:',
       'deploy.copy': 'Copy load line',
       'deploy.confirmReplace': 'Replace differing generated daemon files? The old bundle is retained by the bridge.',
+      'deploy.conflictTitle': 'Existing daemon setup differs',
+      'deploy.conflictHint': 'Overwrite the remote generated setup? The old bundle is retained as a backup.',
+      'deploy.overwrite': 'Overwrite',
+      'deploy.localDaemon': 'New daemon',
+      'deploy.remoteDaemon': 'Existing daemon',
+      'deploy.versionUnknown': 'version unknown',
       'conn.sshPort': 'SSH port',
       'conn.localPort': 'Local tunnel port',
       'conn.jumpHost': 'Jump host',
@@ -428,6 +434,12 @@ window.__ModuleLoader__.load({
       'deploy.loadHint': '在目标空闲 CIW 中加载以下命令，然后重启运行时：',
       'deploy.copy': '复制加载命令',
       'deploy.confirmReplace': '替换不同的生成文件？桥接会保留旧版本。',
+      'deploy.conflictTitle': '现有守护进程设置不同',
+      'deploy.conflictHint': '要覆盖远端生成的设置吗？旧版本会保留为备份。',
+      'deploy.overwrite': '覆盖',
+      'deploy.localDaemon': '新守护进程',
+      'deploy.remoteDaemon': '现有守护进程',
+      'deploy.versionUnknown': '版本未知',
       'conn.sshPort': 'SSH 端口',
       'conn.localPort': '本地隧道端口',
       'conn.jumpHost': '跳板机',
@@ -764,6 +776,8 @@ window.__ModuleLoader__.load({
 @keyframes vb-dot-breathe{0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--dsw-alias-state-success-primary) 40%,transparent)}50%{opacity:.55;box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 0%,transparent)}}
 .vb-empty-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px dashed var(--dsw-alias-border-l1);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}
 .vb-attention-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.vb-conflict{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--dsw-alias-state-error-primary);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-state-error-primary) 5%,var(--dsw-alias-bg-layer-1));animation:vb-rise 160ms var(--vb-ease)}
+.vb-conflict .vb-strong{color:var(--dsw-alias-state-error-primary)}
 .vb-agent-list{display:flex;flex-direction:column}
 .vb-storage-link{color:var(--dsw-alias-brand-primary);font-size:12px;text-decoration:none;cursor:pointer}
 @media (prefers-reduced-motion:reduce){.vb-root *,.vb-root *::before,.vb-root *::after{animation:none!important;transition:none!important}}
@@ -1231,7 +1245,7 @@ window.__ModuleLoader__.load({
         const [busy, setBusy] = React.useState('')
         const [error, setError] = React.useState('')
         const invoke = React.useCallback(
-          async (action, payload) => {
+          async (action, payload, options = {}) => {
             setBusy(action)
             setError('')
             try {
@@ -1239,7 +1253,7 @@ window.__ModuleLoader__.load({
               reload()
               return data.result
             } catch (failure) {
-              setError(failure.message)
+              if (options.onError?.(failure) !== true) setError(failure.message)
               return undefined
             } finally {
               setBusy('')
@@ -2064,6 +2078,7 @@ window.__ModuleLoader__.load({
         const [deployResults, setDeployResults] = React.useState({})
         const [deployBusy, setDeployBusy] = React.useState('')
         const [testResults, setTestResults] = React.useState({})
+        const [conflict, setConflict] = React.useState(null)
         const workspacePicker = ctx.get?.('uiWorkspace')
         React.useEffect(() => {
           if (!state || draft) return
@@ -2233,12 +2248,30 @@ window.__ModuleLoader__.load({
           if (result) setTestResults((current) => ({ ...current, [connection.id]: result }))
         }
         const deployDaemon = async (connection, replace = false) => {
-          if (replace && !window.confirm(`${label('deploy.confirmReplace')}\n${connection.name}`)) return
           setDeployBusy(connection.id)
           try {
-            const result = await invoke('connection.deploy', { connection: connection.id, replace })
+            const result = await invoke(
+              'connection.deploy',
+              { connection: connection.id, replace },
+              {
+                onError: (failure) => {
+                  if (replace) return false
+                  if (!/bundle differs|replace-setup|differs from|already exists/i.test(String(failure?.message || ''))) return false
+                  const current = (state.runtimes || []).find((runtime) => runtime.connectionId === connection.id && !runtime.subInstanceId)
+                  setConflict({
+                    connectionId: connection.id,
+                    connectionName: connection.name,
+                    message: String(failure.message || ''),
+                    localVersion: setup.venv?.package?.version || state.pluginVersion || '',
+                    remoteVersion: current?.daemon?.version || connection.daemon?.version || '',
+                  })
+                  return true
+                },
+              },
+            )
             if (result) {
               setDeployResults((current) => ({ ...current, [connection.id]: result }))
+              setConflict((current) => (current?.connectionId === connection.id ? null : current))
             }
           } finally {
             setDeployBusy('')
@@ -2434,7 +2467,6 @@ window.__ModuleLoader__.load({
                             connection.autoSessions
                               ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
                               : null,
-                            h(Button, { disabled: Boolean(busy) || deployBusy === connection.id || Boolean(connection.daemonSetup), onClick: () => deployDaemon(connection, true) }, label('deploy.replace')),
                             h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
                             h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
                           ),
@@ -2448,6 +2480,27 @@ window.__ModuleLoader__.load({
                     ),
                     testResults[connection.id]
                       ? h('div', { className: testResults[connection.id].ok ? 'vb-muted' : 'vb-error' }, testResults[connection.id].detail || (testResults[connection.id].ok ? 'SSH OK' : 'SSH failed'))
+                      : null,
+                    conflict?.connectionId === connection.id
+                      ? h(
+                          'div',
+                          { className: 'vb-conflict' },
+                          h('div', { className: 'vb-strong' }, label('deploy.conflictTitle')),
+                          h(
+                            'div',
+                            { className: 'vb-muted' },
+                            `${label('deploy.localDaemon')} ${conflict.localVersion ? `v${conflict.localVersion}` : label('deploy.versionUnknown')} · ` +
+                              `${label('deploy.remoteDaemon')} ${conflict.remoteVersion ? `v${conflict.remoteVersion}` : label('deploy.versionUnknown')}`,
+                          ),
+                          h('div', { className: 'vb-muted' }, label('deploy.conflictHint')),
+                          h('div', { className: 'vb-mono vb-muted vb-wrap' }, conflict.message.slice(0, 500)),
+                          h(
+                            'div',
+                            { className: 'vb-actions' },
+                            h(Button, { tone: 'danger', disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, true) }, label('deploy.overwrite')),
+                            h(Button, { disabled: Boolean(busy), onClick: () => setConflict(null) }, label('cancel')),
+                          ),
+                        )
                       : null,
                     instanceResults[connection.id]
                       ? h(
