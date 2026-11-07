@@ -661,7 +661,7 @@ window.__ModuleLoader__.load({
 .vb-open{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .vb-open:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .vb-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.vb-tab-title{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:150px;overflow:hidden;white-space:nowrap}
+.vb-tab-title{display:inline-flex;align-items:center;gap:5px;min-width:0;white-space:nowrap}
 .vb-tab-title .vb-panel-icon{width:14px;height:14px;flex:none}
 .vb-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vb-open svg{width:16px;height:16px;display:block}
@@ -2419,7 +2419,16 @@ window.__ModuleLoader__.load({
                       h(
                         'div',
                         { className: 'vb-actions' },
+                        (() => {
+                          const connectionRuntime = (state.runtimes || []).find((runtime) => runtime.connectionId === connection.id && !runtime.subInstanceId)
+                          const connectionState = connectionRuntime?.state || 'stopped'
+                          return ['running', 'waiting', 'starting', 'connecting'].includes(connectionState)
+                            ? h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => invoke('runtime.stop', { connection: connection.id, runtime: connectionRuntime?.id }) }, label('stop'))
+                            : h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => invoke('runtime.start', { connection: connection.id, waitMs: 15000 }) }, label('start'))
+                        })(),
                         h(Button, { disabled: Boolean(busy), onClick: () => beginEdit(connection) }, label('edit')),
+                        h(Button, { disabled: Boolean(busy), onClick: () => testConnection(connection) }, label('test')),
+                        h(Button, { disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, false) }, deployBusy === connection.id ? label('loading') : label('deploy.deploy')),
                         h(
                           'details',
                           { className: 'vb-menu' },
@@ -2427,11 +2436,9 @@ window.__ModuleLoader__.load({
                           h(
                             'div',
                             { className: 'vb-menu-pop' },
-                            h(Button, { disabled: Boolean(busy), onClick: () => testConnection(connection) }, label('test')),
                             connection.autoSessions
                               ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
                               : null,
-                            h(Button, { disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, false) }, deployBusy === connection.id ? label('loading') : label('deploy.deploy')),
                             h(Button, { disabled: Boolean(busy) || deployBusy === connection.id || Boolean(connection.daemonSetup), onClick: () => deployDaemon(connection, true) }, label('deploy.replace')),
                             h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
                             h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
@@ -2725,24 +2732,11 @@ window.__ModuleLoader__.load({
       }
 
       function RuntimeTabTitle() {
-        const ref = React.useRef(null)
-        const [narrow, setNarrow] = React.useState(false)
-        React.useEffect(() => {
-          const node = ref.current
-          if (!node || typeof ResizeObserver === 'undefined') return undefined
-          const target = node.closest?.('[role="tab"]') ?? node.parentElement
-          if (!target) return undefined
-          const observer = new ResizeObserver(([entry]) => {
-            setNarrow((entry?.contentRect?.width ?? target.getBoundingClientRect().width) < 110)
-          })
-          observer.observe(target)
-          return () => observer.disconnect()
-        }, [])
         return h(
           'span',
-          { className: 'vb-tab-title', ref, title: 'Virtuoso Bridge', 'aria-label': 'Virtuoso Bridge' },
+          { className: 'vb-tab-title', title: 'Virtuoso Bridge', 'aria-label': 'Virtuoso Bridge' },
           h(BridgeMark, { size: 14 }),
-          narrow ? null : h('span', { className: 'vb-tab-label' }, 'Virtuoso Bridge'),
+          h('span', { className: 'vb-tab-label' }, 'Virtuoso Bridge'),
         )
       }
 
