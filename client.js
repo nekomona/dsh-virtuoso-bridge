@@ -744,7 +744,11 @@ window.__ModuleLoader__.load({
 .vb-agent-group.current{border-left-color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 5%,transparent)}
 .vb-agent-group.current .vb-agent-name{font-weight:600}
 .vb-agent-badge{font-size:10px;color:var(--dsw-alias-brand-primary);border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent);border-radius:999px;padding:0 6px;line-height:17px;flex:none}
-.vb-agent-last{font-size:11px}
+.vb-agent-last{font-size:11px;display:flex;flex-wrap:wrap;align-items:center;gap:6px;min-width:0}
+.vb-agent-last-time{white-space:nowrap}
+.vb-agent-servers{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px;min-width:0}
+.vb-server-pill{display:inline-flex;align-items:center;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:0 7px;font-size:10px;line-height:18px;color:var(--dsw-alias-label-secondary);background:var(--dsw-alias-bg-layer-1)}
+.vb-server-pill.inactive{color:var(--dsw-alias-label-tertiary);border-color:color-mix(in srgb,var(--dsw-alias-border-l1) 65%,transparent);background:transparent;opacity:.8}
 .vb-agent-count,.vb-agent-status{font-size:11px}
 .vb-history-head:hover{background:var(--dsw-alias-bg-layer-2);border-radius:6px}
 .vb-history-label,.vb-history-type,.vb-history-state{font-size:11px}
@@ -1615,10 +1619,30 @@ window.__ModuleLoader__.load({
       }
 
       function AgentHistory(props) {
-        const { agent, actions, sessionName, invoke, current } = props
+        const { agent, actions, sessionName, invoke, current, runtimes } = props
         const [open, setOpen] = React.useState(false)
         const agentId = String(agent.sessionId)
         const isActive = agent.active !== undefined ? Boolean(agent.active) : Boolean(agent.live)
+        const serverEntries = (runtimes || [])
+          .map((runtime) => {
+            const usage = (runtime.agents || []).find((entry) => String(entry.sessionId) === agentId)
+            if (!usage) return undefined
+            const lastUsedAt = Number(usage.lastUsedAt || 0)
+            const age = Math.max(0, Date.now() - lastUsedAt)
+            const active =
+              ['running', 'waiting', 'starting', 'connecting'].includes(runtime.state) ||
+              runtime.health?.daemonResponsive === true
+            return {
+              key: runtime.id,
+              name: runtime.subInstanceName ? `${runtime.name} / ${runtime.subInstanceName}` : runtime.name,
+              lastUsedAt,
+              age,
+              active,
+              gray: !active && age > 10 * 60_000,
+            }
+          })
+          .filter((entry) => entry && (entry.active || entry.age <= 30 * 60_000))
+          .sort((left, right) => Number(right.active) - Number(left.active) || right.lastUsedAt - left.lastUsedAt)
         const agentActions = actions.filter((action) => String(action.agentId || '') === agentId)
         const running = agentActions.filter((action) => action.state === 'running')
         const completed = agentActions
@@ -1656,7 +1680,28 @@ window.__ModuleLoader__.load({
             isActive ? null : h('span', { className: 'vb-agent-status' }, label('agents.inactive')),
             h('span', { className: 'vb-agent-chevron', 'aria-hidden': true }, open ? '▾' : '▸'),
           ),
-          h('div', { className: 'vb-agent-last' }, `${label('agents.last')} ${relativeTime(agent.lastUsedAt)}`),
+          h(
+            'div',
+            { className: 'vb-agent-last' },
+            h('span', { className: 'vb-agent-last-time' }, `${label('agents.last')} ${relativeTime(agent.lastUsedAt)}`),
+            serverEntries.length
+              ? h(
+                  'span',
+                  { className: 'vb-agent-servers' },
+                  serverEntries.map((server) =>
+                    h(
+                      'span',
+                      {
+                        className: `vb-server-pill${server.gray ? ' inactive' : ''}`,
+                        key: server.key,
+                        title: `${server.name} · ${relativeTime(server.lastUsedAt)}`,
+                      },
+                      server.name,
+                    ),
+                  ),
+                )
+              : null,
+          ),
           running.length
             ? h(
                 'div',
@@ -1855,6 +1900,7 @@ window.__ModuleLoader__.load({
                       actions,
                       sessionName,
                       invoke,
+                      runtimes,
                       current: String(agent.sessionId) === currentSessionId,
                     }),
                   ),
