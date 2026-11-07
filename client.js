@@ -656,7 +656,9 @@ window.__ModuleLoader__.load({
 .vb-open{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .vb-open:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .vb-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
-.vb-tab-title{display:inline-block;min-width:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vb-tab-title{display:inline-flex;align-items:center;gap:5px;min-width:0;max-width:150px;overflow:hidden;white-space:nowrap}
+.vb-tab-title .vb-panel-icon{width:14px;height:14px;flex:none}
+.vb-tab-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vb-open svg{width:16px;height:16px;display:block}
 .vb-root{--vb-dur:140ms;--vb-ease:cubic-bezier(.2,0,0,1);font-size:13px;line-height:1.5}
 .vb-main-panel{overflow-y:auto}
@@ -698,7 +700,8 @@ window.__ModuleLoader__.load({
 .vb-settings>.vb-order-connections{order:1}
 .vb-settings>.vb-order-environment{order:2}
 .vb-settings>.vb-order-defaults{order:3}
-.vb-settings>.vb-order-activity{order:4}
+.vb-settings>.vb-order-storage{order:4}
+.vb-settings>.vb-order-activity{order:5}
 .vb-section-body{display:flex;flex-direction:column;gap:10px;animation:vb-rise 150ms var(--vb-ease)}
 .vb-settings .vb-section{gap:12px}
 .vb-settings .vb-section+ .vb-section{margin-top:4px}
@@ -2617,7 +2620,7 @@ window.__ModuleLoader__.load({
         )
       }
 
-      function BridgeGlyph(props) {
+      function BridgeMark(props) {
         const size = Number(props?.size) || 16
         return h(
           'svg',
@@ -2625,27 +2628,19 @@ window.__ModuleLoader__.load({
             className: 'vb-panel-icon',
             width: size,
             height: size,
-            viewBox: '0 0 64 64',
+            viewBox: '0 0 48 48',
+            fill: 'currentColor',
             role: 'img',
             'aria-label': 'Virtuoso Bridge',
           },
-          h('rect', { x: 2, y: 2, width: 60, height: 60, rx: 16, fill: '#1f6feb' }),
           h('path', {
-            d: 'M10 38c4 0 5-14 9-14s4 22 8 22 4-26 8-26 4 18 8 18h11',
-            fill: 'none',
-            stroke: '#eaf2ff',
-            strokeWidth: 3.4,
-            strokeLinecap: 'round',
-            strokeLinejoin: 'round',
+            d: 'M1 5.39L7.57 5.39L14.68 42.61L8.11 42.61ZM20.02 5.39L26.59 5.39L14.68 42.61L8.11 42.61ZM29.33 5.39L35.9 5.39L23.99 42.61L17.42 42.61ZM29.33 5.39L38.36 5.39C44.71 5.39 48.36 10.05 46.52 15.79C44.69 21.53 38.05 26.19 31.7 26.19L22.67 26.19ZM24.6 20.17L36.91 20.17C43.72 20.17 47.62 25.19 45.64 31.39C43.66 37.59 36.53 42.61 29.73 42.61L17.42 42.61ZM33.97 11.41L31.17 20.17L33.63 20.17C36.35 20.17 39.18 18.21 39.96 15.79C40.73 13.37 39.15 11.41 36.43 11.41ZM29.24 26.19L25.91 36.59L31.66 36.59C34.83 36.59 38.15 34.26 39.07 31.39C39.99 28.52 38.16 26.19 34.99 26.19Z',
           }),
-          h('circle', { cx: 49, cy: 38, r: 4.2, fill: '#7ee2c4' }),
-          h('circle', { cx: 15, cy: 38, r: 3.2, fill: '#9fc1ff' }),
-          h('path', { d: 'M18 51h28', stroke: '#9fc1ff', strokeWidth: 2.6, strokeLinecap: 'round', opacity: 0.8 }),
         )
       }
 
       function PanelIcon(props) {
-        return h(BridgeGlyph, { size: props?.size })
+        return h(BridgeMark, { size: props?.size })
       }
 
       function ConfigPanel() {
@@ -2702,7 +2697,7 @@ window.__ModuleLoader__.load({
             'aria-label': label('runtime.open'),
             onClick: toggle,
           },
-          h(BridgeGlyph, { size: 18 }),
+          h(BridgeMark, { size: 18 }),
           h('span', { className: `vb-open-dot ${tone}${runningForSession && connected ? ' breathing' : ''}`, 'aria-hidden': true }),
         )
       }
@@ -2726,7 +2721,12 @@ window.__ModuleLoader__.load({
           observer.observe(target)
           return () => observer.disconnect()
         }, [])
-        return h('span', { className: 'vb-tab-title', ref }, compact ? 'VBridge' : 'Virtuoso Bridge')
+        return h(
+          'span',
+          { className: 'vb-tab-title', ref },
+          h(BridgeMark, { size: 14 }),
+          h('span', { className: 'vb-tab-label' }, compact ? 'VBridge' : 'Virtuoso Bridge'),
+        )
       }
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')

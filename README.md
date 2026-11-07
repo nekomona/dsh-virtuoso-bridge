@@ -214,11 +214,12 @@ user-controlled chevron. Running tools remain visible below every agent; inactiv
 agents remain visible in gray. Storage is reduced to a one-line summary.
 
 The runtime tab is named `Virtuoso Bridge` (or `VBridge` in a narrow window), and
-the configuration page is `Virtuoso Bridge 配置`. The composer uses the project
-logo with a small status dot: green when connected, yellow when blocked/waiting,
-and breathing green while a tool call for that session is running. The UI uses
-stock-DSH type sizes, one primary action per surface, 120–180 ms disclosure/hover
-motion, and stock-style skeletons and attention cards.
+the configuration page is `Virtuoso Bridge 配置`. The runtime tab, sidebar entry
+and composer use the site's italic **VB** mark. The composer badge has a small
+status dot: green when connected, yellow when blocked/waiting, and breathing
+green while a tool call for that session is running. The UI uses stock-DSH type
+sizes, one primary action per surface, 120–180 ms disclosure/hover motion, and
+stock-style attention cards.
 
 The remote bridge profile and scratch leaf are derived from the connection name
 (for example `virtuoso_bridge_dsh_lab_virtuoso`) instead of the connection id, so
