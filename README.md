@@ -1,5 +1,7 @@
 # Virtuoso Bridge — DeepSeek Harness plugin
 
+**English** | [简体中文](README.zh-CN.md)
+
 A persistent DSH profile plugin for [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite).
 It turns the bridge's background SSH tunnel and CIW-side daemon into **managed
 runtimes** that survive conversations, exposes the whole Python API to the
@@ -14,6 +16,9 @@ commit `1f186ab` (2026-11-03), including automatic session/instance discovery,
 instance-bound daemon authentication, shared daemon setup, split host roles,
 the expanded layout/bbox/group APIs, Maestro engine configuration and the newer
 Spectre presets.
+
+Detailed English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md) ·
+Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md).
 
 ## What it provides
 
@@ -451,6 +456,9 @@ runtime/vb_script.py  isolated batch script runner
 runtime/vb_instances.py read-only automatic-session discovery
 runtime/vb_deploy.py daemon bootstrap deployment
 docs/agent-workflows.md wrapper recipes over existing VBL APIs
+docs/plugin-guide.md  detailed English usage and architecture guide
+docs/plugin-guide.zh-CN.md  detailed Chinese usage and architecture guide
+README.zh-CN.md       Chinese README
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
 vendor/               virtuoso-bridge-lite source snapshot + VENDOR.json
