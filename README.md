@@ -205,13 +205,20 @@ shows one card per sub-instance; tool calls select one with
 `subInstance: "<id|name|/absolute/workdir>"`. This allows multiple project CIWs
 under one connection without assigning fixed ports.
 
-The right runtime panel groups history under each connected agent. The agent
-row is static and uses the DSH session title (falling back to the working
-directory name, then short session id). Running operations stay visible below
-the agent with a pulsing green/black marker; completed history is behind the
-agent chevron. Expanding a history item shows its code and result (or operation
-details) together, without another fold level. Global operations and logs live on
-the configuration page instead of the runtime panel.
+The configuration page opens on **Server connections**; environment, defaults
+and activity are collapsed until needed. Environment setup and its source/log
+details are disclosed only when expanded or unhealthy. The right runtime panel
+keeps environment and manual start/stop controls, highlights the current
+session's agent at the top, and leaves each agent's completed history behind a
+user-controlled chevron. Running tools remain visible below every agent; inactive
+agents remain visible in gray. Storage is reduced to a one-line summary.
+
+The runtime tab is named `Virtuoso Bridge` (or `VBridge` in a narrow window), and
+the configuration page is `Virtuoso Bridge 配置`. The composer uses the project
+logo with a small status dot: green when connected, yellow when blocked/waiting,
+and breathing green while a tool call for that session is running. The UI uses
+stock-DSH type sizes, one primary action per surface, 120–180 ms disclosure/hover
+motion, and stock-style skeletons and attention cards.
 
 The remote bridge profile and scratch leaf are derived from the connection name
 (for example `virtuoso_bridge_dsh_lab_virtuoso`) instead of the connection id, so

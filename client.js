@@ -20,7 +20,7 @@ window.__ModuleLoader__.load({
     const en = {
       'tab.title': 'Virtuoso Bridge',
       'tab.description': 'Connections, attached agents, caches and ongoing actions for virtuoso-bridge-lite.',
-      'runtime.title': 'Bridge runtime',
+      'runtime.title': 'Virtuoso Bridge',
       'runtime.description': 'Live connection, daemon, agent and operation status.',
       'runtime.open': 'Toggle the Virtuoso Bridge runtime panel',
       'script.title': 'Script',
@@ -31,15 +31,17 @@ window.__ModuleLoader__.load({
       'script.stopped': 'Stopped',
       'script.noResult': 'No result',
       'script.inspect': 'Inspect call',
-      'config.title': 'Virtuoso Bridge',
-      'config.intro': 'Configure the managed environment, SSH connections and runtime defaults.',
-      'config.open': 'Configure',
+      'config.title': 'Virtuoso Bridge settings',
+      'config.intro': 'Connect to a Virtuoso session and manage its bridge.',
+      'config.open': 'Open settings',
       'open': 'Open Virtuoso Bridge dashboard',
       'settings.title': 'Virtuoso Bridge',
       'loading': 'Loading Virtuoso Bridge state…',
       'live': 'Live',
       'polling': 'Polling',
       'refresh': 'Refresh',
+      'more': 'More actions',
+      'attention.title': 'Needs attention',
       'retry': 'Retry',
       'none': 'None',
       'cancel': 'Cancel',
@@ -57,12 +59,13 @@ window.__ModuleLoader__.load({
       'update': 'Update',
       'diagnose': 'Diagnose',
       'clear': 'Clear',
-      'section.connections': 'Connections and runtimes',
-      'section.agents': 'Attached agents',
+      'section.connections': 'Server connections',
+      'section.agents': 'Agent activity',
       'section.caches': 'Local cache storage',
+      'section.storage': 'Storage',
       'section.actions': 'Ongoing actions',
       'section.logs': 'Recent activity',
-      'section.globalHistory': 'Global history',
+      'section.globalHistory': 'Activity',
       'history.script': 'Script',
       'history.runtime': 'Runtime',
       'history.connection': 'Connection',
@@ -80,7 +83,7 @@ window.__ModuleLoader__.load({
       'history.noResult': 'No result yet.',
       'history.noContent': 'No content.',
       'section.setup': 'Environment',
-      'section.defaults': 'Runtime defaults',
+      'section.defaults': 'Defaults',
       'section.credentials': 'Credentials',
       'setup.installed': 'Isolated environment ready',
       'setup.notInstalled': 'The isolated virtuoso-bridge environment is not installed yet.',
@@ -90,6 +93,7 @@ window.__ModuleLoader__.load({
       'setup.python': 'Python',
       'setup.version': 'Package',
       'setup.log': 'Installation log',
+      'setup.sourceAndLog': 'Source and install log',
       'setup.emptyLog': 'No installation has run yet.',
       'setup.error': 'Environment problem',
       'setup.mode.bundled': 'Bundled snapshot',
@@ -185,7 +189,9 @@ window.__ModuleLoader__.load({
       'conn.daemonLostHint': 'The daemon stopped answering after it was previously connected. Check the CIW for a modal dialog, a busy command, or a crashed session.',
       'conn.dialogUnknownHint': 'The daemon is not answering and dialog inspection could not complete.',
       'conn.default': 'Default',
-      'conn.autoStart': 'Start with DSH',
+      'conn.advancedNetwork': 'Advanced network',
+      'conn.advancedRoles': 'Roles and environment',
+      'conn.autoStart': 'Connect when DSH starts',
       'conn.deleteConfirm': 'Delete this connection? Its stored token is removed too.',
       'conn.hostKey': 'SSH host key',
       'conn.hostKeyUnknown': 'This server has not been trusted yet. Confirm the fingerprint before connecting.',
@@ -193,7 +199,8 @@ window.__ModuleLoader__.load({
       'conn.trust': 'Trust and start',
       'conn.trustHint': 'Only trust a fingerprint you verified out of band. This appends the key to your ~/.ssh/known_hosts.',
       'conn.fingerprint': 'Fingerprint',
-      'conn.details': 'Failure details',
+      'conn.details': 'Details',
+      'conn.failureDetails': 'Failure details',
       'conn.sshPortShort': 'SSH',
       'backends.title': 'SSH backends',
       'backends.openssh': 'OpenSSH',
@@ -212,6 +219,7 @@ window.__ModuleLoader__.load({
       'setup.preflight': 'Refresh backends',
       'agents.empty': 'No agent has used a runtime yet.',
       'agents.inactive': 'inactive',
+      'agents.current': 'current',
       'agents.calls': 'calls',
       'agents.last': 'last used',
       'agents.live': 'live',
@@ -254,7 +262,7 @@ window.__ModuleLoader__.load({
       'settings.installedAt': 'Installed',
       'settings.autoInstall': 'Install automatically before the first start',
       'settings.logToCiw': 'Log bridge calls to the Virtuoso CIW',
-      'settings.maxScripts': 'Maximum concurrent scripts',
+      'settings.maxScripts': 'Concurrent scripts',
       'settings.defaultConnection': 'Default connection',
       'settings.autoStartHint': 'Checked connections start when DSH launches.',
       'settings.defaultRemoteScratchRoot': 'Default remote scratch root',
@@ -266,9 +274,9 @@ window.__ModuleLoader__.load({
     }
 
     const zh = {
-      'tab.title': 'Virtuoso 桥接',
+      'tab.title': 'Virtuoso Bridge',
       'tab.description': 'virtuoso-bridge-lite 的连接、已接入智能体、缓存和进行中的操作。',
-      'runtime.title': '桥接运行时',
+      'runtime.title': 'Virtuoso Bridge',
       'runtime.description': '实时显示连接、守护进程、智能体和操作状态。',
       'runtime.open': '切换 Virtuoso 桥接运行时面板',
       'script.title': '脚本',
@@ -279,15 +287,17 @@ window.__ModuleLoader__.load({
       'script.stopped': '已停止',
       'script.noResult': '无结果',
       'script.inspect': '查看调用',
-      'config.title': 'Virtuoso 桥接',
-      'config.intro': '配置托管环境、SSH 连接和运行时默认值。',
-      'config.open': '配置',
+      'config.title': 'Virtuoso Bridge 配置',
+      'config.intro': '连接 Virtuoso 会话并管理桥接。',
+      'config.open': '打开设置',
       'open': '打开 Virtuoso 桥接仪表盘',
       'settings.title': 'Virtuoso 桥接',
       'loading': '正在加载 Virtuoso 桥接状态…',
       'live': '实时',
       'polling': '轮询',
       'refresh': '刷新',
+      'more': '更多操作',
+      'attention.title': '需要处理',
       'retry': '重试',
       'none': '无',
       'cancel': '取消',
@@ -305,12 +315,13 @@ window.__ModuleLoader__.load({
       'update': '更新',
       'diagnose': '诊断',
       'clear': '清理',
-      'section.connections': '连接与运行时',
-      'section.agents': '已接入智能体',
+      'section.connections': '服务器连接',
+      'section.agents': '智能体活动',
       'section.caches': '本地缓存存储',
+      'section.storage': '存储',
       'section.actions': '进行中的操作',
       'section.logs': '最近活动',
-      'section.globalHistory': '全局历史',
+      'section.globalHistory': '活动',
       'history.script': '脚本',
       'history.runtime': '运行时',
       'history.connection': '连接',
@@ -328,7 +339,7 @@ window.__ModuleLoader__.load({
       'history.noResult': '暂无结果。',
       'history.noContent': '暂无内容。',
       'section.setup': '环境',
-      'section.defaults': '运行时默认值',
+      'section.defaults': '默认设置',
       'section.credentials': '凭据',
       'setup.installed': '隔离环境已就绪',
       'setup.notInstalled': '尚未安装 virtuoso-bridge 隔离环境。',
@@ -338,6 +349,7 @@ window.__ModuleLoader__.load({
       'setup.python': 'Python',
       'setup.version': '软件包',
       'setup.log': '安装日志',
+      'setup.sourceAndLog': '来源与安装日志',
       'setup.emptyLog': '尚未执行安装。',
       'setup.error': '环境问题',
       'setup.mode.bundled': '内置快照',
@@ -439,7 +451,9 @@ window.__ModuleLoader__.load({
       'conn.daemonLostHint': '守护进程在连接后停止响应。请检查 CIW 是否被弹窗、正在执行的命令或已崩溃的会话阻塞。',
       'conn.dialogUnknownHint': '守护进程未响应，且无法完成弹窗检查。',
       'conn.default': '默认',
-      'conn.autoStart': '随 DSH 启动',
+      'conn.autoStart': 'DSH 启动时自动连接',
+      'conn.advancedNetwork': '高级网络',
+      'conn.advancedRoles': '主机角色与环境',
       'conn.deleteConfirm': '删除此连接？已存储的令牌也会被移除。',
       'conn.hostKey': 'SSH 主机密钥',
       'conn.hostKeyUnknown': '此服务器尚未被信任。连接前请确认指纹。',
@@ -447,7 +461,8 @@ window.__ModuleLoader__.load({
       'conn.trust': '信任并启动',
       'conn.trustHint': '只信任你已通过其他渠道核实的指纹。这会把密钥追加到 ~/.ssh/known_hosts。',
       'conn.fingerprint': '指纹',
-      'conn.details': '失败详情',
+      'conn.details': '详情',
+      'conn.failureDetails': '失败详情',
       'conn.sshPortShort': 'SSH',
       'backends.title': 'SSH 后端',
       'backends.openssh': 'OpenSSH',
@@ -460,6 +475,7 @@ window.__ModuleLoader__.load({
       'backends.installExtra': '默认安装 Paramiko SSH 扩展',
       'agents.empty': '尚无智能体使用运行时。',
       'agents.inactive': '非活跃',
+      'agents.current': '当前',
       'agents.calls': '次调用',
       'agents.last': '最近使用',
       'agents.live': '在线',
@@ -502,7 +518,7 @@ window.__ModuleLoader__.load({
       'settings.installedAt': '安装时间',
       'settings.autoInstall': '首次启动前自动安装',
       'settings.logToCiw': '将桥接调用记录到 Virtuoso CIW',
-      'settings.maxScripts': '最大并发脚本数',
+      'settings.maxScripts': '同时运行的脚本数',
       'settings.defaultConnection': '默认连接',
       'settings.autoStartHint': '勾选的连接会在 DSH 启动时自动启动。',
       'settings.defaultRemoteScratchRoot': '默认远程暂存根目录',
@@ -640,7 +656,101 @@ window.__ModuleLoader__.load({
 .vb-open{appearance:none;border:1px solid transparent;background:transparent;color:var(--dsw-alias-label-secondary);width:24px;height:24px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .vb-open:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
 .vb-open:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.vb-tab-title{display:inline-block;min-width:0;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .vb-open svg{width:16px;height:16px;display:block}
+.vb-root{--vb-dur:140ms;--vb-ease:cubic-bezier(.2,0,0,1);font-size:13px;line-height:1.5}
+.vb-main-panel{overflow-y:auto}
+.vb-main-panel .vb-root{height:auto;max-height:none;min-height:100%;overflow:visible}
+.vb-root :where(button,input,select,summary){font-family:inherit}
+.vb-section-head{min-height:32px;gap:12px}
+.vb-section-fold{flex:1 1 auto;min-width:0;min-height:32px;padding:4px 8px;margin-left:-8px;border-radius:7px;transition:background-color var(--vb-dur) var(--vb-ease)}
+.vb-section-fold:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-section-fold:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px}
+.vb-section-fold .vb-chevron{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;font-size:0}
+.vb-section-fold .vb-chevron::before{content:"›";font-size:16px;line-height:1;transform:rotate(0deg);transition:transform var(--vb-dur) var(--vb-ease)}
+.vb-section-fold[aria-expanded="true"] .vb-chevron::before{transform:rotate(90deg)}
+.vb-section-title{font-size:13px;font-weight:600;letter-spacing:0;text-transform:none;color:var(--dsw-alias-label-primary)}
+.vb-count{font-size:11px;border:1px solid var(--dsw-alias-border-l1);border-radius:999px;padding:0 7px;line-height:18px}
+.vb-card{border-radius:10px;padding:14px 16px;gap:10px}
+.vb-settings .vb-card{padding:14px 16px;gap:10px}
+.vb-label{font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;color:var(--dsw-alias-label-secondary)}
+.vb-muted{font-size:12px}
+.vb-settings .vb-muted{font-size:12px}
+.vb-mono{font-size:12px}
+.vb-pill,.vb-chip{font-size:11px;padding:1px 8px;transition:background-color var(--vb-dur) var(--vb-ease),border-color var(--vb-dur) var(--vb-ease),color var(--vb-dur) var(--vb-ease)}
+.vb-btn{min-height:28px;padding:4px 10px;font-size:12px;border-radius:8px;transition:background-color var(--vb-dur) var(--vb-ease),border-color var(--vb-dur) var(--vb-ease),color var(--vb-dur) var(--vb-ease)}
+.vb-btn:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-btn.primary{background:var(--dsw-alias-brand-primary);border-color:var(--dsw-alias-brand-primary);color:var(--dsw-alias-bg-layer-1,#fff)}
+.vb-btn.primary:hover{filter:brightness(1.06)}
+.vb-btn.danger{background:transparent;border-color:var(--dsw-alias-state-error-primary);color:var(--dsw-alias-state-error-primary)}
+.vb-input{min-height:30px;padding:6px 9px;font-size:12px;border-radius:8px;transition:border-color var(--vb-dur) var(--vb-ease),box-shadow var(--vb-dur) var(--vb-ease)}
+.vb-input:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-brand-primary) 16%,transparent)}
+.vb-chip.daemon-ready{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
+.vb-chip.daemon-no-response,.vb-chip.daemon-auth-failed{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}
+.vb-chip.daemon-unreachable{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
+.vb-settings{height:auto;min-height:100%;max-height:none;overflow:visible}
+.vb-page-title{font-size:24px;font-weight:600;letter-spacing:-.02em}
+.vb-page-sub{max-width:620px;font-size:13px;line-height:1.55}
+.vb-page-header{padding-bottom:8px}
+.vb-settings{gap:20px;padding:36px 40px 64px}
+.vb-settings>header{order:0}
+.vb-settings>.vb-banner{order:0}
+.vb-settings>.vb-order-connections{order:1}
+.vb-settings>.vb-order-environment{order:2}
+.vb-settings>.vb-order-defaults{order:3}
+.vb-settings>.vb-order-activity{order:4}
+.vb-section-body{display:flex;flex-direction:column;gap:10px;animation:vb-rise 150ms var(--vb-ease)}
+.vb-settings .vb-section{gap:12px}
+.vb-settings .vb-section+ .vb-section{margin-top:4px}
+.vb-hint{font-size:12px;line-height:1.5;padding:6px 10px;border-radius:0 7px 7px 0}
+.vb-error,.vb-logline{font-size:11px}
+.vb-logline{gap:10px;padding:5px 0;border-bottom-color:color-mix(in srgb,var(--dsw-alias-border-l1) 65%,transparent)}
+.vb-actions{gap:8px}
+.vb-field{gap:6px}
+.vb-section-fold,.vb-agent-head,.vb-history-head,.vb-content-head{transition:background-color var(--vb-dur) var(--vb-ease),color var(--vb-dur) var(--vb-ease)}
+.vb-agent-head{border-radius:7px;padding:5px 6px;margin-left:-6px}
+.vb-agent-head:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-agent-group{border-left:2px solid transparent;padding:4px 0 8px 8px;margin-left:-10px;border-radius:0 7px 7px 0;transition:background-color var(--vb-dur) var(--vb-ease),border-color var(--vb-dur) var(--vb-ease)}
+.vb-agent-group.current{border-left-color:var(--dsw-alias-brand-primary);background:color-mix(in srgb,var(--dsw-alias-brand-primary) 5%,transparent)}
+.vb-agent-group.current .vb-agent-name{font-weight:600}
+.vb-agent-badge{font-size:10px;color:var(--dsw-alias-brand-primary);border:1px solid color-mix(in srgb,var(--dsw-alias-brand-primary) 35%,transparent);border-radius:999px;padding:0 6px;line-height:17px;flex:none}
+.vb-agent-last{font-size:11px}
+.vb-agent-count,.vb-agent-status{font-size:11px}
+.vb-history-head:hover{background:var(--dsw-alias-bg-layer-2);border-radius:6px}
+.vb-history-label,.vb-history-type,.vb-history-state{font-size:11px}
+.vb-history-code{font-size:11px;border-radius:7px;background:var(--dsw-alias-bg-layer-2)}
+.vb-advanced{border-top:1px solid var(--dsw-alias-border-l1);padding-top:8px;margin-top:2px}
+.vb-advanced>summary{cursor:pointer;color:var(--dsw-alias-label-secondary);font-size:12px;list-style:none;display:flex;align-items:center;gap:6px;min-height:28px}
+.vb-advanced>summary::-webkit-details-marker{display:none}
+.vb-advanced>summary::before{content:"›";font-size:16px;line-height:1;transition:transform var(--vb-dur) var(--vb-ease);transform:rotate(0)}
+.vb-advanced[open]>summary::before{transform:rotate(90deg)}
+.vb-advanced[open]>summary{color:var(--dsw-alias-label-primary)}
+.vb-attention{display:flex;align-items:flex-start;gap:10px;padding:12px;border:1px solid color-mix(in srgb,var(--dsw-alias-state-warn-primary) 45%,transparent);border-radius:10px;background:color-mix(in srgb,var(--dsw-alias-state-warn-primary) 7%,var(--dsw-alias-bg-layer-1));animation:vb-rise 160ms var(--vb-ease)}
+.vb-attention .vb-strong{font-size:12px}
+.vb-attention .vb-muted{font-size:12px;line-height:1.45}
+@keyframes vb-rise{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
+.vb-storage-summary{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;font-size:12px;color:var(--dsw-alias-label-secondary)}
+.vb-menu{position:relative;display:inline-flex}
+.vb-menu>summary{list-style:none;cursor:pointer;min-width:28px;min-height:28px;padding:4px 8px;border:1px solid var(--dsw-alias-border-l1);border-radius:8px;display:inline-flex;align-items:center;justify-content:center;color:var(--dsw-alias-label-secondary);font-size:15px;line-height:1;background:var(--dsw-alias-bg-layer-1);transition:background-color var(--vb-dur) var(--vb-ease)}
+.vb-menu>summary::-webkit-details-marker{display:none}
+.vb-menu>summary:hover{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.vb-menu[open]>summary{background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-primary)}
+.vb-menu-pop{position:absolute;right:0;top:calc(100% + 4px);z-index:20;min-width:150px;padding:5px;border:1px solid var(--dsw-alias-border-l1);border-radius:9px;background:var(--dsw-alias-bg-layer-1);box-shadow:0 8px 24px color-mix(in srgb,#000 16%,transparent);display:flex;flex-direction:column;gap:2px;animation:vb-rise 120ms var(--vb-ease)}
+.vb-menu-pop .vb-btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent;text-align:left}
+.vb-menu-pop .vb-btn:hover{background:var(--dsw-alias-bg-layer-2)}
+.vb-menu-pop .vb-btn.danger{color:var(--dsw-alias-state-error-primary)}
+.vb-open{position:relative;width:30px;height:30px;border-radius:8px}
+.vb-open-dot{position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;border-radius:50%;border:2px solid var(--dsw-alias-bg-layer-1);background:var(--dsw-alias-state-idle-primary);box-sizing:content-box}
+.vb-open-dot.ok{background:var(--dsw-alias-state-success-primary)}
+.vb-open-dot.warn{background:var(--dsw-alias-state-warn-primary)}
+.vb-open-dot.error{background:var(--dsw-alias-state-error-primary)}
+.vb-open-dot.breathing{animation:vb-dot-breathe 1.4s ease-in-out infinite}
+@keyframes vb-dot-breathe{0%,100%{opacity:1;box-shadow:0 0 0 0 color-mix(in srgb,var(--dsw-alias-state-success-primary) 40%,transparent)}50%{opacity:.55;box-shadow:0 0 0 3px color-mix(in srgb,var(--dsw-alias-state-success-primary) 0%,transparent)}}
+.vb-empty-card{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px;border:1px dashed var(--dsw-alias-border-l1);border-radius:10px;color:var(--dsw-alias-label-secondary);font-size:12px}
+.vb-attention-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.vb-agent-list{display:flex;flex-direction:column}
+.vb-storage-link{color:var(--dsw-alias-brand-primary);font-size:12px;text-decoration:none;cursor:pointer}
+@media (prefers-reduced-motion:reduce){.vb-root *,.vb-root *::before,.vb-root *::after{animation:none!important;transition:none!important}}
 @media (max-width:520px){.vb-grid{grid-template-columns:1fr}.vb-settings{padding:20px 16px 40px}.vb-page-header{flex-direction:column;align-items:stretch}}
 `
 
@@ -813,13 +923,24 @@ window.__ModuleLoader__.load({
     function relativeTime(value) {
       if (!value) return '—'
       const seconds = Math.max(0, Math.round((Date.now() - Number(value)) / 1000))
-      if (seconds < 5) return 'just now'
-      if (seconds < 60) return `${seconds}s ago`
-      const minutes = Math.floor(seconds / 60)
-      if (minutes < 60) return `${minutes}m ago`
-      const hours = Math.floor(minutes / 60)
-      if (hours < 24) return `${hours}h ago`
-      return `${Math.floor(hours / 24)}d ago`
+      try {
+        const formatter = new Intl.RelativeTimeFormat(undefined, { numeric: 'auto' })
+        if (seconds < 5) return formatter.format(0, 'second')
+        if (seconds < 60) return formatter.format(-seconds, 'second')
+        const minutes = Math.floor(seconds / 60)
+        if (minutes < 60) return formatter.format(-minutes, 'minute')
+        const hours = Math.floor(minutes / 60)
+        if (hours < 24) return formatter.format(-hours, 'hour')
+        return formatter.format(-Math.floor(hours / 24), 'day')
+      } catch {
+        if (seconds < 5) return 'just now'
+        if (seconds < 60) return `${seconds}s ago`
+        const minutes = Math.floor(seconds / 60)
+        if (minutes < 60) return `${minutes}m ago`
+        const hours = Math.floor(minutes / 60)
+        if (hours < 24) return `${hours}h ago`
+        return `${Math.floor(hours / 24)}d ago`
+      }
     }
 
     function shortId(value) {
@@ -1004,9 +1125,12 @@ window.__ModuleLoader__.load({
 
       function Section(props) {
         const [open, setOpen] = React.useState(props.defaultOpen !== false)
+        React.useEffect(() => {
+          if (props.defaultOpen !== undefined) setOpen(Boolean(props.defaultOpen))
+        }, [props.defaultOpen])
         return h(
           'section',
-          { className: 'vb-section' },
+          { className: `vb-section${props.className ? ` ${props.className}` : ''}` },
           h(
             'div',
             { className: 'vb-section-head' },
@@ -1018,13 +1142,13 @@ window.__ModuleLoader__.load({
                 'aria-expanded': open,
                 onClick: () => setOpen((value) => !value),
               },
-              h('span', { className: 'vb-chevron' }, open ? '▾' : '▸'),
+              h('span', { className: 'vb-chevron', 'aria-hidden': true }),
               h('span', { className: 'vb-section-title' }, props.title),
               props.count !== undefined ? h('span', { className: 'vb-count' }, String(props.count)) : null,
             ),
-            props.actions || null,
+            open && props.actions ? props.actions : null,
           ),
-          open ? props.children : null,
+          open ? h('div', { className: 'vb-section-body' }, props.children) : null,
         )
       }
 
@@ -1140,8 +1264,17 @@ window.__ModuleLoader__.load({
           ['stopped', 'error'].includes(state)
             ? h(Button, { tone: 'primary', disabled, onClick: start }, label('start'))
             : h(Button, { disabled, onClick: stop }, label('stop')),
-          ['running', 'waiting'].includes(state) ? h(Button, { disabled, onClick: restart }, label('restart')) : null,
-          h(Button, { disabled, onClick: test }, label('test')),
+          h(
+            'details',
+            { className: 'vb-menu' },
+            h('summary', { 'aria-label': label('more') }, '⋯'),
+            h(
+              'div',
+              { className: 'vb-menu-pop' },
+              ['running', 'waiting'].includes(state) ? h(Button, { disabled, onClick: restart }, label('restart')) : null,
+              h(Button, { disabled, onClick: test }, label('test')),
+            ),
+          ),
         )
       }
 
@@ -1210,16 +1343,15 @@ window.__ModuleLoader__.load({
               { className: 'vb-row vb-grow' },
               h('span', { className: `vb-dot ${state}` }),
               h('span', { className: 'vb-strong vb-ellipsis' }, connection.name),
-              h(Pill, { state }),
+              h('span', { className: 'vb-muted' }, stateLabel(state)),
               connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
-              connection.hasSecret ? h('span', { className: 'vb-chip', title: label('conn.tokenStored') }, 'token') : null,
             ),
             h(RuntimeActions, { connection, runtime, busy, invoke, subInstanceId, onTestResult: setTestInfo }),
           ),
           h(
             'div',
             { className: 'vb-mono vb-muted vb-ellipsis' },
-            `${connection.kind === 'local' ? label('conn.kind.local') : label('conn.kind.remote')} · ${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto${connection.remoteWorkDir ? ` ${connection.remoteWorkDir}` : connection.instancePort ? `:${connection.instancePort}` : ''}` : connection.port}${(runtime?.remoteWorkDir || connection.remoteWorkDir) && !connection.autoSessions ? ` · cwd ${runtime?.remoteWorkDir || connection.remoteWorkDir}` : ''} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}${connection.jumpHost ? ` via ${connection.jumpHost}` : ''}`,
+            `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.autoSessions ? 'auto' : connection.port}${(runtime?.remoteWorkDir || connection.remoteWorkDir) ? ` · ${runtime?.remoteWorkDir || connection.remoteWorkDir}` : ''}`,
           ),
           h(HostKeyPrompt, { connection, pending, busy, invoke, subInstanceId }),
           testInfo && !testInfo.ok
@@ -1236,27 +1368,18 @@ window.__ModuleLoader__.load({
               )
             : null,
           runtime?.health?.summary && !daemonReady ? h('div', { className: 'vb-muted' }, runtime.health.summary) : null,
-          daemon
-            ? h(
-                'div',
-                { className: 'vb-row vb-wrap vb-gap6' },
-                h(
-                  'span',
-                  { className: `vb-chip daemon-${daemon.state || 'unknown'}` },
-                  `${label('daemon.title')}: ${daemonLabel(daemon)}`,
-                ),
-                daemon.summary
-                  ? h('span', { className: 'vb-muted vb-ellipsis' }, daemon.summary)
-                  : null,
-              )
-            : null,
-          runtime?.instance
-            ? h(
-                'div',
-                { className: 'vb-mono vb-muted vb-wrap' },
-                `instance port ${runtime.instance.port} · pid ${runtime.instance.pid} · ${runtime.instance.work_dir}`,
-              )
-            : null,
+          h(
+            'details',
+            { className: 'vb-advanced' },
+            h('summary', null, label('conn.details')),
+            runtime?.instance
+              ? h('div', { className: 'vb-mono vb-muted vb-wrap' }, `instance ${runtime.instance.port} · pid ${runtime.instance.pid} · ${runtime.instance.work_dir}`)
+              : null,
+            runtime?.stage ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
+            agents.length
+              ? h('div', { className: 'vb-mono vb-muted vb-wrap' }, agents.slice(0, 4).map((agent) => shortId(agent.sessionId)).join(' · '))
+              : null,
+          ),
           runtime?.daemonCompatibility
             ? h('div', { className: 'vb-hint' }, runtime.daemonCompatibility)
             : null,
@@ -1288,26 +1411,15 @@ window.__ModuleLoader__.load({
             ? h('div', { className: 'vb-hint' }, label('conn.daemonLostHint'))
             : null,
           runtime?.error ? h('div', { className: 'vb-error' }, runtime.error) : null,
-          runtime?.stage && runtime.state !== 'running' ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
-          runtime?.errorDetail
+          runtime?.errorDetail && (runtime.state === 'error' || runtime.state === 'waiting')
             ? h(
                 'details',
                 { className: 'vb-field' },
-                h('summary', { className: 'vb-muted' }, label('conn.details')),
+                h('summary', { className: 'vb-muted' }, label('conn.failureDetails')),
                 h('pre', { className: 'vb-pre' }, JSON.stringify(runtime.errorDetail, null, 2)),
               )
             : null,
           runtime?.pending ? h('div', { className: 'vb-muted' }, `${label('state.starting')}…`) : null,
-          agents.length
-            ? h(
-                'div',
-                { className: 'vb-row vb-wrap vb-gap4' },
-                agents.slice(0, 4).map((agent) =>
-                  h('span', { className: 'vb-chip', key: agent.sessionId, title: `${agent.calls} ${label('agents.calls')}` }, shortId(agent.sessionId)),
-                ),
-                agents.length > 4 ? h('span', { className: 'vb-chip' }, `+${agents.length - 4}`) : null,
-              )
-            : null,
         )
       }
 
@@ -1471,7 +1583,7 @@ window.__ModuleLoader__.load({
       }
 
       function AgentHistory(props) {
-        const { agent, actions, sessionName, invoke } = props
+        const { agent, actions, sessionName, invoke, current } = props
         const [open, setOpen] = React.useState(false)
         const agentId = String(agent.sessionId)
         const isActive = agent.active !== undefined ? Boolean(agent.active) : Boolean(agent.live)
@@ -1496,7 +1608,7 @@ window.__ModuleLoader__.load({
         const history = [...completed, ...apiHistory]
         return h(
           'div',
-          { className: `vb-agent-group${isActive ? '' : ' inactive'}` },
+          { className: `vb-agent-group${isActive ? '' : ' inactive'}${current ? ' current' : ''}` },
           h(
             'button',
             {
@@ -1507,6 +1619,7 @@ window.__ModuleLoader__.load({
             },
             h('span', { className: `vb-dot ${isActive ? 'running' : ''}` }),
             h('span', { className: 'vb-agent-name', title: agentId }, sessionName(agentId)),
+            current ? h('span', { className: 'vb-agent-badge' }, label('agents.current')) : null,
             h('span', { className: 'vb-agent-count' }, `${agent.calls} ${label('agents.calls')}`),
             isActive ? null : h('span', { className: 'vb-agent-status' }, label('agents.inactive')),
             h('span', { className: 'vb-agent-chevron', 'aria-hidden': true }, open ? '▾' : '▸'),
@@ -1546,6 +1659,33 @@ window.__ModuleLoader__.load({
         const actions = state.actions || []
         const agents = state.agents || []
         const caches = state.caches || []
+        const setup = state.setup || {}
+        const currentSessionId = String(props?.sessionId || '')
+        const orderedAgents = [...agents].sort((left, right) => {
+          const leftCurrent = String(left.sessionId) === currentSessionId ? 1 : 0
+          const rightCurrent = String(right.sessionId) === currentSessionId ? 1 : 0
+          if (leftCurrent !== rightCurrent) return rightCurrent - leftCurrent
+          const leftActive = left.active === false ? 0 : 1
+          const rightActive = right.active === false ? 0 : 1
+          if (leftActive !== rightActive) return rightActive - leftActive
+          return Number(right.lastUsedAt || 0) - Number(left.lastUsedAt || 0)
+        })
+        const attention = runtimes.filter(
+          (runtime) =>
+            runtime.dialog?.status === 'blocked' ||
+            runtime.state === 'error' ||
+            runtime.pendingHostKey ||
+            runtime.state === 'waiting' ||
+            runtime.health?.ok === false,
+        )
+        const storageBytes = caches.reduce((total, cache) => total + (Number(cache.bytes) || 0), 0)
+        const openConfig = () => {
+          try {
+            ctx.layout.selectPanel(PANEL_ID)
+          } catch (failure) {
+            console.error('virtuoso-bridge: could not open the configuration panel', failure)
+          }
+        }
         const sessionName = (sessionId) => {
           const id = String(sessionId)
           const collection = sessionSnapshot?.byId ?? sessionSnapshot?.sessions?.byId
@@ -1563,35 +1703,74 @@ window.__ModuleLoader__.load({
           h(
             'div',
             { className: 'vb-top' },
-            h(
-              'div',
-              { className: 'vb-title vb-grow' },
-              h('span', null, label('runtime.title')),
-              h('span', { className: 'vb-live' }, h('span', { className: `vb-live-dot${live ? '' : ' off'}` }), live ? label('live') : label('polling')),
-            ),
+            h('span', { className: 'vb-live' }, h('span', { className: `vb-live-dot${live ? '' : ' off'}` }), live ? label('live') : label('polling')),
             h(
               'div',
               { className: 'vb-actions' },
-              h(
-                Button,
-                {
-                  onClick: () => {
-                    try {
-                      ctx.layout.selectPanel(PANEL_ID)
-                    } catch (failure) {
-                      console.error('virtuoso-bridge: could not open the configuration panel', failure)
-                    }
-                  },
-                },
-                label('config.open'),
-              ),
-              h(Button, { onClick: reload, disabled: Boolean(busy) }, label('refresh')),
+              h(Button, { onClick: openConfig }, label('config.open')),
+              h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
             ),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
+          attention.length
+            ? h(
+                'div',
+                { className: 'vb-attention' },
+                h(
+                  'div',
+                  { className: 'vb-grow' },
+                  h('div', { className: 'vb-strong' }, attention[0].dialog?.status === 'blocked' ? label('conn.dialogHint') : label('attention.title')),
+                  h(
+                    'div',
+                    { className: 'vb-muted' },
+                    attention[0].dialog?.status === 'blocked'
+                      ? attention[0].dialog.dialogs?.[0]?.title || label('conn.dialogClickHint')
+                      : attention[0].error || attention[0].health?.summary || attention[0].state,
+                  ),
+                  h(
+                    'div',
+                    { className: 'vb-attention-actions' },
+                    h(
+                      Button,
+                      {
+                        tone: 'primary',
+                        disabled: Boolean(busy),
+                        onClick: () =>
+                          invoke(attention[0].state === 'running' ? 'runtime.stop' : 'runtime.start', {
+                            connection: attention[0].connectionId,
+                            runtime: attention[0].id,
+                            waitMs: 15000,
+                          }),
+                      },
+                      attention[0].state === 'running' ? label('stop') : label('start'),
+                    ),
+                    h(Button, { onClick: openConfig }, label('config.open')),
+                  ),
+                ),
+              )
+            : null,
           h(
             Section,
-            { title: label('section.connections'), count: connections.length },
+            { title: label('section.setup'), defaultOpen: false },
+            h(
+              'div',
+              { className: 'vb-card' },
+              h(
+                'div',
+                { className: 'vb-row vb-between vb-wrap' },
+                h('span', { className: 'vb-strong' }, setup.installed ? label('setup.installed') : label('setup.notInstalled')),
+                h(Button, { onClick: openConfig }, label('config.open')),
+              ),
+              h(
+                'div',
+                { className: 'vb-muted' },
+                `${setup.venv?.package?.version || '—'} · ${setup.source?.mode || '—'} · Python ${setup.python?.version || '—'}`,
+              ),
+            ),
+          ),
+          h(
+            Section,
+            { title: label('section.connections'), count: connections.length, defaultOpen: true },
             connections.length
               ? connections.flatMap((connection) => {
                   const subs = connection.subInstances ?? []
@@ -1630,57 +1809,29 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.agents'), count: agents.length },
+            { title: label('section.agents'), count: agents.length, defaultOpen: true },
             agents.length
               ? h(
                   'div',
-                  { className: 'vb-card' },
-                  agents.map((agent) =>
+                  { className: 'vb-card vb-agent-list' },
+                  orderedAgents.map((agent) =>
                     h(AgentHistory, {
                       key: agent.sessionId,
                       agent,
                       actions,
                       sessionName,
                       invoke,
+                      current: String(agent.sessionId) === currentSessionId,
                     }),
                   ),
                 )
               : h('div', { className: 'vb-card flat vb-muted' }, label('agents.empty')),
           ),
           h(
-            Section,
-            {
-              title: label('section.caches'),
-              count: caches.length,
-              actions: h(Button, { onClick: () => invoke('cache.refresh', {}) }, label('refresh')),
-            },
-            caches.length
-              ? h(
-                  'div',
-                  { className: 'vb-card' },
-                  state.disk
-                    ? h('div', { className: 'vb-muted' }, `${formatBytes(state.disk.free)} ${label('caches.free')} · ${state.cacheDir || state.dataDir}`)
-                    : null,
-                  caches.map((cache) =>
-                    h(
-                      'div',
-                      { className: 'vb-row vb-between vb-wrap', key: cache.id },
-                      h(
-                        'div',
-                        { className: 'vb-grow' },
-                        h('div', { className: 'vb-ellipsis' }, cache.label),
-                        h('div', { className: 'vb-mono vb-muted vb-ellipsis', title: cache.path }, cache.path),
-                      ),
-                      h(
-                        'div',
-                        { className: 'vb-row vb-gap6' },
-                        h('span', { className: 'vb-muted' }, `${formatBytes(cache.bytes)}${cache.files ? ` · ${cache.files} ${label('caches.files')}` : ''}${cache.truncated ? ` · ${label('caches.truncated')}` : ''}`),
-                        cache.clearable ? h(Button, { disabled: Boolean(busy), onClick: () => invoke('cache.clear', { cache: cache.id }) }, label('clear')) : null,
-                      ),
-                    ),
-                  ),
-                )
-              : h('div', { className: 'vb-card flat vb-muted' }, label('caches.empty')),
+            'div',
+            { className: 'vb-storage-summary' },
+            h('span', null, `${label('section.storage')}: ${formatBytes(storageBytes)}${state.disk ? ` · ${formatBytes(state.disk.free)} ${label('caches.free')}` : ''}`),
+            h('button', { type: 'button', className: 'vb-storage-link', onClick: openConfig }, label('config.open')),
           ),
         )
       }
@@ -1750,8 +1901,7 @@ window.__ModuleLoader__.load({
         }
         return h(
           'div',
-          { className: 'vb-card' },
-          h('div', { className: 'vb-strong' }, draft.id ? label('conn.edit') : label('conn.new')),
+          { className: 'vb-card', id: 'vb-connection-editor' },
           h(
             'div',
             { className: 'vb-grid' },
@@ -1759,9 +1909,6 @@ window.__ModuleLoader__.load({
             h(TextField, { label: label('conn.host'), value: draft.host, onChange: update('host'), placeholder: 'gpu01.example.com' }),
             h(TextField, { label: label('conn.user'), value: draft.user || '', onChange: update('user'), placeholder: 'designer' }),
             h(TextField, { label: label('conn.sshPort'), value: draft.sshPort ?? 22, onChange: update('sshPort'), inputMode: 'numeric' }),
-            h(TextField, { label: label('conn.localPort'), value: draft.localPort ?? '', onChange: update('localPort'), inputMode: 'numeric', placeholder: 'optional' }),
-            h(TextField, { label: label('conn.jumpHost'), value: draft.jumpHost || '', onChange: update('jumpHost'), placeholder: 'optional' }),
-            h(TextField, { label: label('conn.jumpUser'), value: draft.jumpUser || '', onChange: update('jumpUser'), placeholder: 'optional' }),
             h(CheckField, { checked: autoSessions, onChange: toggleAutoSessions }, label('conn.autoSessions')),
             autoSessions
               ? h(TextField, { label: label('conn.instancePort'), value: draft.instancePort ?? '', onChange: update('instancePort'), inputMode: 'numeric', hint: label('conn.instancePortHint'), placeholder: 'optional' })
@@ -1772,52 +1919,78 @@ window.__ModuleLoader__.load({
             autoSessions
               ? h(TextField, { label: label('conn.daemonSetup'), value: draft.daemonSetup || '', onChange: update('daemonSetup'), hint: label('conn.daemonSetupHint'), placeholder: '/opt/virtuoso-bridge/v1/virtuoso_setup.il' })
               : null,
-            h(TextField, { label: label('conn.remoteScratchRoot'), value: draft.remoteScratchRoot || '', onChange: update('remoteScratchRoot'), hint: label('conn.remoteScratchRootHint'), placeholder: 'optional' }),
-            h(TextField, { label: label('conn.sshProxy'), value: draft.sshProxy || '', onChange: update('sshProxy'), hint: label('conn.sshProxyHint'), placeholder: 'socks5://127.0.0.1:10800' }),
-            h(TextField, { label: label('conn.sshMaxSessions'), value: draft.sshMaxSessions ?? '', onChange: update('sshMaxSessions'), inputMode: 'numeric', placeholder: 'optional' }),
-            h(TextField, { label: label('conn.daemonHost'), value: draft.daemonHost || '', onChange: update('daemonHost'), placeholder: 'optional role override' }),
-            h(TextField, { label: label('conn.deployHost'), value: draft.deployHost || '', onChange: update('deployHost'), placeholder: 'optional role override' }),
-            h(TextField, { label: label('conn.guiHost'), value: draft.guiHost || '', onChange: update('guiHost'), placeholder: 'optional role override' }),
-            h(TextField, { label: label('conn.spectreHost'), value: draft.spectreHost || '', onChange: update('spectreHost'), placeholder: 'optional' }),
-            h(TextField, { label: label('conn.clientId'), value: draft.clientId || '', onChange: update('clientId'), placeholder: 'optional' }),
-            h(SelectField, { label: label('conn.backend'), value: draft.sshBackend || 'openssh', onChange: update('sshBackend') },
-              h('option', { value: 'openssh' }, 'openssh'),
-              h('option', { value: 'paramiko' }, 'paramiko'),
-            ),
-            h(SelectField, { label: label('conn.envShell'), value: draft.envShell || 'auto', onChange: update('envShell'), hint: label('conn.envShellHint') },
-              h('option', { value: 'auto' }, label('conn.envShell.auto')),
-              h('option', { value: 'csh' }, 'csh'),
-              h('option', { value: 'sh' }, 'sh'),
-            ),
-            h(TextField, { label: label('conn.cadenceEnvScript'), value: draft.cadenceEnvScript || '', onChange: update('cadenceEnvScript'), hint: label('conn.cadenceEnvScriptHint'), placeholder: '/site/cadence/setup.csh' }),
-            h(TextField, { label: label('conn.identityFile'), value: draft.identityFile || '', onChange: update('identityFile'), hint: label('conn.identityHint'), placeholder: 'C:\\Users\\me\\.ssh\\id_ed25519' }),
-            h(TextField, { label: label('conn.notes'), value: draft.notes || '', onChange: update('notes') }),
           ),
           h(
-            'div',
-            { className: 'vb-field' },
+            'details',
+            { className: 'vb-advanced' },
+            h('summary', null, label('conn.advancedNetwork')),
             h(
               'div',
-              { className: 'vb-row vb-between vb-wrap' },
-              h('span', { className: 'vb-label' }, label('conn.subInstances')),
-              h(Button, { disabled: Boolean(busy), onClick: addSubInstance }, label('conn.addSub')),
+              { className: 'vb-grid' },
+              h(TextField, { label: label('conn.localPort'), value: draft.localPort ?? '', onChange: update('localPort'), inputMode: 'numeric', placeholder: 'optional' }),
+              h(TextField, { label: label('conn.jumpHost'), value: draft.jumpHost || '', onChange: update('jumpHost'), placeholder: 'optional' }),
+              h(TextField, { label: label('conn.jumpUser'), value: draft.jumpUser || '', onChange: update('jumpUser'), placeholder: 'optional' }),
+              h(TextField, { label: label('conn.remoteScratchRoot'), value: draft.remoteScratchRoot || '', onChange: update('remoteScratchRoot'), hint: label('conn.remoteScratchRootHint'), placeholder: 'optional' }),
+              h(TextField, { label: label('conn.sshProxy'), value: draft.sshProxy || '', onChange: update('sshProxy'), hint: label('conn.sshProxyHint'), placeholder: 'socks5://127.0.0.1:10800' }),
+              h(TextField, { label: label('conn.sshMaxSessions'), value: draft.sshMaxSessions ?? '', onChange: update('sshMaxSessions'), inputMode: 'numeric', placeholder: 'optional' }),
             ),
-            subInstances.length
-              ? h(
-                  'div',
-                  { className: 'vb-card flat' },
-                  subInstances.map((sub) =>
-                    h(
-                      'div',
-                      { className: 'vb-grid', key: sub.id },
-                      h(TextField, { label: label('conn.subName'), value: sub.name || '', onChange: updateSubInstance(sub.id, 'name'), placeholder: 'project-a' }),
-                      h(TextField, { label: label('conn.subWorkDir'), value: sub.workDir || '', onChange: updateSubInstance(sub.id, 'workDir'), placeholder: '/projects/project-a' }),
-                      h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeSubInstance(sub.id) }, label('conn.removeSub')),
+          ),
+          h(
+            'details',
+            { className: 'vb-advanced' },
+            h('summary', null, label('conn.advancedRoles')),
+            h(
+              'div',
+              { className: 'vb-grid' },
+              h(TextField, { label: label('conn.daemonHost'), value: draft.daemonHost || '', onChange: update('daemonHost'), placeholder: 'optional role override' }),
+              h(TextField, { label: label('conn.deployHost'), value: draft.deployHost || '', onChange: update('deployHost'), placeholder: 'optional role override' }),
+              h(TextField, { label: label('conn.guiHost'), value: draft.guiHost || '', onChange: update('guiHost'), placeholder: 'optional role override' }),
+              h(TextField, { label: label('conn.spectreHost'), value: draft.spectreHost || '', onChange: update('spectreHost'), placeholder: 'optional' }),
+              h(TextField, { label: label('conn.clientId'), value: draft.clientId || '', onChange: update('clientId'), placeholder: 'optional' }),
+              h(SelectField, { label: label('conn.backend'), value: draft.sshBackend || 'openssh', onChange: update('sshBackend') },
+                h('option', { value: 'openssh' }, 'openssh'),
+                h('option', { value: 'paramiko' }, 'paramiko'),
+              ),
+              h(SelectField, { label: label('conn.envShell'), value: draft.envShell || 'auto', onChange: update('envShell'), hint: label('conn.envShellHint') },
+                h('option', { value: 'auto' }, label('conn.envShell.auto')),
+                h('option', { value: 'csh' }, 'csh'),
+                h('option', { value: 'sh' }, 'sh'),
+              ),
+              h(TextField, { label: label('conn.cadenceEnvScript'), value: draft.cadenceEnvScript || '', onChange: update('cadenceEnvScript'), hint: label('conn.cadenceEnvScriptHint'), placeholder: '/site/cadence/setup.csh' }),
+              h(TextField, { label: label('conn.identityFile'), value: draft.identityFile || '', onChange: update('identityFile'), hint: label('conn.identityHint'), placeholder: 'C:\\Users\\me\\.ssh\\id_ed25519' }),
+              h(TextField, { label: label('conn.notes'), value: draft.notes || '', onChange: update('notes') }),
+            ),
+          ),
+          h(
+            'details',
+            { className: 'vb-advanced' },
+            h('summary', null, label('conn.subInstances')),
+            h(
+              'div',
+              { className: 'vb-field' },
+              h(
+                'div',
+                { className: 'vb-row vb-between vb-wrap' },
+                h('span', { className: 'vb-label' }, label('conn.subInstances')),
+                h(Button, { disabled: Boolean(busy), onClick: addSubInstance }, label('conn.addSub')),
+              ),
+              subInstances.length
+                ? h(
+                    'div',
+                    { className: 'vb-card flat' },
+                    subInstances.map((sub) =>
+                      h(
+                        'div',
+                        { className: 'vb-grid', key: sub.id },
+                        h(TextField, { label: label('conn.subName'), value: sub.name || '', onChange: updateSubInstance(sub.id, 'name'), placeholder: 'project-a' }),
+                        h(TextField, { label: label('conn.subWorkDir'), value: sub.workDir || '', onChange: updateSubInstance(sub.id, 'workDir'), placeholder: '/projects/project-a' }),
+                        h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeSubInstance(sub.id) }, label('conn.removeSub')),
+                      ),
                     ),
-                  ),
-                )
-              : h('div', { className: 'vb-muted' }, label('conn.noSubInstances')),
-            h('div', { className: 'vb-muted' }, label('conn.subInstancesHint')),
+                  )
+                : h('div', { className: 'vb-muted' }, label('conn.noSubInstances')),
+              h('div', { className: 'vb-muted' }, label('conn.subInstancesHint')),
+            ),
           ),
           autoSessions ? h('div', { className: 'vb-muted' }, label('conn.autoSessionsHint')) : null,
           h(
@@ -1830,21 +2003,26 @@ window.__ModuleLoader__.load({
             props.detectMessage ? h('span', { className: 'vb-error' }, props.detectMessage) : null,
           ),
           h(
-            'div',
-            { className: 'vb-field' },
-            h('span', { className: 'vb-label' }, label('conn.token')),
-            h('input', {
-              className: 'vb-input',
-              type: 'password',
-              autoComplete: 'off',
-              value: props.token,
-              placeholder: hasSecret ? label('conn.tokenStored') : '',
-              onChange: (event) => props.setToken(event.target.value),
-            }),
-            h('span', { className: 'vb-muted' }, label('conn.tokenHint')),
-            hasSecret
-              ? h(CheckField, { checked: props.clearToken, onChange: (event) => props.setClearToken(event.target.checked) }, label('conn.clearToken'))
-              : null,
+            'details',
+            { className: 'vb-advanced' },
+            h('summary', null, label('conn.token')),
+            h(
+              'div',
+              { className: 'vb-field' },
+              h('span', { className: 'vb-label' }, label('conn.token')),
+              h('input', {
+                className: 'vb-input',
+                type: 'password',
+                autoComplete: 'off',
+                value: props.token,
+                placeholder: hasSecret ? label('conn.tokenStored') : '',
+                onChange: (event) => props.setToken(event.target.value),
+              }),
+              h('span', { className: 'vb-muted' }, label('conn.tokenHint')),
+              hasSecret
+                ? h(CheckField, { checked: props.clearToken, onChange: (event) => props.setClearToken(event.target.checked) }, label('conn.clearToken'))
+                : null,
+            ),
           ),
           h(
             'div',
@@ -1869,6 +2047,7 @@ window.__ModuleLoader__.load({
         const [instanceBusy, setInstanceBusy] = React.useState('')
         const [deployResults, setDeployResults] = React.useState({})
         const [deployBusy, setDeployBusy] = React.useState('')
+        const [testResults, setTestResults] = React.useState({})
         const workspacePicker = ctx.get?.('uiWorkspace')
         React.useEffect(() => {
           if (!state || draft) return
@@ -1892,24 +2071,28 @@ window.__ModuleLoader__.load({
         const connections = state.connections || []
         const updateSource = (key) => (event) => setDraft({ ...draft, source: { ...draft.source, [key]: event.target.value } })
         const updateDraft = (key) => (event) => setDraft({ ...draft, [key]: event.target.value })
-        const toggleAutoStart = (connectionId) => (event) => {
+        const toggleAutoStart = (connectionId) => async (event) => {
           const next = new Set(draft.autoStart)
           if (event.target.checked) next.add(connectionId)
           else next.delete(connectionId)
-          setDraft({ ...draft, autoStart: [...next] })
+          const autoStart = [...next]
+          setDraft({ ...draft, autoStart })
+          await invoke('setup.configure', { settings: { autoStart } })
         }
         const saveSettings = async () => {
           await invoke('setup.configure', { settings: draft })
         }
         const saveSource = async () => {
-          await invoke('setup.set_source', { source: draft.source })
+          await invoke('setup.configure', { settings: { source: draft.source, pythonPath: draft.pythonPath } })
         }
         const runInstall = async (confirm = false, recreate = false) => {
+          await invoke('setup.configure', { settings: { source: draft.source, pythonPath: draft.pythonPath } }).catch(() => {})
           const result = await invoke('setup.install', { confirm, recreate })
           if (result?.needsConfirmation) setInstallPrompt({ ...result, recreate })
           else setInstallPrompt(null)
         }
         const runUpdate = async (confirm = false) => {
+          await invoke('setup.configure', { settings: { source: draft.source, pythonPath: draft.pythonPath } }).catch(() => {})
           const result = await invoke('setup.update', { confirm })
           if (result?.needsConfirmation) setInstallPrompt(result)
           else setInstallPrompt(null)
@@ -1937,6 +2120,12 @@ window.__ModuleLoader__.load({
             setDetectMessage(result?.detection?.reason || 'shell detection found no Virtuoso environment')
           }
           return result
+        }
+        const focusEditor = () => {
+          if (typeof window === 'undefined') return
+          window.requestAnimationFrame(() => {
+            document.getElementById('vb-connection-editor')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+          })
         }
         const beginNew = () => {
           setEditing({
@@ -1972,12 +2161,14 @@ window.__ModuleLoader__.load({
           setToken('')
           setClearToken(false)
           setDetectMessage('')
+          focusEditor()
         }
         const beginEdit = (connection) => {
           setEditing({ ...connection, port: connection.port ?? '', sshPort: connection.sshPort ?? 22, localPort: connection.localPort ?? '' })
           setToken('')
           setClearToken(false)
           setDetectMessage('')
+          focusEditor()
         }
         const saveConnection = async () => {
           if (!editing) return
@@ -1990,7 +2181,7 @@ window.__ModuleLoader__.load({
           }
         }
         const removeConnection = async (connection) => {
-          if (!window.confirm(label('conn.deleteConfirm'))) return
+          if (!window.confirm(`${label('conn.deleteConfirm')}\n${connection.name}`)) return
           await invoke('connection.delete', { connection: connection.id })
           if (editing?.id === connection.id) setEditing(null)
         }
@@ -2021,8 +2212,12 @@ window.__ModuleLoader__.load({
             }))
           }
         }
+        const testConnection = async (connection) => {
+          const result = await invoke('connection.test', { connection: connection.id })
+          if (result) setTestResults((current) => ({ ...current, [connection.id]: result }))
+        }
         const deployDaemon = async (connection, replace = false) => {
-          if (replace && !window.confirm(label('deploy.confirmReplace'))) return
+          if (replace && !window.confirm(`${label('deploy.confirmReplace')}\n${connection.name}`)) return
           setDeployBusy(connection.id)
           try {
             const result = await invoke('connection.deploy', { connection: connection.id, replace })
@@ -2053,51 +2248,43 @@ window.__ModuleLoader__.load({
               h('h1', { className: 'vb-page-title' }, label('config.title')),
               h('p', { className: 'vb-page-sub' }, label('config.intro')),
             ),
-            h(Button, { onClick: reload, disabled: Boolean(busy) }, label('refresh')),
+            h(Button, { onClick: reload, disabled: Boolean(busy), title: label('refresh'), 'aria-label': label('refresh') }, '↻'),
           ),
           h(ErrorBanner, { message: error || actionError, onRetry: reload }),
           h(
             Section,
             {
               title: label('section.setup'),
+              className: 'vb-order-environment',
+              defaultOpen: !setup.installed || Boolean(setup.error) || Boolean(setup.installing),
               actions: h(
                 'div',
                 { className: 'vb-actions' },
-                h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => runInstall(false, false) }, setup.installing ? label('setup.installing') : label('install')),
-                h(Button, { disabled: Boolean(busy), onClick: () => runInstall(false, true) }, label('repair')),
-                h(Button, { disabled: Boolean(busy), onClick: () => runUpdate(false) }, label('update')),
-                h(Button, { disabled: Boolean(busy), onClick: runDiagnosis }, label('diagnose')),
+                !setup.installed
+                  ? h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: () => runInstall(false, false) }, setup.installing ? label('setup.installing') : label('install'))
+                  : h(Button, { disabled: Boolean(busy), onClick: runDiagnosis }, label('diagnose')),
+                h(
+                  'details',
+                  { className: 'vb-menu' },
+                  h('summary', { 'aria-label': label('settings.diagnostics') }, '⋯'),
+                  h(
+                    'div',
+                    { className: 'vb-menu-pop' },
+                    h(Button, { disabled: Boolean(busy), onClick: () => runInstall(false, true) }, label('repair')),
+                    h(Button, { disabled: Boolean(busy), onClick: () => runUpdate(false) }, label('update')),
+                  ),
+                ),
               ),
             },
             h(
               'div',
               { className: 'vb-card' },
-              h(
-                'div',
-                { className: 'vb-row vb-between vb-wrap' },
-                h('span', { className: 'vb-strong' }, setup.installed ? label('setup.installed') : label('setup.notInstalled')),
-                h('span', { className: 'vb-muted vb-ellipsis' }, setup.venv?.path || ''),
-              ),
-              h(
-                'div',
-                { className: 'vb-mono vb-muted' },
-                `${label('setup.version')}: ${setup.venv?.package?.version || '—'} · ${label('setup.python')}: ${setup.python?.version || '—'} · ${label('setup.source')}: ${setup.source?.mode || '—'}`,
-              ),
-              setup.backends
-                ? h(
-                    'div',
-                    { className: 'vb-muted' },
-                    `${label('backends.openssh')}: ${setup.backends.openssh?.available ? setup.backends.openssh.version || setup.backends.openssh.path : label('backends.missing')} · ` +
-                      `${label('backends.paramiko')}: ${setup.backends.paramiko?.installed ? setup.backends.paramiko.version || label('backends.installed') : label('backends.missing')}`,
-                  )
-                : null,
-              setup.instructions?.dir
-                ? h(
-                    'div',
-                    { className: 'vb-mono vb-muted vb-ellipsis', title: setup.instructions.dir },
-                    `${label('setup.agentDocs')}: ${setup.instructions.dir}${setup.instructions.skills?.length ? ` · ${setup.instructions.skills.length} skills` : ''}`,
-                  )
-                : null,
+                h(
+                  'div',
+                  { className: 'vb-row vb-between vb-wrap' },
+                  h('span', { className: 'vb-strong' }, setup.installed ? label('setup.installed') : label('setup.notInstalled')),
+                  h('span', { className: 'vb-muted vb-ellipsis' }, `${setup.venv?.package?.version || '—'} · ${setup.source?.mode || '—'} · Python ${setup.python?.version || '—'}`),
+                ),
               setup.backends?.needsConfirmation
                 ? h('div', { className: 'vb-error' }, label('backends.confirmMissing'))
                 : null,
@@ -2114,44 +2301,59 @@ window.__ModuleLoader__.load({
                     ),
                   )
                 : null,
-              setup.lastInstall?.installedAt
-                ? h('div', { className: 'vb-muted' }, `${label('settings.installedAt')}: ${new Date(setup.lastInstall.installedAt).toLocaleString()} · ${setup.lastInstall.sourceInfo?.commit ? setup.lastInstall.sourceInfo.commit.slice(0, 12) : ''}`)
-                : null,
               h(
-                'div',
-                { className: 'vb-grid' },
+                'details',
+                { className: 'vb-advanced' },
+                h('summary', null, label('setup.sourceAndLog')),
+                setup.lastInstall?.installedAt
+                  ? h('div', { className: 'vb-muted' }, `${label('settings.installedAt')}: ${new Date(setup.lastInstall.installedAt).toLocaleString()} · ${setup.lastInstall.sourceInfo?.commit ? setup.lastInstall.sourceInfo.commit.slice(0, 12) : ''}`)
+                  : null,
+                setup.backends
+                  ? h(
+                      'div',
+                      { className: 'vb-muted' },
+                      `${label('backends.openssh')}: ${setup.backends.openssh?.available ? setup.backends.openssh.version || setup.backends.openssh.path : label('backends.missing')} · ` +
+                        `${label('backends.paramiko')}: ${setup.backends.paramiko?.installed ? setup.backends.paramiko.version || label('backends.installed') : label('backends.missing')}`,
+                    )
+                  : null,
+                setup.instructions?.dir
+                  ? h(
+                      'div',
+                      { className: 'vb-mono vb-muted vb-ellipsis', title: setup.instructions.dir },
+                      `${label('setup.agentDocs')}: ${setup.instructions.dir}${setup.instructions.skills?.length ? ` · ${setup.instructions.skills.length} skills` : ''}`,
+                    )
+                  : null,
                 h(
-                  SelectField,
-                  { label: label('setup.source'), value: draft.source.mode, onChange: updateSource('mode'), hint: label('setup.modeHint') },
-                  h('option', { value: 'bundled' }, label('setup.mode.bundled')),
-                  h('option', { value: 'local' }, label('setup.mode.local')),
-                  h('option', { value: 'git' }, label('setup.mode.git')),
+                  'div',
+                  { className: 'vb-grid' },
+                  h(
+                    SelectField,
+                    { label: label('setup.source'), value: draft.source.mode, onChange: updateSource('mode'), hint: label('setup.modeHint') },
+                    h('option', { value: 'bundled' }, label('setup.mode.bundled')),
+                    h('option', { value: 'local' }, label('setup.mode.local')),
+                    h('option', { value: 'git' }, label('setup.mode.git')),
+                  ),
+                  h(TextField, { label: label('setup.pythonPath'), value: draft.pythonPath, onChange: updateDraft('pythonPath') }),
+                  draft.source.mode === 'local'
+                    ? h(TextField, { label: label('setup.localPath'), value: draft.source.localRepoPath || '', onChange: updateSource('localRepoPath'), placeholder: 'C:\\path\\to\\virtuoso-bridge-lite' })
+                    : null,
+                  draft.source.mode === 'git'
+                    ? h(TextField, { label: label('setup.repoUrl'), value: draft.source.repoUrl || '', onChange: updateSource('repoUrl') })
+                    : null,
+                  draft.source.mode === 'git'
+                    ? h(TextField, { label: label('setup.gitRef'), value: draft.source.gitRef || '', onChange: updateSource('gitRef') })
+                    : null,
                 ),
-                h(TextField, { label: label('setup.pythonPath'), value: draft.pythonPath, onChange: updateDraft('pythonPath') }),
-                draft.source.mode === 'local'
-                  ? h(TextField, { label: label('setup.localPath'), value: draft.source.localRepoPath || '', onChange: updateSource('localRepoPath'), placeholder: 'C:\\path\\to\\virtuoso-bridge-lite' })
-                  : null,
-                draft.source.mode === 'git'
-                  ? h(TextField, { label: label('setup.repoUrl'), value: draft.source.repoUrl || '', onChange: updateSource('repoUrl') })
-                  : null,
-                draft.source.mode === 'git'
-                  ? h(TextField, { label: label('setup.gitRef'), value: draft.source.gitRef || '', onChange: updateSource('gitRef') })
-                  : null,
+                h(
+                  'div',
+                  { className: 'vb-actions' },
+                  h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: saveSource }, label('settings.sourceSave')),
+                  h(Button, { disabled: Boolean(busy), onClick: () => invoke('setup.refresh', {}) }, label('refresh')),
+                ),
+                setup.installLog?.length
+                  ? h('pre', { className: 'vb-pre' }, setup.installLog.slice(-25).map((line) => `${new Date(line.time).toLocaleTimeString()} [${line.level}] ${line.message}`).join('\n'))
+                  : h('div', { className: 'vb-muted' }, label('setup.emptyLog')),
               ),
-              h(
-                'div',
-                { className: 'vb-actions' },
-                h(Button, { tone: 'primary', disabled: Boolean(busy), onClick: saveSource }, label('settings.sourceSave')),
-                h(Button, { disabled: Boolean(busy), onClick: () => invoke('setup.refresh', {}) }, label('refresh')),
-              ),
-              setup.installLog?.length
-                ? h(
-                    'div',
-                    { className: 'vb-field' },
-                    h('span', { className: 'vb-label' }, label('setup.log')),
-                    h('pre', { className: 'vb-pre' }, setup.installLog.slice(-25).map((line) => `${new Date(line.time).toLocaleTimeString()} [${line.level}] ${line.message}`).join('\n')),
-                  )
-                : h('div', { className: 'vb-muted' }, label('setup.emptyLog')),
               diagnosis
                 ? h(
                     'div',
@@ -2171,6 +2373,8 @@ window.__ModuleLoader__.load({
             Section,
             {
               title: label('section.connections'),
+              className: 'vb-order-connections',
+              defaultOpen: true,
               count: connections.length,
               actions: h(Button, { onClick: beginNew, disabled: Boolean(busy) }, label('conn.add')),
             },
@@ -2189,27 +2393,39 @@ window.__ModuleLoader__.load({
                         h('span', { className: 'vb-strong vb-ellipsis' }, connection.name),
                         connection.autoSessions ? h('span', { className: 'vb-chip' }, label('conn.autoBadge')) : null,
                         connection.subInstances?.length ? h('span', { className: 'vb-chip' }, `${connection.subInstances.length} ${label('conn.subInstances')}`) : null,
-                        connection.hasSecret ? h('span', { className: 'vb-chip' }, 'token') : null,
                         connection.id === state.settings.defaultConnection ? h('span', { className: 'vb-chip' }, label('conn.default')) : null,
                       ),
                       h(
                         'div',
                         { className: 'vb-actions' },
-                        connection.autoSessions
-                          ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
-                          : null,
-                        h(Button, { disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, false) }, deployBusy === connection.id ? label('loading') : label('deploy.deploy')),
-                        h(Button, { tone: 'danger', disabled: Boolean(busy) || deployBusy === connection.id || Boolean(connection.daemonSetup), onClick: () => deployDaemon(connection, true) }, label('deploy.replace')),
                         h(Button, { disabled: Boolean(busy), onClick: () => beginEdit(connection) }, label('edit')),
-                        h(Button, { disabled: Boolean(busy), onClick: () => invoke('connection.test', { connection: connection.id }) }, label('test')),
-                        h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
+                        h(
+                          'details',
+                          { className: 'vb-menu' },
+                          h('summary', { 'aria-label': label('more') }, '⋯'),
+                          h(
+                            'div',
+                            { className: 'vb-menu-pop' },
+                            h(Button, { disabled: Boolean(busy), onClick: () => testConnection(connection) }, label('test')),
+                            connection.autoSessions
+                              ? h(Button, { disabled: Boolean(busy) || instanceBusy === connection.id, onClick: () => discoverInstances(connection) }, instanceBusy === connection.id ? label('loading') : label('instances.discover'))
+                              : null,
+                            h(Button, { disabled: Boolean(busy) || deployBusy === connection.id, onClick: () => deployDaemon(connection, false) }, deployBusy === connection.id ? label('loading') : label('deploy.deploy')),
+                            h(Button, { disabled: Boolean(busy) || deployBusy === connection.id || Boolean(connection.daemonSetup), onClick: () => deployDaemon(connection, true) }, label('deploy.replace')),
+                            h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
+                            h(Button, { tone: 'danger', disabled: Boolean(busy), onClick: () => removeConnection(connection) }, label('delete')),
+                          ),
+                        ),
                       ),
                     ),
                     h(
                       'div',
                       { className: 'vb-mono vb-muted vb-ellipsis' },
-                      `${connection.user ? `${connection.user}@` : ''}${connection.host} · ${connection.autoSessions ? `auto · ${label('conn.instancePort')} ${connection.instancePort || 'auto'}` : `${connection.port}`} · ${label('conn.sshPortShort')} ${connection.sshPort || 22} · ${connection.envShell || 'auto'}`,
+                      `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.autoSessions ? 'auto' : connection.port}${connection.remoteWorkDir ? ` · ${connection.remoteWorkDir}` : ''}`,
                     ),
+                    testResults[connection.id]
+                      ? h('div', { className: testResults[connection.id].ok ? 'vb-muted' : 'vb-error' }, testResults[connection.id].detail || (testResults[connection.id].ok ? 'SSH OK' : 'SSH failed'))
+                      : null,
                     instanceResults[connection.id]
                       ? h(
                           'div',
@@ -2260,7 +2476,7 @@ window.__ModuleLoader__.load({
                             : null,
                         )
                       : null,
-                    connection.daemon
+                    connection.daemon && connection.daemon.state !== 'ready'
                       ? h(
                           'div',
                           { className: 'vb-row vb-gap6' },
@@ -2268,7 +2484,6 @@ window.__ModuleLoader__.load({
                           connection.daemon.summary ? h('span', { className: 'vb-muted vb-ellipsis' }, connection.daemon.summary) : null,
                         )
                       : null,
-                    h(CheckField, { checked: draft.autoStart.includes(connection.id), onChange: toggleAutoStart(connection.id) }, label('conn.autoStart')),
                   ),
                 )
               : h('div', { className: 'vb-card flat vb-muted' }, label('settings.noConnections')),
@@ -2292,7 +2507,7 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.defaults') },
+            { title: label('section.defaults'), className: 'vb-order-defaults', defaultOpen: false },
             h(
               'div',
               { className: 'vb-card' },
@@ -2340,6 +2555,8 @@ window.__ModuleLoader__.load({
             Section,
             {
               title: label('section.globalHistory'),
+              className: 'vb-order-activity',
+              defaultOpen: false,
               count: (state.actions?.length || 0) + (state.logs?.length || 0),
               actions: h(
                 'div',
@@ -2408,18 +2625,22 @@ window.__ModuleLoader__.load({
             className: 'vb-panel-icon',
             width: size,
             height: size,
-            viewBox: '0 0 24 24',
-            fill: 'none',
-            'aria-hidden': true,
+            viewBox: '0 0 64 64',
+            role: 'img',
+            'aria-label': 'Virtuoso Bridge',
           },
+          h('rect', { x: 2, y: 2, width: 60, height: 60, rx: 16, fill: '#1f6feb' }),
           h('path', {
-            d: 'M3 15c1.7 0 2-6 3.7-6s1.6 8 3.3 8 1.7-9 3.4-9 1.6 7 3.3 7H21',
-            stroke: 'currentColor',
-            strokeWidth: '1.6',
+            d: 'M10 38c4 0 5-14 9-14s4 22 8 22 4-26 8-26 4 18 8 18h11',
+            fill: 'none',
+            stroke: '#eaf2ff',
+            strokeWidth: 3.4,
             strokeLinecap: 'round',
             strokeLinejoin: 'round',
           }),
-          h('circle', { cx: '21', cy: '15', r: '1.8', fill: 'currentColor' }),
+          h('circle', { cx: 49, cy: 38, r: 4.2, fill: '#7ee2c4' }),
+          h('circle', { cx: 15, cy: 38, r: 3.2, fill: '#9fc1ff' }),
+          h('path', { d: 'M18 51h28', stroke: '#9fc1ff', strokeWidth: 2.6, strokeLinecap: 'round', opacity: 0.8 }),
         )
       }
 
@@ -2434,16 +2655,26 @@ window.__ModuleLoader__.load({
       function RuntimeOpener(props) {
         const { state } = useBridgeState()
         const sessionId = props?.sessionId
-        const activeStates = ['running', 'waiting', 'starting', 'connecting']
-        const active = Boolean(
-          sessionId &&
-            state?.runtimes?.some(
-              (runtime) =>
-                activeStates.includes(runtime.state) &&
-                (runtime.agents ?? []).some((agent) => String(agent.sessionId) === String(sessionId)),
-            ),
+        const activeStates = ['running', 'waiting', 'starting', 'connecting', 'needs-trust']
+        const runtime = state?.runtimes?.find(
+          (entry) =>
+            activeStates.includes(entry.state) &&
+            (entry.agents ?? []).some((agent) => String(agent.sessionId) === String(sessionId)),
         )
-        if (!active) return null
+        if (!runtime) return null
+        const runningForSession = (state?.actions ?? []).some(
+          (action) => action.state === 'running' && String(action.agentId || '') === String(sessionId),
+        )
+        const blocked =
+          runtime.dialog?.status === 'blocked' ||
+          runtime.state === 'waiting' ||
+          runtime.state === 'needs-trust' ||
+          runtime.state === 'starting' ||
+          runtime.state === 'connecting' ||
+          runtime.health?.daemonResponsive === false
+        const failed = runtime.state === 'error' || runtime.dialog?.status === 'indeterminate'
+        const connected = runtime.state === 'running' && runtime.health?.daemonResponsive !== false && !blocked
+        const tone = failed ? 'error' : blocked ? 'warn' : connected ? 'ok' : 'warn'
         const toggle = () => {
           const sidebar = ctx.sidebarRight
           if (!sidebar?.openTab) return
@@ -2471,8 +2702,31 @@ window.__ModuleLoader__.load({
             'aria-label': label('runtime.open'),
             onClick: toggle,
           },
-          h(BridgeGlyph, { size: 16 }),
+          h(BridgeGlyph, { size: 18 }),
+          h('span', { className: `vb-open-dot ${tone}${runningForSession && connected ? ' breathing' : ''}`, 'aria-hidden': true }),
         )
+      }
+
+      function runtimeTabTitle() {
+        const width = typeof window !== 'undefined' ? Number(window.innerWidth) : 0
+        return width && width < 1500 ? 'VBridge' : 'Virtuoso Bridge'
+      }
+
+      function RuntimeTabTitle() {
+        const ref = React.useRef(null)
+        const [compact, setCompact] = React.useState(() => runtimeTabTitle() === 'VBridge')
+        React.useEffect(() => {
+          const node = ref.current
+          if (!node || typeof ResizeObserver === 'undefined') return undefined
+          const target = node.closest?.('[role="tab"]') ?? node.parentElement
+          if (!target) return undefined
+          const observer = new ResizeObserver(([entry]) => {
+            setCompact((entry?.contentRect?.width ?? target.getBoundingClientRect().width) < 126)
+          })
+          observer.observe(target)
+          return () => observer.disconnect()
+        }, [])
+        return h('span', { className: 'vb-tab-title', ref }, compact ? 'VBridge' : 'Virtuoso Bridge')
       }
 
       ctx.effect(() => ctx.locale.register(NS, { en, zh }), 'virtuoso-bridge: locale')
@@ -2519,12 +2773,12 @@ window.__ModuleLoader__.load({
             kind: KIND,
             priority: 'extension',
             keepMounted: true,
-            title: () => label('runtime.title'),
+            title: runtimeTabTitle,
             guide: [
               {
                 id: 'runtime',
                 order: 40,
-                title: () => label('runtime.title'),
+                title: runtimeTabTitle,
                 description: () => label('runtime.description'),
               },
             ],
@@ -2537,6 +2791,13 @@ window.__ModuleLoader__.load({
             ctx.slots.register({ name: 'sidebar.right.pane.tab', key: TYPE_ID, locale: NS }, RuntimePanelBody),
           ),
         'virtuoso-bridge: runtime panel body',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('sidebar.right.pane.tab.title', () =>
+            ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: TYPE_ID }, RuntimeTabTitle),
+          ),
+        'virtuoso-bridge: runtime tab title',
       )
       ctx.effect(
         () =>
