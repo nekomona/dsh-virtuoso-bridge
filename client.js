@@ -211,7 +211,7 @@ window.__ModuleLoader__.load({
       'setup.backendsTitle': 'SSH backends',
       'setup.preflight': 'Refresh backends',
       'agents.empty': 'No agent has used a runtime yet.',
-      'agents.emptyActive': 'No active agent sessions in the last 10 minutes.',
+      'agents.inactive': 'inactive',
       'agents.calls': 'calls',
       'agents.last': 'last used',
       'agents.live': 'live',
@@ -459,7 +459,7 @@ window.__ModuleLoader__.load({
       'backends.extraHint': '默认会从桥接的 ssh extra 安装 Paramiko 与 PySocks。',
       'backends.installExtra': '默认安装 Paramiko SSH 扩展',
       'agents.empty': '尚无智能体使用运行时。',
-      'agents.emptyActive': '最近 10 分钟内没有活跃的智能体会话。',
+      'agents.inactive': '非活跃',
       'agents.calls': '次调用',
       'agents.last': '最近使用',
       'agents.live': '在线',
@@ -589,6 +589,8 @@ window.__ModuleLoader__.load({
 .vb-agent-head{display:flex;align-items:center;gap:8px;min-width:0;padding:4px 0;cursor:pointer;border:0;background:transparent;color:inherit;text-align:left;width:100%;font:inherit}
 .vb-agent-head:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:1px;border-radius:4px}
 .vb-agent-name{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:500}
+.vb-agent-group.inactive .vb-agent-name,.vb-agent-group.inactive .vb-agent-count,.vb-agent-group.inactive .vb-agent-last{color:var(--dsw-alias-label-secondary)}
+.vb-agent-status{color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
 .vb-agent-count{color:var(--dsw-alias-label-secondary);font-size:10px;flex:none}
 .vb-agent-chevron{margin-left:auto;color:var(--dsw-alias-label-secondary);font-size:11px;flex:none}
 .vb-agent-last{color:var(--dsw-alias-label-secondary);font-size:10px;padding-left:16px}
@@ -1472,6 +1474,7 @@ window.__ModuleLoader__.load({
         const { agent, actions, sessionName, invoke } = props
         const [open, setOpen] = React.useState(false)
         const agentId = String(agent.sessionId)
+        const isActive = agent.active !== undefined ? Boolean(agent.active) : Boolean(agent.live)
         const agentActions = actions.filter((action) => String(action.agentId || '') === agentId)
         const running = agentActions.filter((action) => action.state === 'running')
         const completed = agentActions
@@ -1493,7 +1496,7 @@ window.__ModuleLoader__.load({
         const history = [...completed, ...apiHistory]
         return h(
           'div',
-          { className: 'vb-agent-group' },
+          { className: `vb-agent-group${isActive ? '' : ' inactive'}` },
           h(
             'button',
             {
@@ -1502,9 +1505,10 @@ window.__ModuleLoader__.load({
               'aria-expanded': open,
               onClick: () => setOpen((value) => !value),
             },
-            h('span', { className: `vb-dot ${agent.live ? 'running' : ''}` }),
+            h('span', { className: `vb-dot ${isActive ? 'running' : ''}` }),
             h('span', { className: 'vb-agent-name', title: agentId }, sessionName(agentId)),
             h('span', { className: 'vb-agent-count' }, `${agent.calls} ${label('agents.calls')}`),
+            isActive ? null : h('span', { className: 'vb-agent-status' }, label('agents.inactive')),
             h('span', { className: 'vb-agent-chevron', 'aria-hidden': true }, open ? '▾' : '▸'),
           ),
           h('div', { className: 'vb-agent-last' }, `${label('agents.last')} ${relativeTime(agent.lastUsedAt)}`),
@@ -1542,12 +1546,6 @@ window.__ModuleLoader__.load({
         const actions = state.actions || []
         const agents = state.agents || []
         const caches = state.caches || []
-        const activeSince = Date.now() - 10 * 60_000
-        const activeAgents = agents.filter(
-          (agent) =>
-            (agent.live && Number(agent.lastUsedAt || 0) >= activeSince) ||
-            actions.some((action) => String(action.agentId || '') === String(agent.sessionId) && action.state === 'running'),
-        )
         const sessionName = (sessionId) => {
           const id = String(sessionId)
           const collection = sessionSnapshot?.byId ?? sessionSnapshot?.sessions?.byId
@@ -1632,12 +1630,12 @@ window.__ModuleLoader__.load({
           ),
           h(
             Section,
-            { title: label('section.agents'), count: activeAgents.length },
-            activeAgents.length
+            { title: label('section.agents'), count: agents.length },
+            agents.length
               ? h(
                   'div',
                   { className: 'vb-card' },
-                  activeAgents.map((agent) =>
+                  agents.map((agent) =>
                     h(AgentHistory, {
                       key: agent.sessionId,
                       agent,
@@ -1647,7 +1645,7 @@ window.__ModuleLoader__.load({
                     }),
                   ),
                 )
-              : h('div', { className: 'vb-card flat vb-muted' }, label('agents.emptyActive')),
+              : h('div', { className: 'vb-card flat vb-muted' }, label('agents.empty')),
           ),
           h(
             Section,

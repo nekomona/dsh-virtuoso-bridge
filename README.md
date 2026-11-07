@@ -221,8 +221,9 @@ the remote project working directory when the CIW reports it.
 When the daemon stops answering, the status includes a CIW dialog inspection.
 A blocking popup is shown by title with an instruction to click/answer it; the
 panel does not ask for a daemon reinstall or setup reload for that case. Other
-failures show the tunnel/health reason. Only agents that are live and active in
-the last ten minutes (or have a running operation) are listed.
+failures show the tunnel/health reason. Inactive agent sessions remain listed
+with a gray status; sessions active within the last ten minutes (or with a
+running operation) keep the normal live marker.
 
 On the first connection the plugin reads the offered host keys and stops in
 the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
