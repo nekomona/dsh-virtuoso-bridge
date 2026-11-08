@@ -31,7 +31,9 @@ import enum
 import inspect
 import json
 import os
+import secrets
 import shlex
+import socket
 import sys
 import threading
 import time
@@ -305,6 +307,23 @@ def _describe_class(cls: type) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
+def _preview_bytes(raw: bytes, limit: int = 240) -> str:
+    return raw[:limit].decode("utf-8", errors="replace")
+
+
+def _load_line(setup_path: Any) -> str | None:
+    path = str(setup_path or "").strip()
+    if not path:
+        return None
+    try:
+        from virtuoso_bridge.virtuoso.ops import escape_skill_string
+
+        return 'load("%s")' % escape_skill_string(path)
+    except Exception:  # noqa: BLE001 - message formatting must not fail connect
+        escaped = path.replace("\\", "\\\\").replace('"', '\\"')
+        return 'load("%s")' % escaped
+
+
 class RuntimeErrorInfo(Exception):
     pass
 
@@ -321,6 +340,7 @@ class BridgeRuntime:
         self.connect_error: str | None = None
         self.connect_started = 0.0
         self.connect_finished = 0.0
+        self.daemon_probe: dict[str, Any] | None = None
         self.lock = threading.RLock()
         self.started_at = time.time()
         self.last_activity = time.time()
@@ -489,6 +509,7 @@ class BridgeRuntime:
             "lastActivity": self.last_activity,
             "connected": self.client is not None,
             "connectError": self.connect_error,
+            "daemonProbe": self.daemon_probe,
             "connectMs": round((self.connect_finished - self.connect_started) * 1000)
             if self.connect_finished
             else None,
@@ -545,6 +566,143 @@ class BridgeRuntime:
         return result
 
     # -- connect ------------------------------------------------------------
+
+    def _probe_tunnel_daemon(self, ssh: Any, timeout: float) -> dict[str, Any]:
+        """Classify what answers the capability handshake behind the tunnel.
+
+        A CIW whose setup was never loaded has no listener on the forwarded
+        port.  The upstream cross-user identity check then reports a raw
+        socket error ("could not determine the Unix user ...") which hides
+        the actionable fact.  This probe is side-effect free (an ``op=hello``
+        request with no ``skill`` field) and distinguishes:
+
+        ready        - a current bridge daemon (possibly unsigned/auth off)
+        auth         - a bridge daemon that refuses our token
+        legacy       - something answers, but not with signed capabilities
+        no-listener  - the forwarded remote port refused/reset the connection
+        timeout      - the endpoint accepted but never answered (indeterminate)
+        """
+        probe: dict[str, Any] = {
+            "state": "unknown",
+            "port": int(getattr(ssh, "port", 0) or 0),
+            "checkedAt": time.time(),
+        }
+        port = probe["port"]
+        if not port:
+            probe.update(state="unreachable", message="the tunnel has no local port")
+            return probe
+        token: str | None = None
+        try:
+            token = ssh.read_daemon_token() or ssh.ensure_daemon_token()
+        except Exception as exc:  # noqa: BLE001 - probe must never crash connect
+            probe["tokenError"] = f"{type(exc).__name__}: {exc}"
+        try:
+            from virtuoso_bridge import daemon_auth
+
+            proto = daemon_auth.PROTOCOL_VERSION
+            nonce = secrets.token_hex(16)
+            payload: dict[str, Any] = {"proto": proto, "nonce": nonce, "op": "hello"}
+            if token:
+                payload["mac"] = daemon_auth.hello_mac(token, nonce=nonce)
+        except Exception as exc:  # noqa: BLE001
+            probe.update(state="unknown", message=f"cannot build hello: {type(exc).__name__}: {exc}")
+            return probe
+        budget = max(3.0, min(float(timeout or 10), 15.0))
+        deadline = time.monotonic() + budget
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(budget)
+                sock.connect(("127.0.0.1", port))
+                sock.sendall(json.dumps(payload).encode("utf-8"))
+                sock.shutdown(socket.SHUT_WR)
+                chunks: list[bytes] = []
+                received = 0
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        raise socket.timeout("capability probe deadline expired")
+                    sock.settimeout(remaining)
+                    chunk = sock.recv(65536)
+                    if not chunk:
+                        break
+                    received += len(chunk)
+                    chunks.append(chunk)
+                    if received > 1_000_000:
+                        break
+            raw = b"".join(chunks)
+        except (socket.timeout, TimeoutError) as exc:
+            probe.update(state="timeout", message=f"{type(exc).__name__}: {exc}")
+            return probe
+        except OSError as exc:
+            code = getattr(exc, "winerror", None) or getattr(exc, "errno", None)
+            text = f"{type(exc).__name__}: {exc}"
+            # OpenSSH -L accepts the local connection and then aborts it when
+            # the remote port has no listener: Windows reports WSAECONNABORTED
+            # (10053) or WSAECONNRESET (10054), POSIX ECONNRESET/ECONNREFUSED.
+            if code in (10053, 10054, 10061, 104, 111):
+                probe.update(state="no-listener", message=text, socketCode=code)
+            else:
+                probe.update(state="unreachable", message=text, socketCode=code)
+            return probe
+        if raw[:1] == b"\x02":
+            body = raw[1:]
+            try:
+                from virtuoso_bridge import daemon_auth
+
+                if token and daemon_auth.looks_like_hex_mac(body):
+                    body = daemon_auth.verify_response_bytes(raw, token, nonce)[1:]
+                    probe["signed"] = True
+                else:
+                    probe["signed"] = False
+            except Exception as exc:  # noqa: BLE001 - auth/handshake mismatch
+                probe.update(state="auth", message=f"capability response failed authentication: {type(exc).__name__}: {exc}")
+                return probe
+            try:
+                caps = json.loads(body.decode("utf-8", errors="ignore"))
+            except Exception:  # noqa: BLE001 - answered but unparseable
+                probe.update(state="legacy", message="the daemon answered the capability handshake with non-JSON data", preview=_preview_bytes(raw))
+                return probe
+            if isinstance(caps, dict):
+                probe["build"] = caps.get("build")
+                probe["auth"] = caps.get("auth")
+                probe["protocol"] = caps.get("proto")
+            probe.update(state="ready")
+            return probe
+        if raw[:1] == b"\x15":
+            message = raw[1:].decode("utf-8", errors="ignore").strip()[:600]
+            probe["message"] = message
+            probe.update(state="auth" if message.startswith("AuthError") else "legacy")
+            return probe
+        if not raw:
+            probe.update(state="legacy", message="the daemon closed the capability handshake without answering")
+            return probe
+        probe.update(state="legacy", message="the daemon did not answer the bridge capability handshake", preview=_preview_bytes(raw))
+        return probe
+
+    def _degraded_client(self, ssh: Any, timeout: int) -> Any:
+        """A client for a tunnel with no bridge daemon yet.
+
+        No identity guard runs here because nothing answered the capability
+        handshake: the only reachable state is "the CIW setup was not loaded".
+        The daemon token is still attached, so once a current setup is loaded
+        the normal signed handshake authenticates every real call; a foreign
+        listener cannot produce it.
+        """
+        from virtuoso_bridge import VirtuosoClient
+
+        token = None
+        try:
+            token = getattr(ssh, "_daemon_token", None) or ssh.read_daemon_token()
+        except Exception:
+            token = None
+        return VirtuosoClient(
+            host="127.0.0.1",
+            port=ssh.port,
+            timeout=max(30, timeout),
+            tunnel=ssh,
+            log_to_ciw=self.log_to_ciw,
+            daemon_token=token,
+        )
 
     def instances(self, params: dict[str, Any]) -> dict[str, Any]:
         """List daemon instances without selecting, provisioning or connecting."""
@@ -614,7 +772,53 @@ class BridgeRuntime:
                         timeout=max(30, timeout),
                     )
                 else:
-                    client = VirtuosoClient.from_tunnel(ssh, timeout=max(30, timeout))
+                    probe = self._probe_tunnel_daemon(ssh, timeout)
+                    if probe.get("state") == "no-listener":
+                        # The local forward was started just now; give the
+                        # remote side one more chance before concluding that
+                        # the CIW setup was never loaded.
+                        time.sleep(0.5)
+                        probe = self._probe_tunnel_daemon(ssh, timeout)
+                    self.daemon_probe = probe
+                    state = probe.get("state")
+                    setup_path = getattr(ssh, "setup_path", None)
+                    if not setup_path:
+                        try:
+                            setup_path = (ssh.read_state() or {}).get("setup_path")
+                        except Exception:  # noqa: BLE001
+                            setup_path = None
+                    load_line = _load_line(setup_path)
+                    if state == "no-listener":
+                        # Nothing answers the bridge handshake behind the
+                        # tunnel: the CIW has not loaded the prepared setup.
+                        # Keep a client so the health loop can adopt the daemon
+                        # once the user loads it; no identity guard is needed
+                        # because there is no listener to guard against.
+                        log(
+                            "no bridge daemon answered behind the tunnel at "
+                            f"127.0.0.1:{ssh.port} (remote {ssh.remote_host}:{getattr(ssh, 'remote_port', '?')}); "
+                            "waiting for the CIW setup to be loaded"
+                        )
+                        client = self._degraded_client(ssh, timeout)
+                    elif state == "legacy":
+                        raise RuntimeError(
+                            "The bridge daemon behind the tunnel is an older build that does not answer "
+                            "this client's capability handshake "
+                            f"({probe.get('message') or 'no signed capabilities'}). "
+                            "Deploy the current setup and load it in the intended idle CIW"
+                            + (f": {load_line}" if load_line else "")
+                            + ". A plain restart or reconnect does not deploy files or reload the setup."
+                        )
+                    elif state == "auth":
+                        raise RuntimeError(
+                            "Bridge daemon authentication failed: "
+                            f"{probe.get('message') or 'the daemon refused this client token'}. "
+                            "The daemon may belong to another account, or its bridge token was rotated; "
+                            "deploy the current setup and load it in the intended idle CIW"
+                            + (f" ({load_line})" if load_line else "")
+                        )
+                    else:
+                        client = VirtuosoClient.from_tunnel(ssh, timeout=max(30, timeout))
                 client.log_to_ciw = self.log_to_ciw
                 if token:
                     client.daemon_token = token

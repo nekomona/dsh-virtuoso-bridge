@@ -54,6 +54,7 @@
     "virtuoso-bridge-lite/skills/**"
   ],
   "scripts": {
+    "test": "node --test tests/*.test.mjs",
     "prepack": "node scripts/prepare-vendor.mjs"
   },
   "dsh": {

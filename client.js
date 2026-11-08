@@ -267,6 +267,7 @@ window.__ModuleLoader__.load({
       'action.diagnose': 'Diagnosis',
       'error.title': 'Action failed',
       'error.setup': 'Could not load the dashboard state.',
+      'error.timeout': 'The dashboard did not answer in time. The server operation may still be running — refresh to check its result.',
       'settings.intro': 'Configure the managed virtuoso-bridge-lite environment, server connections and durable credentials. The same operations are available to the agent through the virtuoso_bridge_* tools.',
       'settings.sourceSave': 'Save source',
       'settings.settingsSave': 'Save defaults',
@@ -534,6 +535,7 @@ window.__ModuleLoader__.load({
       'action.diagnose': '诊断',
       'error.title': '操作失败',
       'error.setup': '无法加载仪表盘状态。',
+      'error.timeout': '仪表盘响应超时。服务器操作可能仍在进行，请刷新以查看结果。',
       'settings.intro': '配置受管的 virtuoso-bridge-lite 环境、服务器连接和持久凭据。智能体可通过 virtuoso_bridge_* 工具执行相同操作。',
       'settings.sourceSave': '保存来源',
       'settings.settingsSave': '保存默认值',
@@ -831,6 +833,58 @@ window.__ModuleLoader__.load({
       }
     }
 
+    // `/state` is polled every 5 s, so plain requests keep the short budget that
+    // keeps the panel feeling live. Action POSTs are different: the server runs
+    // real work (deploy, install, instance discovery, runtime start) that can
+    // take minutes, and aborting the browser side does not stop it — it only
+    // throws away the result the user needs (e.g. the deploy setup path/load
+    // line). Actions therefore get their own, generous budget.
+    const DEFAULT_REQUEST_TIMEOUT_MS = 12_000
+    const DEFAULT_ACTION_TIMEOUT_MS = 30_000
+    // Server-side budgets these must exceed: deploy process 240 s, instance
+    // discovery 60 s + overhead, setup install/update 15 min.
+    const ACTION_TIMEOUT_MS = {
+      'connection.deploy': 300_000,
+      'connection.save': 300_000,
+      'connection.delete': 120_000,
+      'connection.detect_shell': 120_000,
+      'connection.instances': 120_000,
+      'connection.test': 90_000,
+      'setup.install': 960_000,
+      'setup.update': 960_000,
+      'setup.diagnose': 300_000,
+      'runtime.start': 300_000,
+      'runtime.restart': 300_000,
+      'runtime.stop': 120_000,
+      'runtime.trust_host': 120_000,
+      'orphan.stop': 120_000,
+      'script.run': 180_000,
+    }
+
+    function actionTimeoutMs(action) {
+      return ACTION_TIMEOUT_MS[action] || DEFAULT_ACTION_TIMEOUT_MS
+    }
+
+    function isTimeoutError(error) {
+      if (!error) return false
+      const name = String(error.name || '')
+      if (name === 'TimeoutError' || name === 'AbortError') return true
+      return /timed out|aborted/i.test(String(error.message || ''))
+    }
+
+    function timeoutFailure(path, timeoutMs, action) {
+      const seconds = Math.round(timeoutMs / 1000)
+      const failure = new Error(
+        action
+          ? `${action} did not answer within ${seconds}s; the server operation may still be running — refresh the status to see its result.`
+          : `${path} did not answer within ${seconds}s; refresh to check the current state.`,
+      )
+      failure.timeout = true
+      failure.timeoutMs = timeoutMs
+      if (action) failure.action = action
+      return failure
+    }
+
     async function bootstrapAt(base) {
       const response = await fetch(`${base}/bootstrap`, {
         method: 'GET',
@@ -888,23 +942,37 @@ window.__ModuleLoader__.load({
     }
 
     async function rawRequest(base, token, path, options) {
+      const timeoutMs = Number.isFinite(options.timeoutMs) ? options.timeoutMs : DEFAULT_REQUEST_TIMEOUT_MS
+      const action = options.body?.action
       const headers = { accept: 'application/json', ...(options.headers || {}) }
       if (options.body !== undefined) headers['content-type'] = 'application/json'
       if (token) headers['x-vb-token'] = token
       const url = new URL(`${base}${path}`, typeof location !== 'undefined' ? location.href : undefined)
       if (token) url.searchParams.set('token', token)
-      const response = await fetch(url.toString(), {
-        method: options.method || 'GET',
-        headers,
-        credentials: 'same-origin',
-        cache: 'no-store',
-        signal: fetchSignal(12_000),
-        body: options.body === undefined ? undefined : JSON.stringify(options.body),
-      })
+      let response
+      try {
+        response = await fetch(url.toString(), {
+          method: options.method || 'GET',
+          headers,
+          credentials: 'same-origin',
+          cache: 'no-store',
+          signal: fetchSignal(timeoutMs),
+          body: options.body === undefined ? undefined : JSON.stringify(options.body),
+        })
+      } catch (error) {
+        // Chrome reports an AbortSignal.timeout() abort as `signal timed out`;
+        // that string is meaningless to the user and hides the fact that the
+        // server side may have finished the work. Replace it with an actionable
+        // failure carrying `timeout: true` so callers never retry it.
+        if (isTimeoutError(error)) throw timeoutFailure(path, timeoutMs, action)
+        throw error
+      }
       let data
       try {
         data = await response.json()
-      } catch {
+      } catch (error) {
+        // The abort signal also cancels an in-flight body read.
+        if (isTimeoutError(error)) throw timeoutFailure(path, timeoutMs, action)
         const failure = new Error(`HTTP ${response.status} from ${url.pathname}`)
         failure.status = response.status
         throw failure
@@ -926,6 +994,10 @@ window.__ModuleLoader__.load({
           return await rawRequest(current.base, current.token, path, options)
         } catch (error) {
           lastError = error
+          // A timeout is not a stale-session signal: the action may still be
+          // running on the server, so re-running it would duplicate the work.
+          // Surface it immediately instead of entering the bootstrap retry.
+          if (error?.timeout === true) throw error
           const status = error?.status
           const networkFailure =
             error instanceof TypeError ||
@@ -1257,11 +1329,17 @@ window.__ModuleLoader__.load({
             setBusy(action)
             setError('')
             try {
-              const data = await request('/action', { method: 'POST', body: { action, payload, agentId } })
+              const data = await request('/action', {
+                method: 'POST',
+                body: { action, payload, agentId },
+                // Long server actions must outlive their real runtime; a
+                // caller may still override the budget explicitly.
+                timeoutMs: Number.isFinite(options.timeoutMs) ? options.timeoutMs : actionTimeoutMs(action),
+              })
               reload()
               return data.result
             } catch (failure) {
-              if (options.onError?.(failure) !== true) setError(failure.message)
+              if (options.onError?.(failure) !== true) setError(failure.timeout ? label('error.timeout') : failure.message)
               return undefined
             } finally {
               setBusy('')
