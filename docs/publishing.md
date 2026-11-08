@@ -37,7 +37,7 @@ change the bundled source. The Actions runner checks the repository out with
 `submodules: recursive`, so `virtuoso-bridge-lite/` is available to CI without
 further steps.
 
-Three workflows live in `.github/workflows/`:
+Two workflows live in `.github/workflows/`:
 
 - `ci.yml` — runs on pushes and pull requests: verifies the
   `virtuoso-bridge-lite/` pin against `virtuoso-bridge-lite.pin.json`, checks
@@ -47,11 +47,6 @@ Three workflows live in `.github/workflows/`:
 - `release.yml` — runs on a `v*` tag: verifies the pin, runs the guard, asserts
   that the tag matches `package.json`'s version, publishes to npm, and creates a
   GitHub Release with the packed tarball attached.
-- `upstream-watch.yml` — runs weekly on a cron schedule and on manual dispatch:
-  compares upstream `Arcadia-1/virtuoso-bridge-lite` `refs/heads/main` with the
-  pinned commit and opens or updates a GitHub issue labelled `upstream` when they
-  differ, so a stale pin is an alert rather than a surprise; when they are equal
-  it exits quietly.
 
 ## 3. npm account and scope
 
@@ -84,13 +79,13 @@ issue, or write it into `package.json` or `.npmrc` in the repository.
 
 ## 5. First release
 
-1. Confirm that `package.json` has `"version": "1.0.0"`; the tag must match it
+1. Confirm that `package.json` has `"version": "0.1.0"`; the tag must match it
    exactly.
 2. Commit the release state, then tag and push the tag:
 
    ```powershell
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v0.1.0
+   git push origin v0.1.0
    ```
 
 Use `git push --follow-tags` instead when the commit is pushed at the same time.
@@ -101,7 +96,7 @@ The tag starts `release.yml`, which:
    `virtuoso-bridge-lite.pin.json`;
 2. runs `scripts/check-no-private-data.mjs`;
 3. runs the syntax checks;
-4. asserts that `v1.0.0` matches `package.json`'s `version`;
+4. asserts that `v0.1.0` matches `package.json`'s `version`;
 5. publishes `@nekomona/dsh-virtuoso-bridge` with `--access public`;
 6. creates a GitHub Release for the tag with the packed tarball attached.
 

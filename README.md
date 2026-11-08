@@ -503,12 +503,12 @@ docs/publishing.zh-CN.md  Chinese publishing guide
 README.zh-CN.md       Chinese README
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
+tests/*.test.mjs       node:test unit tests (host-key evaluation, daemon failure classes)
 virtuoso-bridge-lite/  pinned virtuoso-bridge-lite git submodule (1f186ab)
 virtuoso-bridge-lite.pin.json  upstream provenance: name, version, commit, date, license
 scripts/prepare-vendor.mjs  verifies/initialises the pinned submodule; also runs as prepack
 scripts/check-no-private-data.mjs  public-release guard against private data
-.github/workflows/    ci.yml (push/PR checks), release.yml (npm + GitHub Release),
-                      upstream-watch.yml (weekly + manual upstream pin alerts)
+.github/workflows/    ci.yml (push/PR checks), release.yml (npm + GitHub Release)
 ```
 
 The sidecar keeps the original stdout duplicated for protocol frames and
@@ -621,10 +621,8 @@ can never corrupt a JSON response.
   every runtime script.
 * CI (`.github/workflows/ci.yml`) verifies that the `virtuoso-bridge-lite/`
   gitlink matches `virtuoso-bridge-lite.pin.json` and that the public-release
-  guard (`scripts/check-no-private-data.mjs`) passes, in addition to the syntax
-  checks. `.github/workflows/upstream-watch.yml` compares upstream `main` with
-  the pin weekly and on manual dispatch, and opens or updates a GitHub issue
-  labelled `upstream` when they differ.
+  guard (`scripts/check-no-private-data.mjs`) passes, in addition to the unit
+  tests (`node --test tests/*.test.mjs`) and the syntax checks.
 
 Not verified here: a healthy daemon on Cadence hardware, the real Web question
 card's pixel rendering (the Host question/answer flow was exercised with a fake

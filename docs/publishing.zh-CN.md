@@ -33,7 +33,7 @@ git push -u origin main
 `main` 更新不会改变内置源码。Actions runner 使用 `submodules: recursive` 检出仓库，
 CI 无需额外步骤即可获得 `virtuoso-bridge-lite/`。
 
-三个工作流位于 `.github/workflows/`：
+两个工作流位于 `.github/workflows/`：
 
 - `ci.yml`：在 push 和 pull request 时运行，校验 `virtuoso-bridge-lite/` gitlink 与
   `virtuoso-bridge-lite.pin.json` 一致、`.gitmodules` 未配置 branch，运行公开发布检查
@@ -41,9 +41,6 @@ CI 无需额外步骤即可获得 `virtuoso-bridge-lite/`。
   后的 npm tarball 内容。
 - `release.yml`：在 `v*` tag 时运行，校验固定版本、运行发布检查、确认 tag 与
   `package.json` 的 version 一致、发布到 npm，并创建附带打包 tarball 的 GitHub Release。
-- `upstream-watch.yml`：每周按 cron 以及手动触发运行，比较上游
-  `Arcadia-1/virtuoso-bridge-lite` 的 `refs/heads/main` 与固定提交；两者不同时创建或更新
-  带 `upstream` 标签的 GitHub issue，使过期 pin 成为告警而不是意外；两者相同时静默退出。
 
 ## 3. npm 账号与 scope
 
@@ -73,12 +70,12 @@ scoped 包默认为受限（非公开）可见性，因此发布时必须带 `--
 
 ## 5. 首次发布
 
-1. 确认 `package.json` 中为 `"version": "1.0.0"`；tag 必须与之完全一致。
+1. 确认 `package.json` 中为 `"version": "0.1.0"`；tag 必须与之完全一致。
 2. 提交发布状态，然后创建并推送 tag：
 
    ```powershell
-   git tag v1.0.0
-   git push origin v1.0.0
+   git tag v0.1.0
+   git push origin v0.1.0
    ```
 
 如果同时推送提交，也可以使用 `git push --follow-tags`。
@@ -88,7 +85,7 @@ scoped 包默认为受限（非公开）可见性，因此发布时必须带 `--
 1. 校验 `virtuoso-bridge-lite/` gitlink 与 `virtuoso-bridge-lite.pin.json` 一致；
 2. 运行 `scripts/check-no-private-data.mjs`；
 3. 运行语法检查；
-4. 确认 `v1.0.0` 与 `package.json` 的 `version` 一致；
+4. 确认 `v0.1.0` 与 `package.json` 的 `version` 一致；
 5. 以 `--access public` 发布 `@nekomona/dsh-virtuoso-bridge`；
 6. 为该 tag 创建 GitHub Release，并附带打包好的 tarball。
 
