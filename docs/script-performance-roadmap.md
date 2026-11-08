@@ -70,36 +70,41 @@ the remaining per-call JS work is already inside the 12 ms. Caching
 fallback (no runtime, worker disabled, or budget exhausted). Do it only if the
 fallback matters in practice; otherwise drop.
 
-## Phase 3 — fewer, larger calls (1–2 days, the main lever)
+## Phase 3 — done as guidance, not as an API change
 
-A warm call is 12 ms, so round-trip count is now everything. Add an optional
-`steps: [code, code, …]` to `virtuoso_bridge_script run`: one tool call, one
-worker session, sequential exec, one combined result. A probe → generate → check
-→ re-generate loop becomes one call instead of four, and the realistic body
-(646 ms) stays inside a single call.
+A warm call is 12 ms, so round-trip count is now everything. **Decision: do not
+add a `steps: [...]` parameter.** The scripting API stays as it is; instead the
+tool description and the system prompt tell the agent to fold its probes, edits
+and checks into one script body and print everything it measured. The agent, not
+the plugin, decides how to merge requests into a large script call — which also
+keeps `virtuoso_bridge_script` matching the documented contract.
 
-Acceptance: a 10-step batch costs one tool call and ≤ 0.2 s over the sum of its
-bodies; the 115-call pattern that motivated this work collapses to under 20.
+## Phase 4 — done: `waitMs` = 5000 ms, concurrency left alone
 
-## Phase 4 — concurrency and `waitMs` (½ day, measure first)
+* `waitMs` default lowered from 10 000 to 5000 ms. Measured on the worst path in
+  the profile (Paramiko + jump host): worst realistic inline call 2892 ms (58 % of
+  the budget), body ceilings ≈4.98 s warm / ≈3.6 s fallback, and jobs above the
+  ceiling bounce to a job id and still finish. 3000 ms would bounce the
+  fresh-worker realistic case; 10 000 ms only holds long jobs longer.
+* Concurrency: no parallel lane was added. Measured that one to six concurrent
+  workers keep warm calls flat at 11–16 ms, that daemon-only workers cost no SSH
+  connection and transfer-bearing workers cost exactly one each, and that a full
+  worker budget degrades a newcomer to a ~2.1 s process-per-script call with a
+  warning instead of evicting busy or recently warm workers. The budget is
+  serialised per runtime so two sessions cannot overshoot `scriptWorkerMax`.
 
-* Resource side is now proven safe: four workers add exactly four SSH sessions
-  and connect in parallel (per-worker `connect` ~530 ms, realistic first-job wall
-  1733 ms). Concurrency does not risk the connection budget at the current
-  budget of 4.
-* `waitMs` (default 10 s) only bounds how long the tool waits for a job; with a
-  12 ms warm call it no longer matters for short jobs. Lower it to 3 s only if
-  long jobs returning their id sooner helps a real workflow.
-* Decide on a parallel lane (2 workers) from the workload, not from speculation.
+## Phase 5 — done
 
-## Phase 5 — tests and docs (partly done)
-
-`tests/script-worker.test.mjs` covers the protocol, isolation and crash handling
-hermetically. Remaining: keep the performance doc's numbers updated with each
-release, and add the worker to the release notes when it ships enabled.
+`tests/script-worker.test.mjs` covers the protocol, isolation, crash handling,
+cancel/timeout and connect-once hermetically; `tests/store-settings.test.mjs`
+covers the worker settings defaults, clamping and `configure`. Both performance
+docs carry the measured numbers. Keep the tables updated with each release and
+mention the worker in the release notes when it ships enabled.
 
 ## Not doing
 
+* A batched `steps: [...]` scripting API: the agent merges work into one script
+  body from the tool prompt instead (Phase 3).
 * Pre-forked interpreter pools or an embedded interpreter: the worker already
   removes start/import cost.
 * Shrinking the import graph: 0.21 s matters once per worker, not per call.

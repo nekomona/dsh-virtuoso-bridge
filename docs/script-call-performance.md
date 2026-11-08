@@ -108,32 +108,93 @@ the backstop and the next job gets a fresh one.
 ## Shared-resource census
 
 Test-bed connection, sampling established TCP sessions to `:22` while each stage
-was held (local, controlled measurement — one sample per stage):
+was held (local, controlled measurement — one sample per stage).
+
+A worker that only talks to the daemon costs **no SSH connection at all**: six
+concurrent workers stayed at the baseline two sessions, and every job (12/12)
+succeeded with warm calls flat at 11–16 ms from one worker to six.
 
 | stage | established `:22` | local listeners on the daemon port |
 |---|---|---|
 | before | 2 | 2 |
-| 1 worker | 3 | 2 |
-| 2 workers | 4 | 2 |
-| 3 workers | 5 | 2 |
-| 4 workers | 6 | 2 |
+| 1–6 workers, daemon-only work | 2 | 2 |
+| 4 workers, transfer-bearing (`upload`/`download`/shell) | 6 | 2 |
+| 5 workers, transfer-bearing | 7 | 2 |
+| 6 workers, transfer-bearing | 8 | 2 |
 | after teardown | 2 | 2 |
 
-Growth is exactly one SSH connection per worker (opened by the lazy SFTP path),
-and **no worker opens its own local listener** — they reuse the sidecar's
-forward, so the daemon port count does not move. Zero leftover worker processes
-and zero leftover job directories after every stage.
+A worker opens **one** SSH connection the first time a job needs shell or SFTP,
+and that connection is reused for the rest of its life. No worker opens its own
+local listener — they reuse the sidecar's forward, so the daemon port count never
+moves. Zero leftover worker processes and zero leftover job directories after
+every stage.
 
-Remote-side corroboration (`ss -tn`, `ss -tln` through the plugin API) showed 10
-established `:22` sessions and exactly 1 daemon listener with four workers. The
-absolute remote number includes other logins and other agent sessions on the
-shared server and drains asynchronously, so it is reported but not attributed;
-the local per-stage samples are the controlled evidence.
+Remote-side corroboration (`ss -tn`, `ss -tln` through the plugin API) showed
+exactly 1 daemon listener with six workers. Absolute remote session counts include
+other logins on the shared server and drain asynchronously, so they are reported
+but not attributed; the local per-stage samples are the controlled evidence.
 
 `/etc/ssh/sshd_config` is not readable by this account (`Permission denied`), so
 `MaxSessions` / `MaxStartups` are unverified. Assumption: sshd defaults
-(`MaxSessions 10`, `MaxStartups 10:30:100`). Even the worst case here — one
-sidecar tunnel plus the four-worker budget — stays at five sessions.
+(`MaxSessions 10`, `MaxStartups 10:30:100`). Worst case per runtime is one sidecar
+tunnel plus the four-worker budget plus up to `maxScripts` (4) fallback
+processes — 9 sessions, still under the default burst of 10 simultaneous
+handshakes. In practice the measured maximum was 8.
+
+## More sessions than the worker budget
+
+`scriptWorkerMax` (default 4) bounds live workers per runtime. Above it:
+
+* a session whose worker exists keeps working normally — workers are keyed
+  `(runtime, session)` and are never shared or evicted while busy;
+* a newcomer takes the slot of a worker that has been **idle for at least
+  `scriptWorkerEvictIdleMs` (default 60 s)**, then starts its own worker;
+* if every worker is busy, or none has been idle that long, the newcomer runs a
+  **process per script** for that call, logs a warning, and tries the worker again
+  on its next call.
+
+That idle threshold exists to stop thrash: without it two sessions would take
+turns evicting each other's warm worker, and every eviction costs a full client
+construction, so both would sit near 2 s per call instead of 12 ms. Measured with
+four warm workers held plus two fallback sessions running concurrently: all jobs
+succeeded, no daemon contention (warm calls stayed at 12–27 ms), connections
+bounded at baseline + 2. The only cost to the excess session is that single slow
+call — about 2.1 s instead of 12 ms.
+
+Acquisition is serialised per runtime (`#withRuntimeLock`), so two sessions
+arriving together cannot both judge the budget full, both evict the same idle
+worker and both start a replacement — which would exceed `scriptWorkerMax`.
+
+## `waitMs` and slow networks
+
+The script tool returns as soon as the job settles, or after `waitMs` with a job
+id it can poll — the budget decides *when the answer arrives*, never whether the
+job runs. The default is **5000 ms** (lowered from 10 000).
+
+Measured on the worst path in the profile (Paramiko plus a jump host):
+
+| case | wall |
+|---|---|
+| warm worker, trivial body | 11 ms |
+| warm worker, realistic body (SKILL + shell + upload + download) | 1137 ms |
+| fresh worker + realistic body, end to end | **2892 ms** |
+| of which worker acquisition (spawn → ready → import → connect) | ~1.25 s |
+
+The worst realistic inline call uses 58 % of the 5 s budget. Body ceilings:
+≈4.98 s on a warm worker, ≈3.6 s for a fallback process run (which pays ~1.4 s
+fixed cost first). Jobs above the ceiling are not lost: at the 5 s mark their
+`status.json` is `running`, the tool returns the job id, and they finish normally
+(measured: a 5.5 s body bounced at 5 s and succeeded at 6.6 s). 3000 ms would
+bounce the fresh-worker realistic case on this path; 10 000 ms would only make
+genuinely long jobs hold the tool call for 5 s longer.
+
+## Fewer, larger calls
+
+No scripting API change was made for this. The tool description and the system
+prompt now say it directly: fold the probes, edits and checks you need into one
+script body and print what you measured, instead of issuing many small calls.
+With a warm worker a call costs ~12 ms of setup, so the remaining price of a
+small call is the model round trip, not the bridge.
 
 ## Measurement caveats
 
@@ -155,9 +216,11 @@ sidecar tunnel plus the four-worker budget — stays at five sessions.
 
 ## Remaining bottlenecks
 
-What is left is per-job work, not setup: 12 ms of fixed cost plus whatever the
-script does, and batching remains the biggest lever for multi-step sessions. The
-plan is [script-performance-roadmap.md](script-performance-roadmap.md).
+What is left is per-job work, not setup: ~12 ms of fixed cost plus whatever the
+script does. The largest remaining lever is therefore the number of tool calls a
+session makes, which the agent controls by folding work into one script body (see
+"Fewer, larger calls"); there is no plugin-side batching API by design. The
+roadmap is [script-performance-roadmap.md](script-performance-roadmap.md).
 
 ## Re-measuring
 
