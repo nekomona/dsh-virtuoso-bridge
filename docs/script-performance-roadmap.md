@@ -1,133 +1,107 @@
 # Script call performance roadmap
 
-The reused-tunnel fix landed in `4fcee39`: a script call no longer re-runs the
-bridge's full remote warm-up. This plan covers what is left. Current numbers and
-the fast-path design are in [script-call-performance.md](script-call-performance.md).
+Phases 0 and 1 have landed and are measured. What remains is per-job work rather
+than setup, so the leverage moved from "make a call cheap" to "make fewer, larger
+calls". Numbers and the design are in
+[script-call-performance.md](script-call-performance.md).
 
-## Where the remaining ~0.9 s goes
+## Where things stand
 
-Projected per call after the plugin reload picks up the cached `probeVenv`
-(measured pieces from the test-bed connection; the first three rows are still a
-fresh process per call):
-
-| item | cost | addressed by |
+| path | trivial | realistic (SKILL + shell + transfer) |
 |---|---|---|
-| interpreter start | 0.36 s | Phase 1 |
-| `import virtuoso_bridge` | 0.29 s | Phase 1 |
-| client construction + handshake | 0.20 s (direct) – 0.73 s (jump host) | Phase 1 |
-| JS pre: `probeVenv`, SSH config write, credential read, job files | ~0.04 s | Phase 2 |
-| post: result/events read, dashboard emits | ~0.14 s | Phase 1/2 |
-| script body | workload | Phase 3 |
+| worker, warm (Phase 1) | **12 ms** | 646 ms (body 645 ms) |
+| worker, first job | 810 ms | 1673 ms |
+| runner (fallback, one process per script) | 1262 ms | 2140 ms |
 
-Target: **≤ 0.15 s fixed cost per call**, from ~1.7 s measured today.
+A warm call is now the job directory, one RPC round trip, the job run and the
+artifact read: ~12 ms of fixed cost. Nothing in the previous fixed-cost table
+(interpreter 0.36 s, import 0.21 s, client construction 0.54 s, plugin
+bookkeeping 0.34 s) survives on the worker path.
 
-Anything below that only matters through *fewer and larger* calls, because model
-time dominates a long session (steps averaged ~32 s).
+## Phase 0 — done
 
-## Phase 0 — instrument and gate (½ day)
+`scripts/bench-script-call.mjs` (`npm run bench:script`) reproduces a plugin job
+exactly — store-derived environment, job directory, `context.json`, the real
+runner or worker — and reports wall medians/p25/p75 plus `envMs`, `importMs`,
+`connectMs`, `bodyMs`, `tunnelReused`, `clientReused`, with the runner's sha256
+for provenance.
 
-Without this the rest cannot be proven.
+Results:
 
-* Extend `sessionSetup` with a `phase` map (`jsPre`, `interpreter`, `import`,
-  `connect`, `body`, `settle`). The runner already reports `connectSeconds`; add
-  the rest so a regression is attributable without reading job-directory
-  timestamps.
-* `scripts/bench-script-call.mjs`: run N trivial and N realistic scripts against
-  an idle connection, print a median/percentile table, exit non-zero above a
-  threshold. Opt-in (`npm run bench:script`), never in CI — it needs a live CIW.
-* Acceptance: two consecutive bench runs agree within ±10 %, and the numbers
-  match the table above within 20 %.
+* Two consecutive runner-path invocations agreed within ±10 % (trivial +5.2 %,
+  realistic +7.3 %).
+* Discarding warm-up runs is required: the first job after an idle period pays
+  one-off bridge setup that later jobs inherit (1323 ms vs 1211 ms median). The
+  harness does this by default (`--warmup`).
+* A phase-clock bug (epoch seconds vs milliseconds) surfaced as
+  `envMs ≈ −1.79e12`; fixed in the runner, and the harness still rejects
+  implausible phases instead of printing them.
+* `settleMs` is computed by the plugin, not written to `status.json`, so the
+  harness prints `-` for it.
+* Documented caveat: the stdout destination changes measured wall time by ~0.45 s
+  per call on this platform. Compare like-for-like; console/pipe numbers agree
+  with the plugin's own path.
 
-## Phase 1 — persistent script worker (2–3 days) — biggest win
+## Phase 1 — done
 
-One long-lived worker process per runtime: import once, connect once, then `exec`
-each job in a fresh namespace. Removes the first three cost rows, i.e. ~0.85 s of
-0.9 s.
+`runtime/vb_script_exec.py` (shared job core) plus `runtime/vb_script_worker.py`
+(one process per runtime + agent session, lazy single connect, per-job namespace
+/ cwd / `sys.modules` isolation, `scriptWorkerMax` = 4 budget with LRU idle
+reclaim, idle shutdown, fallback to a process per script on any worker problem).
 
-**Decision: a separate worker process, not a thread in `vb_sidecar.py`.** The
-sidecar is the plugin's control plane for `virtuoso_bridge_api`, dialogs and
-health; a script that spins, `os._exit`s or segfaults must not take it down. A
-separate process also keeps `sys.modules` pollution away from API calls.
+Results:
 
-**Design**
+* Trivial call 1262 ms → **12 ms**; realistic 2140 ms → **646 ms**.
+* Job 1 connects (`connectSeconds` ≈ 0.5 s, `tunnelReused`); job 2+ report
+  `connectSeconds: 0.0`, `clientReused: true`.
+* Shell, `upload_file` and `download_file` succeed inside a warm worker — the
+  lazy SFTP path survives client reuse.
+* Census: exactly **one** SSH connection per worker, **no** per-worker local
+  listener (they share the sidecar forward), and the counts return to baseline
+  after teardown. Zero orphan processes or job directories.
+* Limitation recorded: a job blocked inside a C call cannot be interrupted
+  cooperatively; the plugin kills the worker as the backstop.
 
-* `runtime/vb_script_worker.py` wraps the existing `vb_script.py` semantics
-  (`status.json`, `result.json`, `error.json`, `events.jsonl`, `emit`,
-  `SystemExit` handling) and adds a request loop.
-* Reuse the line protocol already implemented by `lib/sidecar.js`
-  (`{id, method, params}` → `{id, ok, result}`). Methods: `run`, `cancel`,
-  `status`, `shutdown`. The worker is a second `Sidecar` instance owned by
-  `Runtime`, so the spawn/ready/exit plumbing is not new code.
-* Job isolation per `run`: fresh `namespace` dict, `os.chdir(workdir)` with
-  restore, stdout/stderr captured per job, and `sys.modules` snapshotted so a
-  script's local `import gen, emit, main` does not leak stale modules into the
-  next job (reload-on-demand, matching what long sessions already do by hand).
-* `connect()` inside a script returns the worker's warm client; a script that
-  asks for a different `profile` gets a one-off client and the worker keeps its
-  own.
-* Failure modes, each with a defined outcome: worker exits or crashes → job
-  marked `failed` with the stderr tail, worker restarted lazily on next run;
-  per-job timeout → watchdog inside the worker, hard kill as backstop; cancel →
-  same path as today; idle worker → stopped with the runtime.
-* Rollback: additive behind `settings.scriptWorker` (default on) plus
-  `VB_SCRIPT_DISABLE_WORKER=1`; the current process-per-script path stays as the
-  fallback, so a regression is one setting away from reverting.
+## Phase 2 — optional: trim the runner fallback (½ day, lower priority)
 
-**Acceptance**
+Adjusted downwards: on the worker path `probeVenv` runs once per worker spawn and
+the remaining per-call JS work is already inside the 12 ms. Caching
+`#ensureSshConfig` and `readSecret` now only matters for the process-per-script
+fallback (no runtime, worker disabled, or budget exhausted). Do it only if the
+fallback matters in practice; otherwise drop.
 
-* median trivial call ≤ 0.15 s, median realistic body-limited call ≤ body + 0.1 s.
-* Result parity on a corpus of ~20 scripts covering: local module import,
-  `upload_file`/`download_file`, `run_shell_command`, `execute_skill`, `emit`,
-  `result` serialization (dataclass/Path/bytes), raised exception, `SystemExit`,
-  large stdout.
-* 1000 sequential jobs: RSS growth < 50 MB, no file-descriptor growth; second run
-  in the same worker is not slower than the first.
-* Crash test: worker killed mid-job → job `failed` within 2 s, next job succeeds.
-* Two agents on the same runtime never see each other's namespace or cwd.
+## Phase 3 — fewer, larger calls (1–2 days, the main lever)
 
-## Phase 2 — trim the JS side (½ day)
+A warm call is 12 ms, so round-trip count is now everything. Add an optional
+`steps: [code, code, …]` to `virtuoso_bridge_script run`: one tool call, one
+worker session, sequential exec, one combined result. A probe → generate → check
+→ re-generate loop becomes one call instead of four, and the realistic body
+(646 ms) stays inside a single call.
 
-Small but free once Phase 1 lands.
-
-* Cache `#ensureSshConfig` keyed by connection/profile/sshPort/identityFile/pins;
-  invalidate on `saveConnection`, `trustHost`, `deleteConnection`. Today it
-  writes and removes files on every call.
-* Cache `readSecret` per connection in memory; invalidate on `writeSecret`.
-* Write `script.py`/`context.json` with one `Promise.all`, and skip the
-  `probeVenv` call entirely when a worker is already running (its existence is
-  the readiness proof).
-* Acceptance: `jsPre` phase ≤ 0.02 s in the bench; a test that changes a
-  connection and sees the config regenerated.
-
-## Phase 3 — fewer, larger calls (1–2 days) — biggest session win
-
-* Optional `steps: [code, code, …]` on `virtuoso_bridge_script run`: one tool
-  call, one worker session, sequential exec, one combined result. A session that
-  probes, generates, checks and re-generates pays one round trip instead of four.
-* Prompt section and [script-call-performance.md](script-call-performance.md):
-  one script per logical step; batch probes into a single body.
-* Acceptance: a 10-step batch costs one call and ≤ 0.2 s over the sum of bodies;
-  the slow-session pattern (115 calls) collapses to < 20.
+Acceptance: a 10-step batch costs one tool call and ≤ 0.2 s over the sum of its
+bodies; the 115-call pattern that motivated this work collapses to under 20.
 
 ## Phase 4 — concurrency and `waitMs` (½ day, measure first)
 
-* Lower the `waitMs` default from 10 s to 2–3 s: a job that settles in 0.1 s no
-  longer needs a long race, and a long job returns its id sooner.
-* Only if Phase 3 shows independent work: an opt-in parallel lane (2 workers).
-  Not before — with serialised calls and a cheap worker, concurrency mostly moves
-  queueing around. Measure, then decide.
+* Resource side is now proven safe: four workers add exactly four SSH sessions
+  and connect in parallel (per-worker `connect` ~530 ms, realistic first-job wall
+  1733 ms). Concurrency does not risk the connection budget at the current
+  budget of 4.
+* `waitMs` (default 10 s) only bounds how long the tool waits for a job; with a
+  12 ms warm call it no longer matters for short jobs. Lower it to 3 s only if
+  long jobs returning their id sooner helps a real workflow.
+* Decide on a parallel lane (2 workers) from the workload, not from speculation.
 
-## Phase 5 — validate and document (½ day)
+## Phase 5 — tests and docs (partly done)
 
-* `tests/script-worker.test.mjs`: drive the worker with a stub bridge module — no
-  live CIW needed. Cover protocol, namespace isolation, timeout, crash restart,
-  `SystemExit`, result serialization.
-* Put the post-Phase-1 numbers into the performance doc and delete the "Remaining
-  opportunities" list there in favour of this roadmap.
+`tests/script-worker.test.mjs` covers the protocol, isolation and crash handling
+hermetically. Remaining: keep the performance doc's numbers updated with each
+release, and add the worker to the release notes when it ships enabled.
 
 ## Not doing
 
-* Pre-forked interpreter pool, embedded interpreter, or venv tricks: the worker
-  removes the start/import cost once and for all.
-* Shrinking the import graph: 0.29 s matters once per process, not per call.
-* Caching or reusing job directories: below the noise floor.
+* Pre-forked interpreter pools or an embedded interpreter: the worker already
+  removes start/import cost.
+* Shrinking the import graph: 0.21 s matters once per worker, not per call.
+* Extra worker processes per session: one worker per (runtime, session) is the
+  isolation boundary; more only adds connections.

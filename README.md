@@ -491,7 +491,9 @@ lib/manager.js        runtimes, sidecars, script jobs, actions, state, orphans
 lib/http.js           token-protected state/action/SSE transport
 lib/tools.js          four agent tools + prompt section
 runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
-runtime/vb_script.py  isolated batch script runner
+runtime/vb_script.py  isolated batch script runner (thin CLI over the job core)
+runtime/vb_script_exec.py  shared job core: artifacts, connect, watchdog, namespace
+runtime/vb_script_worker.py  per-runtime script worker (one process per runtime+session)
 runtime/vb_instances.py read-only automatic-session discovery
 runtime/vb_deploy.py daemon bootstrap deployment
 docs/agent-workflows.md wrapper recipes over existing VBL APIs
@@ -506,6 +508,7 @@ tests/*.test.mjs       node:test unit tests (host-key evaluation, daemon failure
 virtuoso-bridge-lite/  pinned virtuoso-bridge-lite git submodule (1f186ab)
 virtuoso-bridge-lite.pin.json  upstream provenance: name, version, commit, date, license
 scripts/prepare-vendor.mjs  verifies/initialises the pinned submodule; also runs as prepack
+scripts/bench-script-call.mjs  live script-call benchmark (runner and worker paths, phases, census)
 scripts/check-no-private-data.mjs  public-release guard against private data
 scripts/check-branch-privacy.mjs  commit-message and branch-diff guard:
                       no server names, account names or home directories
