@@ -1,6 +1,6 @@
 {
   "name": "@nekomona/dsh-virtuoso-bridge",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Virtuoso Bridge for DeepSeek Harness: managed virtuoso-bridge-lite runtimes, fixed or automatic-session daemon discovery, an isolated Python environment, agent tools, a left-sidebar configuration page and a right-sidebar runtime panel.",
   "type": "module",
   "license": "MIT",
