@@ -35,10 +35,33 @@ upstream VBL/DSH facilities.
 
 ## 3. Install
 
-From a checkout:
+The bundle is published as the public scoped package
+**`@nekomona/dsh-virtuoso-bridge`**.
+
+### From npm (recommended)
+
+Ask the agent to install that bundle, or run the plugin manager’s
+`install_bundle` with the package name:
+
+> Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
+
+No submodule and no Python checkout is required. The tarball contains the
+packaged subset of the upstream source the plugin installs
+(`pyproject.toml`, `README.md`, `AGENTS.md`, `LICENSE`, `mcp_server.py`,
+`src/**`, `skills/**`), so the plugin only creates its venv and pip-installs
+that source.
+
+### From a git checkout (development)
 
 ```powershell
-git clone <plugin-repository> <plugin-directory>
+git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
+```
+
+`vendor/` is a git submodule pinned to upstream virtuoso-bridge-lite. If the
+clone was made without `--recurse-submodules`, initialise it before installing:
+
+```powershell
+git submodule update --init vendor
 ```
 
 Install the local bundle through DSH, or ask the agent:
@@ -70,9 +93,11 @@ The environment card provides:
 - **Diagnose** when installed;
 - a `⋯` menu with **Repair** and **Update**;
 - a collapsed **Source and install log** area containing:
-  - source mode (bundled snapshot / local repo / git);
+  - source mode (bundled source / local repo / git);
   - Python executable;
   - local repo path or git URL/ref as appropriate;
+  - the `vendor.pin.json` pin (upstream commit, date, license) for the bundled
+    source;
   - install log;
   - backend and documentation details.
 
@@ -81,8 +106,14 @@ persist the visible source draft, so the chosen source is actually used.
 
 ### 4.2 Source modes
 
-- **Bundled snapshot** — default; installs from `vendor/`. No tool-repository
-  network access; pip still needs its normal package index.
+- **Bundled source** — default; installs the pinned `vendor/` git submodule
+  (`1f186ab`, recorded in `vendor.pin.json`). No tool-repository network
+  access; pip still needs its normal package index. A source install must have
+  the submodule checked out: when `vendor/` is missing or uninitialised the
+  install fails with an actionable error naming
+  `git submodule update --init vendor` (and the pinned commit). npm users never
+  hit that state, because the published tarball carries the packaged subset of
+  `vendor/`.
 - **Local development repo** — editable install from
   `source.localRepoPath`. Code changes apply on the next runtime start.
 - **Git repository** — clone from `source.repoUrl` at `source.gitRef` into the
@@ -344,7 +375,16 @@ node --check lib/manager.js
 node --check lib/tools.js
 python -m py_compile runtime/vb_sidecar.py
 node --check runtime/vb_deploy.py
+node scripts/prepare-vendor.mjs --verify-only
+node scripts/check-no-private-data.mjs
+npm pack --dry-run
 ```
+
+`prepare-vendor.mjs --verify-only` confirms that the `vendor/` gitlink matches
+`vendor.pin.json` (the same check the release workflow runs, and the full script
+runs automatically as `prepack`); `check-no-private-data.mjs` is the
+public-release guard for tokens, local paths and backup directories. `npm pack
+--dry-run` shows the packaged tarball contents without publishing.
 
 Client changes require a DSH page refresh; Host changes require reloading the
 plugin. The plugin’s philosophy is to wrap existing VBL/DSH APIs rather than add
@@ -360,5 +400,6 @@ parallel infrastructure.
 
 ## 14. License
 
-MIT. The bundled `vendor/` snapshot retains virtuoso-bridge-lite’s MIT license
-and attribution.
+MIT. `vendor/` is the upstream virtuoso-bridge-lite git submodule and retains
+upstream’s MIT license and attribution; the pinned commit, date and license are
+recorded in `vendor.pin.json`.

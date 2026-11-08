@@ -9,16 +9,25 @@ agent, runs batched Python inside an isolated venv, and projects runtime state
 into a right-sidebar **Bridge runtime** panel while keeping configuration in a
 full-page **Virtuoso Bridge** panel in the left sidebar.
 
-The plugin bundles a source snapshot of virtuoso-bridge-lite, so it works
-without a separate checkout, and can instead follow a local development repo or
-clone a git repository at a chosen ref. The bundled snapshot tracks upstream
-commit `1f186ab` (2026-11-03), including automatic session/instance discovery,
+It is published on npm as
+[`@nekomona/dsh-virtuoso-bridge`](https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge);
+source and issues live at
+[nekomona/dsh-virtuoso-bridge](https://github.com/nekomona/dsh-virtuoso-bridge).
+
+The plugin ships virtuoso-bridge-lite as the pinned `vendor/` **git submodule**,
+and can instead follow a local development repo or clone a git repository at a
+chosen ref. The pin is upstream commit `1f186ab` (2026-11-04), recorded in
+`vendor.pin.json`, and includes automatic session/instance discovery,
 instance-bound daemon authentication, shared daemon setup, split host roles,
 the expanded layout/bbox/group APIs, Maestro engine configuration and the newer
-Spectre presets.
+Spectre presets. The published npm package carries that same source, so an npm
+install needs neither git nor the submodule; a source checkout initialises
+`vendor/` once with `git submodule update --init vendor`, and the plugin reports
+a clear error when it is missing.
 
 Detailed English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md) ·
-Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md).
+Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md) ·
+publishing and release operations: [`docs/publishing.md`](docs/publishing.md).
 
 ## What it provides
 
@@ -34,13 +43,35 @@ Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md).
 
 ## Install
 
-The plugin is a DSH bundle package. From a git checkout of this directory:
+The plugin is a DSH bundle package, published as the public scoped package
+**`@nekomona/dsh-virtuoso-bridge`**.
+
+### From npm (recommended)
+
+Ask the agent to install that bundle, or run the plugin manager's
+`install_bundle` with the package name:
+
+> Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
+
+No submodule and no Python checkout is required: the tarball bundles the
+upstream tool source the plugin needs, and the plugin creates its own venv and
+pip-installs that source.
+
+### From a git checkout (development)
 
 ```powershell
-git clone <your-plugin-repository> <plugin-directory>
+git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
 ```
 
-Then install the local bundle through DSH, for example by asking the agent:
+`vendor/` is a git submodule. If the clone was made without
+`--recurse-submodules`, initialise it before installing:
+
+```powershell
+git submodule update --init vendor
+```
+
+Then install the local bundle at `<plugin-directory>` through DSH, for example
+by asking the agent:
 
 > Install the plugin bundle at `<plugin-directory>`.
 
@@ -68,9 +99,13 @@ list (beside Plugins and Automation tasks); it selects the full-page
 configuration panel. You can also ask the agent to run
 `virtuoso_bridge_setup` with action `status`. Choose a source:
 
-* **Bundled snapshot** (default) — installs `vendor/` from this plugin. No
-  network access to the tool repository; pip still needs its normal package
-  index on the first install.
+* **Bundled source** (`vendor/` submodule, default) — installs the pinned
+  `vendor/` git submodule from this plugin. No network access to the tool
+  repository; pip still needs its normal package index on the first install.
+  A source install must have the submodule checked out; otherwise the plugin
+  fails with an actionable error naming
+  `git submodule update --init vendor`. The published npm package ships the same
+  source, so npm users do not encounter that state.
 * **Local development repo** — installs editable from `source.localRepoPath`
   (for example `C:\src\virtuoso-bridge-lite`). Code edits are picked up on
   the next runtime start; reinstall with *Repair* if packaging metadata
@@ -399,7 +434,7 @@ an expandable code card with the Python source and result in code blocks.
 `status`, `preflight`, `install`, `update`, `diagnose`, `configure`,
 `set_source`, `caches`, `clear_cache`. `status` and `preflight` return only the
 installed/source/venv/backend facts needed to decide the next step; the full
-install log and source snapshot remain in the configuration page. `diagnose` is
+install log and source details remain in the configuration page. `diagnose` is
 the explicit plugin-debugging action. If OpenSSH is
 missing, `install` returns a confirmation request; retry with `confirm: true`
 to continue with Paramiko only.
@@ -458,10 +493,16 @@ runtime/vb_deploy.py daemon bootstrap deployment
 docs/agent-workflows.md wrapper recipes over existing VBL APIs
 docs/plugin-guide.md  detailed English usage and architecture guide
 docs/plugin-guide.zh-CN.md  detailed Chinese usage and architecture guide
+docs/publishing.md    npm and GitHub release operations guide
+docs/publishing.zh-CN.md  Chinese publishing guide
 README.zh-CN.md       Chinese README
 runtime/vb_probe.py   venv/package probe
 runtime/vb_stop_profile.py  orphan tunnel cleanup
-vendor/               virtuoso-bridge-lite source snapshot + VENDOR.json
+vendor/               pinned virtuoso-bridge-lite git submodule (1f186ab)
+vendor.pin.json       upstream provenance: name, version, commit, date, license
+scripts/prepare-vendor.mjs  verifies/initialises the vendor pin; also runs as prepack
+scripts/check-no-private-data.mjs  public-release guard against private data
+.github/workflows/    ci.yml (push/PR checks), release.yml (npm + GitHub Release)
 ```
 
 The sidecar keeps the original stdout duplicated for protocol frames and
@@ -477,10 +518,10 @@ can never corrupt a JSON response.
   `settings.section` registration was removed; configuration lives only in the
   left full-page panel.
 * The isolated venv was created and `virtuoso_bridge` imported from it; the
-  bundled snapshot (`1f186ab`), a local development checkout (editable) and a
-  git clone (local `file://` repository at `main`) were each installed and
-  probed. The installed package exposes `instance_discovery`, `daemon_setup`
-  and the Maestro engine module.
+  bundled `vendor/` submodule (`1f186ab`), a local development checkout
+  (editable) and a git clone (local `file://` repository at `main`) were each
+  installed and probed. The installed package exposes `instance_discovery`,
+  `daemon_setup` and the Maestro engine module.
 * A local runtime started into `waiting`, kept the new
   `autoSessions`/`instance` fields, exposed its Session attachment, and stopped
   cleanly.
@@ -548,7 +589,7 @@ can never corrupt a JSON response.
   result paths followed it and the setting reverted to the data directory.
   `detect_shell` returned its no-environment-script reason without connecting.
   `virtuoso_bridge_setup` status/preflight and `virtuoso_bridge_runtime`
-  status/list returned the compact projection (no install log, source snapshot,
+  status/list returned the compact projection (no install log, source details,
   cache/logs/jobs or tracebacks); a start failure reported only its stage,
   endpoint, backend and host-key fingerprints.
 * The runtime panel **Clear history** action removed completed operations through
@@ -572,6 +613,10 @@ can never corrupt a JSON response.
   to the temporary known_hosts, and the start continued to the next setup stage.
 * Syntax checks: `node --check` for every JavaScript file and `py_compile` for
   every runtime script.
+* CI (`.github/workflows/ci.yml`) verifies that the `vendor/` gitlink matches
+  `vendor.pin.json` and that the public-release guard
+  (`scripts/check-no-private-data.mjs`) passes, in addition to the syntax
+  checks.
 
 Not verified here: a healthy daemon on Cadence hardware, the real Web question
 card's pixel rendering (the Host question/answer flow was exercised with a fake
@@ -594,5 +639,7 @@ once after installation so the served client bundle is current.
 
 ## License
 
-The plugin is provided under the MIT License. The bundled
-`vendor/` snapshot retains virtuoso-bridge-lite's MIT `LICENSE` and attribution.
+The plugin is provided under the MIT License. `vendor/` is the upstream
+virtuoso-bridge-lite **git submodule** and retains upstream's MIT `LICENSE` and
+attribution; `vendor.pin.json` records the exact upstream commit, date and
+license.
