@@ -52,6 +52,10 @@ const SELF = relative(REPO_ROOT, fileURLToPath(import.meta.url)).split(sep).join
  *
  * Anything else that matches a rule is reported; add an exception here only
  * after confirming the value is a documented placeholder, never a real value.
+ *
+ * Separately, `.local-guard.json` may exist at the repository root with
+ * `{ "accountNames": [...] }`. It is gitignored and local-only: it lets a
+ * developer flag their own account names without ever committing them.
  */
 const EXAMPLE_EMAIL_DOMAINS = /@(?:example\.(?:com|org|net))$/i
 /** The SSH remote user for github.com is a public service account, not a person. */
@@ -69,6 +73,35 @@ function readPinProvenance() {
   }
 }
 const PIN_PROVENANCE = readPinProvenance()
+
+/**
+ * LOCAL ACCOUNT DENY-LIST (never committed)
+ * ---------------------------------------------------------------------------
+ * A developer's real account names must never appear in this public script, so
+ * they are not listed here. When `.local-guard.json` exists in this checkout
+ * with { "accountNames": ["..."] }, those names become an extra rule. The file
+ * is gitignored; CI has no such file, so this rule is inert there and the
+ * general rules above do all public-side checking.
+ */
+const LOCAL_DENY_FILE = join(REPO_ROOT, '.local-guard.json')
+
+function readLocalAccountNames() {
+  try {
+    const local = JSON.parse(readFileSync(LOCAL_DENY_FILE, 'utf8'))
+    if (!Array.isArray(local.accountNames)) return []
+    return local.accountNames
+      .filter((name) => typeof name === 'string' && name.trim().length > 0)
+      .map((name) => name.trim())
+  } catch {
+    return []
+  }
+}
+
+const LOCAL_ACCOUNT_NAMES = readLocalAccountNames()
+
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\$&')
+}
 
 const rules = [
   {
@@ -99,6 +132,18 @@ const rules = [
     pattern: /C:[\\/]+Users[\\/]+([A-Za-z0-9._-]+)/gi,
     allow: (match, groups) => WINDOWS_PROFILE_PLACEHOLDERS.has((groups[1] || '').toLowerCase()),
   },
+  ...(LOCAL_ACCOUNT_NAMES.length > 0
+    ? [
+        {
+          id: 'account-name',
+          // Local-only deny-list from .local-guard.json (gitignored). Real account
+          // names are never committed to this public script, and CI has no such
+          // file, so this rule only protects a developer's own checkout.
+          pattern: new RegExp(`\\b(?:${LOCAL_ACCOUNT_NAMES.map(escapeRegExp).join('|')})\\b`, 'gi'),
+          allow: () => false,
+        },
+      ]
+    : []),
   {
     id: 'private-key',
     pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g,
@@ -205,7 +250,8 @@ function main() {
 
   console.log(
     `check-no-private-data: clean — ${scanned} tracked text file(s) scanned` +
-      ` (${skippedBinary} binary skipped, ${skippedUntrackedScope} virtuoso-bridge-lite/script path(s) excluded).`,
+      ` (${skippedBinary} binary skipped, ${skippedUntrackedScope} virtuoso-bridge-lite/script path(s) excluded, ` +
+      `${LOCAL_ACCOUNT_NAMES.length} local account term(s) loaded).`,
   )
   process.exit(0)
 }

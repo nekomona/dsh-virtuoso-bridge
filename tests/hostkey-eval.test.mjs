@@ -66,3 +66,4 @@ test('RSA known types pin both SHA-2 signature variants', () => {
     'ecdsa-sha2-nistp256',
   ])
 })
+
