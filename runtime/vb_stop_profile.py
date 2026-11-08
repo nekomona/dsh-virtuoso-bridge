@@ -17,7 +17,7 @@ from pathlib import Path
 # Use the package installed in the plugin venv; the setup manager owns source
 # selection.  VB_FORCE_VENDOR_SRC is an explicit diagnostic escape hatch.
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1":
-    _VENDOR_SRC = Path(__file__).resolve().parent.parent / "vendor" / "src"
+    _VENDOR_SRC = Path(__file__).resolve().parent.parent / "virtuoso-bridge-lite" / "src"
     if _VENDOR_SRC.is_dir() and str(_VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(_VENDOR_SRC))
 

@@ -44,14 +44,14 @@
     "LICENSE",
     "lib/*.js",
     "runtime/*.py",
-    "vendor.pin.json",
-    "vendor/pyproject.toml",
-    "vendor/README.md",
-    "vendor/AGENTS.md",
-    "vendor/LICENSE",
-    "vendor/mcp_server.py",
-    "vendor/src/**",
-    "vendor/skills/**"
+    "virtuoso-bridge-lite.pin.json",
+    "virtuoso-bridge-lite/pyproject.toml",
+    "virtuoso-bridge-lite/README.md",
+    "virtuoso-bridge-lite/AGENTS.md",
+    "virtuoso-bridge-lite/LICENSE",
+    "virtuoso-bridge-lite/mcp_server.py",
+    "virtuoso-bridge-lite/src/**",
+    "virtuoso-bridge-lite/skills/**"
   ],
   "scripts": {
     "prepack": "node scripts/prepare-vendor.mjs"

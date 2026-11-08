@@ -40,7 +40,7 @@ from pathlib import Path
 from typing import Any
 
 _THIS = Path(__file__).resolve()
-_VENDOR_SRC = _THIS.parent.parent / "vendor" / "src"
+_VENDOR_SRC = _THIS.parent.parent / "virtuoso-bridge-lite" / "src"
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1" and _VENDOR_SRC.is_dir() and str(_VENDOR_SRC) not in sys.path:
     sys.path.insert(0, str(_VENDOR_SRC))
 
@@ -201,7 +201,7 @@ def main() -> int:
         "job_dir": JOB_DIR,
         "work_dir": workdir,
         "data_dir": Path(_context.get("dataDir") or JOB_DIR.parent.parent),
-        "vendor_dir": _VENDOR_SRC.parent if _VENDOR_SRC.is_dir() else None,
+        "bridge_source_dir": _VENDOR_SRC.parent if _VENDOR_SRC.is_dir() else None,
         "Path": Path,
         "json": json,
         "time": time,

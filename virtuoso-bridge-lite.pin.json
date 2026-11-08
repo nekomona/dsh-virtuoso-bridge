@@ -1,0 +1,10 @@
+{
+  "name": "virtuoso-bridge-lite",
+  "version": "1.0.0",
+  "commit": "1f186abfbb3d658211743cd707f3156ed2f59a87",
+  "commitDate": "2026-11-04T02:59:28+08:00",
+  "repository": "https://github.com/Arcadia-1/virtuoso-bridge-lite.git",
+  "submodulePath": "virtuoso-bridge-lite",
+  "licensedUnder": "MIT",
+  "description": "Pinned upstream source of virtuoso-bridge-lite, checked out as the virtuoso-bridge-lite/ git submodule at the exact commit above. The plugin installs this source into its private venv when source.mode is bundled."
+}

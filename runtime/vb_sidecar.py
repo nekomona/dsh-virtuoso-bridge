@@ -18,7 +18,7 @@ Unsolicited events are emitted as ``{"event": "...", ...}`` and never carry
 an ``id``.  stdout is reserved for the protocol; diagnostics go to stderr.
 
 The process is deliberately dependency-free beyond virtuoso-bridge itself:
-the plugin installs this directory's sibling ``vendor`` checkout into an
+the plugin installs this directory's sibling ``virtuoso-bridge-lite`` checkout into an
 isolated virtual environment and runs this file with that interpreter.
 """
 
@@ -41,7 +41,7 @@ from typing import Any, Mapping
 
 _THIS = Path(__file__).resolve()
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1":
-    _VENDOR_SRC = _THIS.parent.parent / "vendor" / "src"
+    _VENDOR_SRC = _THIS.parent.parent / "virtuoso-bridge-lite" / "src"
     if _VENDOR_SRC.is_dir() and str(_VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(_VENDOR_SRC))
 
