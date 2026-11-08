@@ -24,6 +24,8 @@ import { readFileSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { accountRule, matchRules, readLocalGuardAccounts } from './lib/private-rules.mjs'
+
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = resolve(SCRIPT_DIR, '..')
 const SELF = relative(REPO_ROOT, fileURLToPath(import.meta.url)).split(sep).join('/')
@@ -57,12 +59,6 @@ const SELF = relative(REPO_ROOT, fileURLToPath(import.meta.url)).split(sep).join
  * `{ "accountNames": [...] }`. It is gitignored and local-only: it lets a
  * developer flag their own account names without ever committing them.
  */
-const EXAMPLE_EMAIL_DOMAINS = /@(?:example\.(?:com|org|net))$/i
-/** The SSH remote user for github.com is a public service account, not a person. */
-const GITHUB_SSH_REMOTE_USER = /^git@github\.com$/i
-const UNIX_HOME_PLACEHOLDERS = new Set(['/home/username'])
-const WINDOWS_PROFILE_PLACEHOLDERS = new Set(['me'])
-
 /** Read the pin once so the timestamp rule can allow its provenance values. */
 function readPinProvenance() {
   try {
@@ -74,103 +70,20 @@ function readPinProvenance() {
 }
 const PIN_PROVENANCE = readPinProvenance()
 
-/**
- * LOCAL ACCOUNT DENY-LIST (never committed)
- * ---------------------------------------------------------------------------
- * A developer's real account names must never appear in this public script, so
- * they are not listed here. When `.local-guard.json` exists in this checkout
- * with { "accountNames": ["..."] }, those names become an extra rule. The file
- * is gitignored; CI has no such file, so this rule is inert there and the
- * general rules above do all public-side checking.
- */
-const LOCAL_DENY_FILE = join(REPO_ROOT, '.local-guard.json')
+/** Local, gitignored account names; empty in CI, so the rule is inert there. */
+const LOCAL_ACCOUNT_NAMES = readLocalGuardAccounts()
 
-function readLocalAccountNames() {
-  try {
-    const local = JSON.parse(readFileSync(LOCAL_DENY_FILE, 'utf8'))
-    if (!Array.isArray(local.accountNames)) return []
-    return local.accountNames
-      .filter((name) => typeof name === 'string' && name.trim().length > 0)
-      .map((name) => name.trim())
-  } catch {
-    return []
-  }
+const ISO_TIMESTAMP_RULE = {
+  id: 'iso-timestamp',
+  // Machine timestamps in prose/source; JSON data may legitimately carry them.
+  pattern: /\b20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g,
+  allow: (match, _groups, file) =>
+    file.endsWith('.json') ||
+    (file === 'virtuoso-bridge-lite.pin.json' &&
+      (match === PIN_PROVENANCE.commitDate || match === PIN_PROVENANCE.commit)),
 }
 
-const LOCAL_ACCOUNT_NAMES = readLocalAccountNames()
-
-function escapeRegExp(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\$&')
-}
-
-const rules = [
-  {
-    id: 'email',
-    // Any address-shaped token; example.* domains are documentation placeholders.
-    pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}/g,
-    allow: (match) => EXAMPLE_EMAIL_DOMAINS.test(match) || GITHUB_SSH_REMOTE_USER.test(match),
-  },
-  {
-    id: 'ipv4',
-    // Dotted quad. Loopback stays allowed; everything else may name a real host.
-    pattern: /\b(?:\d{1,3}\.){3}\d{1,3}\b/g,
-    allow: (match) => {
-      const octets = match.split('.').map(Number)
-      if (octets.some((octet) => octet > 255)) return true // not an IPv4 literal
-      return octets[0] === 127 // 127.0.0.0/8 loopback
-    },
-  },
-  {
-    id: 'home-path',
-    // Absolute Unix home/mount paths name a real account or machine.
-    pattern: /\/(?:home|Users|mnt)\/[A-Za-z0-9._-]+/g,
-    allow: (match) => UNIX_HOME_PLACEHOLDERS.has(match),
-  },
-  {
-    id: 'windows-profile',
-    // Windows user-profile paths; only the documented `C:\Users\me` placeholder.
-    pattern: /C:[\\/]+Users[\\/]+([A-Za-z0-9._-]+)/gi,
-    allow: (match, groups) => WINDOWS_PROFILE_PLACEHOLDERS.has((groups[1] || '').toLowerCase()),
-  },
-  ...(LOCAL_ACCOUNT_NAMES.length > 0
-    ? [
-        {
-          id: 'account-name',
-          // Local-only deny-list from .local-guard.json (gitignored). Real account
-          // names are never committed to this public script, and CI has no such
-          // file, so this rule only protects a developer's own checkout.
-          pattern: new RegExp(`\\b(?:${LOCAL_ACCOUNT_NAMES.map(escapeRegExp).join('|')})\\b`, 'gi'),
-          allow: () => false,
-        },
-      ]
-    : []),
-  {
-    id: 'private-key',
-    pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/g,
-    allow: () => false,
-  },
-  {
-    id: 'ssh-public-key',
-    pattern: /\bssh-(?:rsa|ed25519)\s+AAAA[A-Za-z0-9+/=]{8,}/g,
-    allow: () => false,
-  },
-  {
-    id: 'credential-assignment',
-    // `password = "..."`, `api_key: '...'`, `token: "..."` — a quoted secret value.
-    pattern: /\b(?:password|passphrase|api[_-]?key|token)\b\s*[:=]\s*(["'])([^"'\n]{1,})\1/gi,
-    allow: () => false,
-  },
-  {
-    id: 'iso-timestamp',
-    // Machine timestamps in prose/source; JSON data may legitimately carry them.
-    pattern: /\b20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g,
-    allow: (match, groups, file) =>
-      file.endsWith('.json') ||
-      (file === 'virtuoso-bridge-lite.pin.json' &&
-        (match === PIN_PROVENANCE.commitDate || match === PIN_PROVENANCE.commit)),
-  },
-]
-
+const EXTRA_RULES = [accountRule(LOCAL_ACCOUNT_NAMES), ISO_TIMESTAMP_RULE].filter(Boolean)
 function listTrackedFiles() {
   let output
   try {
@@ -227,23 +140,19 @@ function main() {
     scanned += 1
     const lines = buffer.toString('utf8').split(/\r?\n/)
     for (const [index, line] of lines.entries()) {
-      for (const rule of rules) {
-        const matches = [...line.matchAll(rule.pattern)]
-        for (const match of matches) {
-          if (rule.allow(match[0], match, file)) continue
-          hits.push({ file, line: index + 1, rule: rule.id, text: match[0].trim() })
-        }
+      for (const rule of matchRules(line, { file, extraRules: EXTRA_RULES })) {
+        hits.push({ file, line: index + 1, rule })
       }
     }
   }
 
   if (hits.length > 0) {
     for (const hit of hits) {
-      console.log(`${hit.file}:${hit.line}: [${hit.rule}] ${hit.text}`)
+      console.log(`${hit.file}:${hit.line}: [${hit.rule}]`)
     }
     console.error(
       `check-no-private-data: FAILED — ${hits.length} hit(s) in ${new Set(hits.map((hit) => hit.file)).size} file(s). ` +
-        'Remove or replace private values; only documented placeholders listed at the top of this script may remain.',
+        'Remove or replace private values; only documented placeholders listed in scripts/lib/private-rules.mjs may remain. Matched values are redacted.',
     )
     process.exit(1)
   }

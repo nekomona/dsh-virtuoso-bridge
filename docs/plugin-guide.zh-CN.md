@@ -344,14 +344,18 @@ python -m py_compile runtime/vb_sidecar.py
 node --check runtime/vb_deploy.py
 node scripts/prepare-vendor.mjs --verify-only
 node scripts/check-no-private-data.mjs
+node scripts/check-branch-privacy.mjs --worktree
+node --test tests/*.test.mjs
 npm pack --dry-run
 ```
 
 `prepare-vendor.mjs --verify-only` 校验 `virtuoso-bridge-lite/` gitlink 是否与
 `virtuoso-bridge-lite.pin.json` 一致，且 `.gitmodules` 未配置 branch（发布工作流执行
 同一检查；完整脚本作为 `prepack` 自动运行）；`check-no-private-data.mjs` 是面向
-token、本机路径和备份目录的公开发布检查；`npm pack --dry-run` 只列出发布包内容，
-不执行发布。
+token、本机路径和备份目录的公开发布检查；`check-branch-privacy.mjs` 还会扫描本分支
+新增的提交信息与 diff，拒绝服务器名、账号名和用户主目录（git 的作者/提交者身份
+除外）；`--worktree` 同时检查未提交改动，CI 提供 base SHA 与可选的
+`VB_PRIVATE_NAMES` 仓库变量。`npm pack --dry-run` 只列出发布包内容，不执行发布。
 
 客户端修改后刷新 DSH 页面；Host 修改需重新加载插件。插件原则是封装现有
 VBL/DSH API，而不是增加并行基础设施。
