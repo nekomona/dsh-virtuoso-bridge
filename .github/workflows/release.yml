@@ -7,6 +7,9 @@ on:
 
 permissions:
   contents: write
+  # Short-lived OIDC token: how npm trusted publishing authenticates the
+  # publish, so no long-lived NPM_TOKEN secret is used anywhere here.
+  id-token: write
 
 # One release run per tag; never cancel a publish that is already in flight.
 concurrency:
@@ -23,10 +26,12 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Node.js 20
+      - name: Set up Node.js 24
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # npm trusted publishing (OIDC) requires npm >= 11.5.1 and Node >= 22.14;
+          # Node 24 ships npm 11.x. The publish itself takes no token secret.
+          node-version: '24'
           registry-url: https://registry.npmjs.org
           # No `cache: npm`: this repository has no lockfile and installs no dependencies.
 
@@ -83,19 +88,26 @@ jobs:
           fi
           echo "Release tag $GITHUB_REF_NAME matches package.json version $version"
 
+      - name: Verify npm CLI supports trusted publishing
+        run: |
+          set -euo pipefail
+          npm_version="$(npm --version)"
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number)
+            const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)))
+            if (!ok) {
+              console.error(`npm ${process.argv[1]} is too old for trusted publishing; npm >= 11.5.1 is required.`)
+              process.exit(1)
+            }
+            console.log(`npm ${process.argv[1]} supports trusted publishing.`)
+          ' "$npm_version"
+
       - name: Decide whether npm publish is still needed
         id: npm
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set -euo pipefail
           package="$(node -p "require('./package.json').name")"
           version="$(node -p "require('./package.json').version")"
-          if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::warning::NPM_TOKEN is not configured; skipping npm publish. Add the repository secret to publish from CI, or publish the tarball manually."
-            echo "publish=no" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           if npm view "$package@$version" version >/dev/null 2>&1; then
             echo "$package@$version is already on npm; skipping npm publish and continuing with the GitHub release."
             echo "publish=no" >> "$GITHUB_OUTPUT"
@@ -103,11 +115,18 @@ jobs:
             echo "publish=yes" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Publish to npm
+      - name: Publish to npm with trusted publishing (OIDC)
         if: steps.npm.outputs.publish == 'yes'
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: npm publish --access public
+        run: |
+          set -euo pipefail
+          # `permissions: id-token: write` exposes these to the step. npm exchanges
+          # the OIDC token for a short-lived publish credential, and generates
+          # provenance automatically (public repo, public package).
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] || [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
+            echo "::error::No OIDC token is available. The job needs permissions: id-token: write, and this workflow file name must match the trusted publisher configured on npmjs (release.yml)."
+            exit 1
+          fi
+          npm publish --access public
 
       - name: Pack the tarball for the GitHub release asset
         id: pack
