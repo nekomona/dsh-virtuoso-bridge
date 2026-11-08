@@ -15,10 +15,10 @@ concurrency:
 
 jobs:
   verify:
-    name: Verify package, vendor pin and npm tarball
+    name: Verify package, submodule pin and npm tarball
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository and vendor submodule
+      - name: Check out repository and pinned submodule
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -30,7 +30,7 @@ jobs:
           registry-url: https://registry.npmjs.org
           # No `cache: npm`: this repository has no lockfile and installs no dependencies.
 
-      - name: Verify vendor submodule matches vendor.pin.json
+      - name: Verify the submodule matches virtuoso-bridge-lite.pin.json
         run: node scripts/prepare-vendor.mjs --verify-only
 
       - name: Check tracked files for private data
@@ -56,17 +56,17 @@ jobs:
           node <<'NODE'
           const { execFileSync } = require('node:child_process')
           const { readFileSync } = require('node:fs')
-          const pin = JSON.parse(readFileSync('vendor.pin.json', 'utf8'))
+          const pin = JSON.parse(readFileSync('virtuoso-bridge-lite.pin.json', 'utf8'))
           for (const field of ['name', 'version', 'commit', 'commitDate', 'repository', 'submodulePath']) {
             if (typeof pin[field] !== 'string' || pin[field] === '') {
-              throw new Error('vendor.pin.json field ' + field + ' is missing or empty')
+              throw new Error('virtuoso-bridge-lite.pin.json field ' + field + ' is missing or empty')
             }
           }
-          const head = execFileSync('git', ['-C', 'vendor', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+          const head = execFileSync('git', ['-C', 'virtuoso-bridge-lite', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
           if (pin.commit !== head) {
-            throw new Error('vendor.pin.json commit ' + pin.commit + ' does not match vendor HEAD ' + head)
+            throw new Error('virtuoso-bridge-lite.pin.json commit ' + pin.commit + ' does not match submodule HEAD ' + head)
           }
-          console.log('vendor.pin.json OK: ' + pin.name + ' ' + pin.version + ' @ ' + pin.commit + ' (' + pin.commitDate + ')')
+          console.log('virtuoso-bridge-lite.pin.json OK: ' + pin.name + ' ' + pin.version + ' @ ' + pin.commit + ' (' + pin.commitDate + ')')
           NODE
 
       - name: Pack the npm tarball and assert its contents
@@ -82,10 +82,10 @@ jobs:
           tar -tzf "$tarball" > "$tmp/contents.txt"
           failed=0
           for required in \
-            package/vendor/src/ \
-            package/vendor/skills/ \
-            package/vendor/pyproject.toml \
-            package/vendor.pin.json \
+            package/virtuoso-bridge-lite/src/ \
+            package/virtuoso-bridge-lite/skills/ \
+            package/virtuoso-bridge-lite/pyproject.toml \
+            package/virtuoso-bridge-lite.pin.json \
             package/lib/manager.js \
             package/client.js
           do
@@ -95,10 +95,10 @@ jobs:
             fi
           done
           for forbidden in \
-            package/vendor/tests/ \
-            package/vendor/docs/ \
-            package/vendor/website/ \
-            package/vendor/.github/ \
+            package/virtuoso-bridge-lite/tests/ \
+            package/virtuoso-bridge-lite/docs/ \
+            package/virtuoso-bridge-lite/website/ \
+            package/virtuoso-bridge-lite/.github/ \
             package/scripts/
           do
             if grep -qF "$forbidden" "$tmp/contents.txt"; then

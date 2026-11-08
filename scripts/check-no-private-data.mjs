@@ -4,7 +4,7 @@
  * personal or machine-specific data that must not ship in a public repository.
  *
  * Scope: every file reported by `git ls-files -z` from the repository root.
- * `vendor/` is skipped because it is a pinned upstream snapshot reviewed by
+ * `virtuoso-bridge-lite/` is skipped because it is a pinned upstream snapshot reviewed by
  * its own project, and this script skips itself so its example patterns cannot
  * trip the scan.
  *
@@ -45,7 +45,7 @@ const SELF = relative(REPO_ROOT, fileURLToPath(import.meta.url)).split(sep).join
  *   - `@example.com` (and .org/.net)  documentation email placeholders
  *   - `git@github.com`                public GitHub SSH remote user, not a person
  *   - `<name>.example.com`            documentation hostname placeholders
- *   - `vendor.pin.json`'s `commit` and `commitDate`
+ *   - `virtuoso-bridge-lite.pin.json`'s `commit` and `commitDate`
  *                                     upstream provenance values, intentionally
  *                                     published; timestamps are also not flagged
  *                                     in any `.json` data file
@@ -62,7 +62,7 @@ const WINDOWS_PROFILE_PLACEHOLDERS = new Set(['me'])
 /** Read the pin once so the timestamp rule can allow its provenance values. */
 function readPinProvenance() {
   try {
-    const pin = JSON.parse(readFileSync(join(REPO_ROOT, 'vendor.pin.json'), 'utf8'))
+    const pin = JSON.parse(readFileSync(join(REPO_ROOT, 'virtuoso-bridge-lite.pin.json'), 'utf8'))
     return { commit: pin.commit, commitDate: pin.commitDate }
   } catch {
     return { commit: undefined, commitDate: undefined }
@@ -121,7 +121,7 @@ const rules = [
     pattern: /\b20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?/g,
     allow: (match, groups, file) =>
       file.endsWith('.json') ||
-      (file === 'vendor.pin.json' &&
+      (file === 'virtuoso-bridge-lite.pin.json' &&
         (match === PIN_PROVENANCE.commitDate || match === PIN_PROVENANCE.commit)),
   },
 ]
@@ -150,8 +150,8 @@ function main() {
   let skippedUntrackedScope = 0
 
   for (const file of tracked) {
-    // `vendor` is a submodule gitlink; `vendor/**` is the upstream snapshot.
-    if (file === 'vendor' || file.startsWith('vendor/')) {
+    // `virtuoso-bridge-lite` is a submodule gitlink; its tree is the pinned upstream source.
+    if (file === 'virtuoso-bridge-lite' || file.startsWith('virtuoso-bridge-lite/')) {
       skippedUntrackedScope += 1
       continue
     }
@@ -205,7 +205,7 @@ function main() {
 
   console.log(
     `check-no-private-data: clean — ${scanned} tracked text file(s) scanned` +
-      ` (${skippedBinary} binary skipped, ${skippedUntrackedScope} vendor/script path(s) excluded).`,
+      ` (${skippedBinary} binary skipped, ${skippedUntrackedScope} virtuoso-bridge-lite/script path(s) excluded).`,
   )
   process.exit(0)
 }

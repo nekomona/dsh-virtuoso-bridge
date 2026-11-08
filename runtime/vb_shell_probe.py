@@ -20,7 +20,7 @@ import sys
 from pathlib import Path
 
 _THIS = Path(__file__).resolve()
-_VENDOR_SRC = _THIS.parent.parent / "vendor" / "src"
+_VENDOR_SRC = _THIS.parent.parent / "virtuoso-bridge-lite" / "src"
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1" and _VENDOR_SRC.is_dir() and str(_VENDOR_SRC) not in sys.path:
     sys.path.insert(0, str(_VENDOR_SRC))
 

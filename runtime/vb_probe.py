@@ -12,7 +12,7 @@ from pathlib import Path
 # local or git).  Do not prepend the bundled source here: doing so would mask
 # a local/git installation and defeat the source-selection contract.
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1":
-    _VENDOR_SRC = Path(__file__).resolve().parent.parent / "vendor" / "src"
+    _VENDOR_SRC = Path(__file__).resolve().parent.parent / "virtuoso-bridge-lite" / "src"
     if _VENDOR_SRC.is_dir() and str(_VENDOR_SRC) not in sys.path:
         sys.path.insert(0, str(_VENDOR_SRC))
 
