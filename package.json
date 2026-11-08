@@ -1,9 +1,31 @@
 {
-  "name": "dsh-virtuoso-bridge",
+  "name": "@nekomona/dsh-virtuoso-bridge",
   "version": "1.0.0",
-  "private": true,
-  "type": "module",
   "description": "Virtuoso Bridge for DeepSeek Harness: managed virtuoso-bridge-lite runtimes, fixed or automatic-session daemon discovery, an isolated Python environment, agent tools, a left-sidebar configuration page and a right-sidebar runtime panel.",
+  "type": "module",
+  "license": "MIT",
+  "author": "nekomona",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nekomona/dsh-virtuoso-bridge.git"
+  },
+  "homepage": "https://github.com/nekomona/dsh-virtuoso-bridge#readme",
+  "bugs": {
+    "url": "https://github.com/nekomona/dsh-virtuoso-bridge/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "plugin",
+    "bundle",
+    "cadence",
+    "virtuoso",
+    "spectre",
+    "eda"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -22,8 +44,18 @@
     "LICENSE",
     "lib/*.js",
     "runtime/*.py",
-    "vendor/**"
+    "vendor.pin.json",
+    "vendor/pyproject.toml",
+    "vendor/README.md",
+    "vendor/AGENTS.md",
+    "vendor/LICENSE",
+    "vendor/mcp_server.py",
+    "vendor/src/**",
+    "vendor/skills/**"
   ],
+  "scripts": {
+    "prepack": "node scripts/prepare-vendor.mjs"
+  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"

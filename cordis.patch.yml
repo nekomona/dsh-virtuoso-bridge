@@ -1,6 +1,6 @@
 - insert:
     - id: virtuoso-bridge
-      name: 'dsh-virtuoso-bridge'
+      name: '@nekomona/dsh-virtuoso-bridge'
       config:
         source:
           mode: bundled

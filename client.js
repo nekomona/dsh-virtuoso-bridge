@@ -7,14 +7,14 @@
  * tools use; the panel is a projection of the Host runtime manager.
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-virtuoso-bridge',
+  id: '@nekomona/dsh-virtuoso-bridge',
   factory(require) {
     const React = require('react')
     const h = React.createElement
     const NS = 'virtuosoBridge'
     const PANEL_ID = 'virtuoso-bridge'
     const KIND = 'virtuoso-bridge'
-    const TYPE_ID = 'dsh-virtuoso-bridge/dashboard'
+    const TYPE_ID = '@nekomona/dsh-virtuoso-bridge/dashboard'
     const BASE_PATH = '/__dsh/virtuoso-bridge'
     const PROJECT_URL = 'https://github.com/Arcadia-1/virtuoso-bridge-lite'
 
@@ -101,10 +101,10 @@ window.__ModuleLoader__.load({
       'setup.sourceAndLog': 'Source and install log',
       'setup.emptyLog': 'No installation has run yet.',
       'setup.error': 'Environment problem',
-      'setup.mode.bundled': 'Bundled snapshot',
+      'setup.mode.bundled': 'Bundled source (pinned submodule)',
       'setup.mode.local': 'Local development repo',
       'setup.mode.git': 'Git repository',
-      'setup.modeHint': 'Bundled works offline for the tool source; Git and local modes follow your checkout.',
+      'setup.modeHint': 'Bundled mode installs the pinned vendor/ submodule source and needs that submodule checked out; Git and local modes follow your checkout.',
       'setup.localPath': 'Local repository path',
       'setup.repoUrl': 'Git repository URL',
       'setup.gitRef': 'Git ref',
@@ -368,10 +368,10 @@ window.__ModuleLoader__.load({
       'setup.sourceAndLog': '来源与安装日志',
       'setup.emptyLog': '尚未执行安装。',
       'setup.error': '环境问题',
-      'setup.mode.bundled': '内置快照',
+      'setup.mode.bundled': '内置源码（钉住的子模块）',
       'setup.mode.local': '本地开发仓库',
       'setup.mode.git': 'Git 仓库',
-      'setup.modeHint': '内置模式可离线使用工具源码；Git 与本地模式跟随你的仓库。',
+      'setup.modeHint': '内置模式安装钉住的 vendor/ 子模块源码，需要先检出该子模块；Git 与本地模式跟随你的仓库。',
       'setup.localPath': '本地仓库路径',
       'setup.repoUrl': 'Git 仓库地址',
       'setup.gitRef': 'Git 引用',
