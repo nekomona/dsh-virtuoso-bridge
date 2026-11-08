@@ -75,24 +75,13 @@ plugin's own JS work.
 
 `npm test` (14 tests) and the privacy guards stay green.
 
-## Remaining opportunities
+## Remaining bottlenecks
 
-Ranked by value per risk:
-
-1. **Persistent script worker** (~1.0 s/call). The floor is now dominated by
-   process start (0.36 s), the package import (0.29 s) and one client
-   construction (~0.7 s). A long-lived worker per runtime that imports once,
-   connects once and `exec`s each job would cut that to tens of milliseconds.
-   Needs care: per-job cwd/module isolation, restart after a crash, and
-   cancel/timeout semantics.
-2. **Batch, don't poll.** One script per logical step, not one per probe; the
-   fixed cost is small but not free.
-3. **`waitMs` default (10 s)** only affects jobs longer than the wait, but a job
-   that settles in 1.5 s no longer needs the long race.
-4. **`maxScripts` is 4** and `isConcurrencySafe` is false for `run`, so calls
-   serialise. Rarely worth changing now that setup is under a second.
-5. **Model time** dominates a long session (steps averaged ~32 s). Fewer, larger
-   steps help more than further tool tuning.
+The fixed cost is now process start (0.36 s), the package import (0.29 s) and one
+client construction (0.2–0.7 s), plus ~0.18 s of plugin-side bookkeeping. The
+plan for those — a persistent script worker, trimmed JS-side work, batched calls
+and the concurrency question — is
+[script-performance-roadmap.md](script-performance-roadmap.md).
 
 ## Re-measuring
 
