@@ -12,8 +12,8 @@
 - Node.js 20 或更高版本，并带有 npm（与工作流使用的工具链一致）。
 - 可拥有 `@nekomona` scope 的 npm 账号。
 - 名为 `nekomona` 的 GitHub 账号或组织。
-- 支持 submodule 的 git；`vendor/` 是 git submodule，因此非递归 clone 的 checkout
-  需要执行 `git submodule update --init vendor`。
+- 支持 submodule 的 git；`virtuoso-bridge-lite/` 是 git submodule，因此非递归 clone 的
+  checkout 需要执行 `git submodule update --init virtuoso-bridge-lite`。
 - 一个用于在对外公布前验证发布 bundle 的 DSH profile。
 
 ## 2. GitHub 仓库设置
@@ -26,20 +26,24 @@ git remote add origin git@github.com:nekomona/dsh-virtuoso-bridge.git
 git push -u origin main
 ```
 
-`vendor` submodule 指向
+`virtuoso-bridge-lite` submodule 指向
 [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite) 的公开上游
-提交，因此 GitHub 侧不需要特殊权限，也不需要额外的 deploy key。Actions runner 使用
-`submodules: recursive` 检出仓库，CI 无需额外步骤即可获得 `vendor/`。
+提交，因此 GitHub 侧不需要特殊权限，也不需要额外的 deploy key。`.gitmodules` 不声明
+`branch`，submodule 因此固定在 `virtuoso-bridge-lite.pin.json` 记录的精确提交上，上游
+`main` 更新不会改变内置源码。Actions runner 使用 `submodules: recursive` 检出仓库，
+CI 无需额外步骤即可获得 `virtuoso-bridge-lite/`。
 
-两个工作流位于 `.github/workflows/`：
+三个工作流位于 `.github/workflows/`：
 
-- `ci.yml`：在 push 和 pull request 时运行，校验 `vendor/` gitlink 与
-  `vendor.pin.json` 一致，运行公开发布检查
+- `ci.yml`：在 push 和 pull request 时运行，校验 `virtuoso-bridge-lite/` gitlink 与
+  `virtuoso-bridge-lite.pin.json` 一致、`.gitmodules` 未配置 branch，运行公开发布检查
   （`scripts/check-no-private-data.mjs`）以及 JavaScript/Python 语法检查，并校验打包
   后的 npm tarball 内容。
 - `release.yml`：在 `v*` tag 时运行，校验固定版本、运行发布检查、确认 tag 与
-  `package.json` 的 version 一致、发布到 npm，并创建附带打包 tarball 的
-  GitHub Release。
+  `package.json` 的 version 一致、发布到 npm，并创建附带打包 tarball 的 GitHub Release。
+- `upstream-watch.yml`：每周按 cron 以及手动触发运行，比较上游
+  `Arcadia-1/virtuoso-bridge-lite` 的 `refs/heads/main` 与固定提交；两者不同时创建或更新
+  带 `upstream` 标签的 GitHub issue，使过期 pin 成为告警而不是意外；两者相同时静默退出。
 
 ## 3. npm 账号与 scope
 
@@ -81,7 +85,7 @@ scoped 包默认为受限（非公开）可见性，因此发布时必须带 `--
 
 该 tag 会触发 `release.yml`，它依次：
 
-1. 校验 `vendor/` gitlink 与 `vendor.pin.json` 一致；
+1. 校验 `virtuoso-bridge-lite/` gitlink 与 `virtuoso-bridge-lite.pin.json` 一致；
 2. 运行 `scripts/check-no-private-data.mjs`；
 3. 运行语法检查；
 4. 确认 `v1.0.0` 与 `package.json` 的 `version` 一致；
@@ -89,7 +93,8 @@ scoped 包默认为受限（非公开）可见性，因此发布时必须带 `--
 6. 为该 tag 创建 GitHub Release，并附带打包好的 tarball。
 
 `npm pack` 和 `npm publish` 会通过 `prepack` 自动运行
-`scripts/prepare-vendor.mjs`，因此 tarball 不会包含缺失或过期的 `vendor/` checkout。
+`scripts/prepare-vendor.mjs`，因此 tarball 不会包含缺失或过期的
+`virtuoso-bridge-lite/` checkout。
 
 工作流不可用时的手动方式：
 
@@ -113,33 +118,37 @@ npm 会拒绝已存在的版本，因此每次发布都需要新的版本号—�
 
 ## 7. 更新内置上游固定版本
 
-`vendor/` 跟踪 virtuoso-bridge-lite 上游，具体提交记录在 `vendor.pin.json`。
-更新固定版本：
+`virtuoso-bridge-lite/` 跟踪 virtuoso-bridge-lite 上游，具体精确提交记录在
+`virtuoso-bridge-lite.pin.json`。pin 本身是稳定的：`.gitmodules` 不声明 `branch`，
+`git submodule update` 总是检出记录的 gitlink，上游 `main` 更新不会静默改变内置源码。
+不要执行 `git submodule update --remote`——它是唯一会跟随移动分支的命令。需要主动
+更新固定版本时：
 
 ```powershell
-git -C vendor fetch origin
-git -C vendor checkout <sha>
+git -C virtuoso-bridge-lite fetch origin
+git -C virtuoso-bridge-lite checkout <sha>
 ```
 
-然后把 `vendor.pin.json` 的 `commit` 和 `commitDate` 改为当前检出的提交，并将
-gitlink 与 pin 一起提交：
+然后把 `virtuoso-bridge-lite.pin.json` 的 `commit` 和 `commitDate` 改为当前检出的提交，
+并将 gitlink 与 pin 一起提交：
 
 ```powershell
-git add vendor vendor.pin.json
-git commit -m "chore: bump vendor to <sha>"
+git add virtuoso-bridge-lite virtuoso-bridge-lite.pin.json
+git commit -m "chore: bump virtuoso-bridge-lite to <sha>"
 ```
 
-之后按常规流程打 tag 发布。`vendor/` gitlink 与 `vendor.pin.json` 不一致时 CI 会
-失败，因此只更新一半的 pin 无法发布。
+之后按常规流程打 tag 发布。`virtuoso-bridge-lite/` gitlink 与
+`virtuoso-bridge-lite.pin.json` 不一致时 CI 会失败，因此只更新一半的 pin 无法发布。
 
 ## 8. 用户获得的内容
 
-发布的 npm tarball 包含插件所装 `vendor/` 的打包子集——`pyproject.toml`、
+发布的 npm tarball 包含插件所装 `virtuoso-bridge-lite/` 的打包子集——`pyproject.toml`、
 `README.md`、`AGENTS.md`、`LICENSE`、`mcp_server.py`、`src/**` 和 `skills/**`——
-再加上插件自身的 JavaScript、运行时脚本、文档和 locale 文件。因此通过 DSH 安装
-bundle 既不需要 git，也不需要 submodule：插件会自建 venv 并从打包源码 pip 安装。
-开发用 checkout 不同：它需要执行 `git submodule update --init vendor`，`vendor/`
-缺失时插件会给出可操作的错误提示。
+再加上 `virtuoso-bridge-lite.pin.json` 与插件自身的 JavaScript、运行时脚本、文档和
+locale 文件。因此通过 DSH 安装 bundle 既不需要 git，也不需要 submodule：插件会自建
+venv 并从打包源码 pip 安装。开发用 checkout 不同：它需要执行
+`git submodule update --init virtuoso-bridge-lite`，`virtuoso-bridge-lite/` 缺失时插件
+会给出可操作的错误提示。
 
 ## 9. 安全提示
 

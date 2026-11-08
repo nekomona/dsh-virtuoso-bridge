@@ -11,11 +11,14 @@
 源码和问题跟踪位于
 [nekomona/dsh-virtuoso-bridge](https://github.com/nekomona/dsh-virtuoso-bridge)。
 
-插件以固定版本的 `vendor/` **git submodule** 提供 virtuoso-bridge-lite，也可以改用
-本地开发仓库，或从指定 git ref 克隆。固定的上游提交为 `1f186ab`（2026-11-04），
-记录在 `vendor.pin.json`。npm 包内含同一份源码，因此通过 npm 安装不需要 git 或
-submodule；源码 checkout 需执行一次 `git submodule update --init vendor`，缺失时
-插件会给出明确的错误提示。
+插件以固定版本的 `virtuoso-bridge-lite/` **git submodule** 提供
+virtuoso-bridge-lite，也可以改用本地开发仓库，或从指定 git ref 克隆。固定的是上游
+精确提交 `1f186abfbb3d658211743cd707f3156ed2f59a87`（2026-11-04），其精确
+时间戳和来源信息记录在 `virtuoso-bridge-lite.pin.json`；`.gitmodules` 不声明
+`branch`，因此上游 `main` 更新不会改变内置源码。不要执行
+`git submodule update --remote`：它是唯一会跟随移动分支的命令。npm 包内含同一份
+源码，因此通过 npm 安装不需要 git 或 submodule；源码 checkout 需执行一次
+`git submodule update --init virtuoso-bridge-lite`，缺失时插件会给出明确的错误提示。
 
 详细中文指南：[`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md) ·
 English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md) ·
@@ -52,11 +55,11 @@ English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md) ·
 git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
 ```
 
-`vendor/` 是 git submodule。如果 clone 时没有加 `--recurse-submodules`，
-安装前先初始化：
+`virtuoso-bridge-lite/` 是 git submodule。如果 clone 时没有加
+`--recurse-submodules`，安装前先初始化：
 
 ```powershell
-git submodule update --init vendor
+git submodule update --init virtuoso-bridge-lite
 ```
 
 然后让智能体安装该本地 bundle：
@@ -82,10 +85,11 @@ git submodule update --init vendor
 
 选择安装来源：
 
-- **内置源码**（`vendor/` submodule，默认）：安装插件固定的 `vendor/` git
-  submodule，不需要访问工具仓库；首次 pip 安装仍需可访问 Python 包索引。源码安装
-  必须已初始化 submodule，否则插件会报错并提示执行
-  `git submodule update --init vendor`。npm 包内含同一份源码，npm 用户不会遇到该状态。
+- **内置源码**（`virtuoso-bridge-lite/` submodule，默认）：安装插件固定的
+  `virtuoso-bridge-lite/` git submodule，不需要访问工具仓库；首次 pip 安装仍需可访问
+  Python 包索引。源码安装必须已初始化 submodule，否则插件会报错并提示执行
+  `git submodule update --init virtuoso-bridge-lite`。npm 包内含同一份源码，npm 用户
+  不会遇到该状态。
 - **本地开发仓库**：从 `source.localRepoPath` 以 editable 方式安装，例如
   `C:\src\virtuoso-bridge-lite`。代码修改会在下次运行时启动时生效；打包元数据变化
   后使用“修复”。
@@ -263,11 +267,12 @@ lib/manager.js           Runtime/connection manager
 lib/tools.js             Agent tool definitions
 runtime/vb_sidecar.py    Per-runtime sidecar
 runtime/vb_deploy.py     Daemon setup deployment
-vendor/                  Pinned virtuoso-bridge-lite git submodule (1f186ab)
-vendor.pin.json          Upstream pin: name, version, commit, date, license
-scripts/prepare-vendor.mjs  Verify/initialise the vendor pin (prepack)
+virtuoso-bridge-lite/    Pinned virtuoso-bridge-lite git submodule (1f186ab)
+virtuoso-bridge-lite.pin.json  Upstream pin: name, version, commit, date, license
+scripts/prepare-vendor.mjs  Verify/initialise the pinned submodule (prepack)
 scripts/check-no-private-data.mjs  Public-release guard against private data
-.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release)
+.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release),
+                         upstream-watch.yml (weekly + manual upstream pin alerts)
 docs/plugin-guide.md     English detailed guide
 docs/plugin-guide.zh-CN.md  Chinese detailed guide
 docs/publishing.md       English publishing guide
@@ -287,8 +292,10 @@ README.zh-CN.md          Chinese README
 - 配置保存、来源切换、缓存路径跟随和诊断；
 - 脚本工具卡、运行时面板折叠、智能体历史和连接状态；
 - 守护进程冲突提示、弹窗检测、远程工作目录和双语文档；
-- CI（`.github/workflows/ci.yml`）校验 `vendor/` gitlink 与 `vendor.pin.json` 一致，
-  并运行公开发布检查（`scripts/check-no-private-data.mjs`）。
+- CI（`.github/workflows/ci.yml`）校验 `virtuoso-bridge-lite/` gitlink 与
+  `virtuoso-bridge-lite.pin.json` 一致，并运行公开发布检查
+  （`scripts/check-no-private-data.mjs`）。`.github/workflows/upstream-watch.yml` 每周及
+  手动触发比较上游 `main` 与固定提交，不一致时创建或更新带 `upstream` 标签的 issue。
 
 未在真实 Cadence 硬件上自动验证所有 SKILL/GUI 行为；实际效果取决于已安装的
 virtuoso-bridge-lite、SSH 配置和 CIW 状态。
@@ -315,5 +322,6 @@ node --check runtime/vb_deploy.py
 
 ## 许可
 
-MIT License。`vendor/` 是 virtuoso-bridge-lite 的上游 git submodule，保留上游的
-MIT 许可与归属；上游提交、日期和许可记录在 `vendor.pin.json`。
+MIT License。`virtuoso-bridge-lite/` 是 virtuoso-bridge-lite 的上游 git submodule，
+保留上游的 MIT 许可与归属；上游提交、日期和许可记录在
+`virtuoso-bridge-lite.pin.json`。

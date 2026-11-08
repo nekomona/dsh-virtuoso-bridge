@@ -13,8 +13,9 @@ release workflow, and how to bump the pinned upstream submodule.
 - Node.js 20 or newer with npm (the toolchain the workflows use).
 - An npm account that can own the `@nekomona` scope.
 - A GitHub account or organization named `nekomona`.
-- Git with submodule support; `vendor/` is a git submodule, so a checkout that
-  is not cloned recursively needs `git submodule update --init vendor`.
+- Git with submodule support; `virtuoso-bridge-lite/` is a git submodule, so a
+  checkout that is not cloned recursively needs
+  `git submodule update --init virtuoso-bridge-lite`.
 - A DSH profile to test the published bundle against before announcing it.
 
 ## 2. GitHub repository setup
@@ -27,21 +28,30 @@ git remote add origin git@github.com:nekomona/dsh-virtuoso-bridge.git
 git push -u origin main
 ```
 
-The `vendor` submodule points at a public upstream commit of
+The `virtuoso-bridge-lite` submodule points at a public upstream commit of
 [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite), so
-GitHub needs no special access and no extra deploy key for it. The Actions
-runner checks the repository out with `submodules: recursive`, so `vendor/` is
-available to CI without further steps.
+GitHub needs no special access and no extra deploy key for it. `.gitmodules`
+deliberately declares no `branch`, so the submodule stays at the exact commit
+recorded in `virtuoso-bridge-lite.pin.json`; an upstream `main` update cannot
+change the bundled source. The Actions runner checks the repository out with
+`submodules: recursive`, so `virtuoso-bridge-lite/` is available to CI without
+further steps.
 
-Both workflows live in `.github/workflows/`:
+Three workflows live in `.github/workflows/`:
 
-- `ci.yml` — runs on pushes and pull requests: verifies the `vendor/` pin
-  against `vendor.pin.json`, runs the public-release guard
+- `ci.yml` — runs on pushes and pull requests: verifies the
+  `virtuoso-bridge-lite/` pin against `virtuoso-bridge-lite.pin.json`, checks
+  that `.gitmodules` configures no branch, runs the public-release guard
   (`scripts/check-no-private-data.mjs`), syntax-checks the JavaScript and Python
   sources, and asserts the packed npm tarball contents.
 - `release.yml` — runs on a `v*` tag: verifies the pin, runs the guard, asserts
   that the tag matches `package.json`'s version, publishes to npm, and creates a
   GitHub Release with the packed tarball attached.
+- `upstream-watch.yml` — runs weekly on a cron schedule and on manual dispatch:
+  compares upstream `Arcadia-1/virtuoso-bridge-lite` `refs/heads/main` with the
+  pinned commit and opens or updates a GitHub issue labelled `upstream` when they
+  differ, so a stale pin is an alert rather than a surprise; when they are equal
+  it exits quietly.
 
 ## 3. npm account and scope
 
@@ -87,7 +97,8 @@ Use `git push --follow-tags` instead when the commit is pushed at the same time.
 
 The tag starts `release.yml`, which:
 
-1. verifies the `vendor/` gitlink against `vendor.pin.json`;
+1. verifies the `virtuoso-bridge-lite/` gitlink against
+   `virtuoso-bridge-lite.pin.json`;
 2. runs `scripts/check-no-private-data.mjs`;
 3. runs the syntax checks;
 4. asserts that `v1.0.0` matches `package.json`'s `version`;
@@ -95,7 +106,8 @@ The tag starts `release.yml`, which:
 6. creates a GitHub Release for the tag with the packed tarball attached.
 
 `npm pack` and `npm publish` run `scripts/prepare-vendor.mjs` automatically as
-`prepack`, so the tarball never ships a missing or stale `vendor/` checkout.
+`prepack`, so the tarball never ships a missing or stale
+`virtuoso-bridge-lite/` checkout.
 
 Manual fallback when the workflow cannot run:
 
@@ -122,35 +134,42 @@ last resort, because it breaks anyone who already resolved that version.
 
 ## 7. Bumping the bundled upstream pin
 
-`vendor/` follows upstream virtuoso-bridge-lite at the commit recorded in
-`vendor.pin.json`. To move the pin:
+`virtuoso-bridge-lite/` follows upstream virtuoso-bridge-lite at the exact
+commit recorded in `virtuoso-bridge-lite.pin.json`. The pin is stable by
+construction: `.gitmodules` deliberately declares no `branch`, so
+`git submodule update` always checks out the recorded gitlink and an upstream
+`main` update cannot silently change the bundled source. Never run
+`git submodule update --remote` — it is the only command that would follow a
+moving branch. To move the pin deliberately:
 
 ```powershell
-git -C vendor fetch origin
-git -C vendor checkout <sha>
+git -C virtuoso-bridge-lite fetch origin
+git -C virtuoso-bridge-lite checkout <sha>
 ```
 
-Then set `commit` and `commitDate` in `vendor.pin.json` to the checked-out
-commit and commit the gitlink and the pin together:
+Then set `commit` and `commitDate` in `virtuoso-bridge-lite.pin.json` to the
+checked-out commit and commit the gitlink and the pin together:
 
 ```powershell
-git add vendor vendor.pin.json
-git commit -m "chore: bump vendor to <sha>"
+git add virtuoso-bridge-lite virtuoso-bridge-lite.pin.json
+git commit -m "chore: bump virtuoso-bridge-lite to <sha>"
 ```
 
-Tag the release as usual. CI fails when the `vendor/` gitlink and
-`vendor.pin.json` disagree, so a half-updated pin cannot be released.
+Tag the release as usual. CI fails when the `virtuoso-bridge-lite/` gitlink and
+`virtuoso-bridge-lite.pin.json` disagree, so a half-updated pin cannot be
+released.
 
 ## 8. What consumers get
 
-The published npm tarball contains the packaged subset of `vendor/` that the
-plugin installs — `pyproject.toml`, `README.md`, `AGENTS.md`, `LICENSE`,
-`mcp_server.py`, `src/**` and `skills/**` — plus the plugin's own JavaScript,
-runtime scripts, documentation and locale files. Installing the bundle through
-DSH therefore needs neither git nor the submodule: the plugin creates its venv
-and pip-installs the packaged source. A development checkout is different: it
-needs `git submodule update --init vendor`, and the plugin reports an actionable
-error when `vendor/` is missing.
+The published npm tarball contains the packaged subset of
+`virtuoso-bridge-lite/` that the plugin installs — `pyproject.toml`, `README.md`,
+`AGENTS.md`, `LICENSE`, `mcp_server.py`, `src/**` and `skills/**` — plus
+`virtuoso-bridge-lite.pin.json` and the plugin's own JavaScript, runtime
+scripts, documentation and locale files. Installing the bundle through DSH
+therefore needs neither git nor the submodule: the plugin creates its venv and
+pip-installs the packaged source. A development checkout is different: it needs
+`git submodule update --init virtuoso-bridge-lite`, and the plugin reports an
+actionable error when `virtuoso-bridge-lite/` is missing.
 
 ## 9. Safety notes
 
