@@ -1,4 +1,4 @@
-﻿[submodule "virtuoso-bridge-lite"]
+[submodule "virtuoso-bridge-lite"]
 	path = virtuoso-bridge-lite
 	url = https://github.com/Arcadia-1/virtuoso-bridge-lite.git
 	ignore = untracked
