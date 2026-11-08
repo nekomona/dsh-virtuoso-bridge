@@ -272,6 +272,9 @@ virtuoso-bridge-lite/    Pinned virtuoso-bridge-lite git submodule (1f186ab)
 virtuoso-bridge-lite.pin.json  Upstream pin: name, version, commit, date, license
 scripts/prepare-vendor.mjs  Verify/initialise the pinned submodule (prepack)
 scripts/check-no-private-data.mjs  Public-release guard against private data
+scripts/check-branch-privacy.mjs  Commit-message and branch-diff guard:
+                      no server names, account names or home directories
+scripts/lib/private-rules.mjs  Shared private-data rules for both guards
 .github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release)
 docs/plugin-guide.md     English detailed guide
 docs/plugin-guide.zh-CN.md  Chinese detailed guide

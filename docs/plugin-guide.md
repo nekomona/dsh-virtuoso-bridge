@@ -383,6 +383,8 @@ python -m py_compile runtime/vb_sidecar.py
 node --check runtime/vb_deploy.py
 node scripts/prepare-vendor.mjs --verify-only
 node scripts/check-no-private-data.mjs
+node scripts/check-branch-privacy.mjs --worktree
+node --test tests/*.test.mjs
 npm pack --dry-run
 ```
 
@@ -390,8 +392,13 @@ npm pack --dry-run
 gitlink matches `virtuoso-bridge-lite.pin.json` and that `.gitmodules` configures
 no branch (the same check the release workflow runs, and the full script runs
 automatically as `prepack`); `check-no-private-data.mjs` is the public-release
-guard for tokens, local paths and backup directories. `npm pack --dry-run` shows
-the packaged tarball contents without publishing.
+guard for tokens, local paths and backup directories.
+`check-branch-privacy.mjs` additionally scans the commit messages and the diff
+the branch adds for server names, account names and home directories (the git
+author/committer identity is exempt); `--worktree` includes uncommitted changes,
+and CI supplies the base SHA and optional `VB_PRIVATE_NAMES` repository
+variable. `npm pack --dry-run` shows the packaged tarball contents without
+publishing.
 
 Client changes require a DSH page refresh; Host changes require reloading the
 plugin. The plugin’s philosophy is to wrap existing VBL/DSH APIs rather than add

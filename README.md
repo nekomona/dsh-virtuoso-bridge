@@ -508,6 +508,10 @@ virtuoso-bridge-lite/  pinned virtuoso-bridge-lite git submodule (1f186ab)
 virtuoso-bridge-lite.pin.json  upstream provenance: name, version, commit, date, license
 scripts/prepare-vendor.mjs  verifies/initialises the pinned submodule; also runs as prepack
 scripts/check-no-private-data.mjs  public-release guard against private data
+scripts/check-branch-privacy.mjs  commit-message and branch-diff guard:
+                      no server names, account names or home directories
+scripts/lib/private-rules.mjs  shared private-data rules for both guards
+                      (the git author/committer identity is exempt)
 .github/workflows/    ci.yml (push/PR checks), release.yml (npm + GitHub Release)
 ```
 
@@ -620,9 +624,12 @@ can never corrupt a JSON response.
 * Syntax checks: `node --check` for every JavaScript file and `py_compile` for
   every runtime script.
 * CI (`.github/workflows/ci.yml`) verifies that the `virtuoso-bridge-lite/`
-  gitlink matches `virtuoso-bridge-lite.pin.json` and that the public-release
-  guard (`scripts/check-no-private-data.mjs`) passes, in addition to the unit
-  tests (`node --test tests/*.test.mjs`) and the syntax checks.
+  gitlink matches `virtuoso-bridge-lite.pin.json`, that the public-release
+  guard (`scripts/check-no-private-data.mjs`) passes, and that the commits and
+  diff added by the branch contain no server name, account name or home
+  directory (`scripts/check-branch-privacy.mjs`; commit author/committer
+  identity is exempt), in addition to the unit tests
+  (`node --test tests/*.test.mjs`) and the syntax checks.
 
 Not verified here: a healthy daemon on Cadence hardware, the real Web question
 card's pixel rendering (the Host question/answer flow was exercised with a fake
