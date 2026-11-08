@@ -94,6 +94,32 @@ upload is part of virtuoso-bridge, not a new plugin function.
   do not add a plugin scheduler.
 - Confirm the actual point count and host capacity before a large run.
 
+## Connection startup: host keys, deployment and older daemons
+
+Read the runtime state instead of guessing from a single log line:
+
+1. `virtuoso_bridge_runtime` action `"status"` reports `stage`, `daemon`,
+   `daemonProbe`, `setupHint` and `error`. `"waiting"` means SSH login and the
+   tunnel succeeded but nothing answers the bridge on the configured daemon
+   port; the CIW still has to load the prepared setup.
+2. A host normally offers several key types (ed25519, ecdsa, rsa) and
+   known_hosts usually contains only some of them. A key type that is simply
+   absent is treated as untrusted, not as a changed key, and a host with at
+   least one trusted type starts normally: SSH is pinned to the trusted types
+   in the generated config. Only a *different key of the same type* is a
+   conflict, and that must be reviewed and removed from known_hosts by the
+   user (`ssh-keygen -R <host>`); it is never replaced automatically.
+3. An older daemon (for example an old mission bundle whose bridge listens on
+   another port) is not reused. The plugin's `daemonProbe` reports
+   `no-listener` or `legacy`, and the error hint gives the remedy: run
+   `deploy_daemon`, then load the returned `load("...")` line in the intended
+   idle CIW and start again. A reconnect or plain restart does not deploy
+   files or reload the setup.
+4. Deployment runs over SSH and can take longer than the dashboard's short
+   status-poll budget. The dashboard gives long actions their own timeout and
+   keeps the printed setup path/load line visible; do not retry a deploy just
+   because a browser request timed out.
+
 ## Failure rules
 
 - A socket error / daemon drop means the outcome is **unknown**, not failed.
