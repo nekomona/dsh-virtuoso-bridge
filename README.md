@@ -495,6 +495,7 @@ runtime/vb_script.py  isolated batch script runner
 runtime/vb_instances.py read-only automatic-session discovery
 runtime/vb_deploy.py daemon bootstrap deployment
 docs/agent-workflows.md wrapper recipes over existing VBL APIs
+docs/script-call-performance.md  script call latency and the reused-tunnel fast path
 docs/plugin-guide.md  detailed English usage and architecture guide
 docs/plugin-guide.zh-CN.md  detailed Chinese usage and architecture guide
 README.zh-CN.md       Chinese README

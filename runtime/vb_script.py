@@ -32,6 +32,7 @@ import dataclasses
 import enum
 import json
 import os
+import socket
 import sys
 import threading
 import time
@@ -111,6 +112,30 @@ def emit(value: Any, **fields: Any) -> None:
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _forwarded_port(client: Any) -> int | None:
+    """Local port the client talks to, when a tunnel already forwards it."""
+    for name in ("_port", "port"):
+        value = getattr(client, name, None)
+        try:
+            port = int(value)
+        except (TypeError, ValueError):
+            continue
+        if 0 < port < 65536:
+            return port
+    return None
+
+
+def _tunnel_forwards(port: int | None, timeout: float = 0.5) -> bool:
+    """True when something already accepts connections on the forwarded port."""
+    if not port:
+        return False
+    try:
+        with socket.create_connection(("127.0.0.1", port), timeout=timeout):
+            return True
+    except OSError:
+        return False
+
+
 def connect(*, timeout: int | None = None, log_to_ciw: bool | None = None):
     """Connect to the configured Virtuoso server, reusing a running tunnel."""
     from virtuoso_bridge import VirtuosoClient
@@ -131,21 +156,50 @@ def connect(*, timeout: int | None = None, log_to_ciw: bool | None = None):
     effective_timeout = int(timeout or _context.get("timeoutSec") or 30)
     with_log = bool(_context.get("logToCiw")) if log_to_ciw is None else bool(log_to_ciw)
 
+    started = time.monotonic()
+    full_warm = os.environ.get("VB_SCRIPT_FULL_WARM") == "1"
     if local:
         from virtuoso_bridge.transport.tunnel import SSHClient
 
         ssh = SSHClient.from_env(keep_remote_files=True, profile=profile)
-        ssh.warm(timeout=effective_timeout)
+        if not full_warm and _tunnel_forwards(_forwarded_port(ssh)):
+            # The runtime sidecar keeps this forward alive; repeating the full
+            # warm() would re-run discovery/token/setup probing serially.
+            _context["tunnelReused"] = True
+        else:
+            ssh.warm(timeout=effective_timeout)
         client = VirtuosoClient.local(host="127.0.0.1", port=ssh.port, timeout=effective_timeout)
     else:
         client = VirtuosoClient.from_env(timeout=effective_timeout, profile=profile)
+        # Honour the profile's CIW logging preference before the handshake
+        # below evaluates anything.
+        client.log_to_ciw = with_log
         warm = getattr(client, "warm_remote_session", None)
-        if warm is not None:
+        # from_env adopts the plugin runtime's running tunnel when one exists.
+        # Its full remote warm-up (instance discovery, daemon token,
+        # persistent shells, remote setup, endpoint probe, instance
+        # verification) is a long serial chain of SSH round trips, and it
+        # re-does work the sidecar tunnel already did. When the forward
+        # answers and the daemon behind it replies to a cheap handshake, skip
+        # the warm-up; otherwise warm exactly as before.
+        reuse = False
+        if warm is not None and not full_warm:
+            port = _forwarded_port(client)
+            if _tunnel_forwards(port):
+                try:
+                    reuse = bool(client.verify_tunnel(timeout=min(effective_timeout, 5)).get("daemon_responsive"))
+                except Exception:
+                    reuse = False
+            _context["tunnelReused"] = reuse
+            if reuse:
+                _context["reusedTunnelPort"] = port
+        if warm is not None and not reuse:
             warm(timeout=effective_timeout)
     client.log_to_ciw = with_log
     token = _context.get("daemonToken") or os.environ.get("VB_SCRIPT_DAEMON_TOKEN")
     if token:
         client.daemon_token = token
+    _context["connectSeconds"] = round(time.monotonic() - started, 3)
     _context["connectedClient"] = client
     return client
 
@@ -216,6 +270,15 @@ def main() -> int:
     if client is not None:
         namespace["client"] = client
 
+    # Session setup diagnostics: how long the client took to become usable and
+    # whether the runtime's tunnel was reused instead of re-warmed.
+    setup = {}
+    if "connectSeconds" in _context:
+        setup["connectSeconds"] = _context["connectSeconds"]
+        setup["tunnelReused"] = bool(_context.get("tunnelReused"))
+        if _context.get("reusedTunnelPort"):
+            setup["reusedTunnelPort"] = _context["reusedTunnelPort"]
+
     started = time.monotonic()
     started_epoch = time.time()
     try:
@@ -228,12 +291,12 @@ def main() -> int:
                 _write_json(RESULT_PATH, _jsonable(result))
             except Exception as exc:
                 emit({"warning": "resultNotSerializable", "error": str(exc)})
-        _status("succeeded", startedAt=started_epoch, elapsedSeconds=round(elapsed, 3))
-        emit({"done": True, "state": "succeeded", "elapsedSeconds": round(elapsed, 3)})
+        _status("succeeded", startedAt=started_epoch, elapsedSeconds=round(elapsed, 3), sessionSetup=setup)
+        emit({"done": True, "state": "succeeded", "elapsedSeconds": round(elapsed, 3), **setup})
         return 0
     except SystemExit as exc:
         code_value = exc.code if isinstance(exc.code, int) else 0
-        _status("succeeded" if code_value == 0 else "failed", startedAt=started_epoch, exitCode=code_value)
+        _status("succeeded" if code_value == 0 else "failed", startedAt=started_epoch, exitCode=code_value, sessionSetup=setup)
         return int(code_value or 0)
     except BaseException as exc:  # noqa: BLE001 - report everything to the job
         elapsed = time.monotonic() - started
@@ -245,7 +308,7 @@ def main() -> int:
                 "traceback": traceback.format_exc()[-16000:],
             },
         )
-        _status("failed", startedAt=started_epoch, elapsedSeconds=round(elapsed, 3), exitCode=1)
+        _status("failed", startedAt=started_epoch, elapsedSeconds=round(elapsed, 3), exitCode=1, sessionSetup=setup)
         emit({"error": type(exc).__name__, "message": str(exc)})
         return 1
 
