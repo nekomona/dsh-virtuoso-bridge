@@ -46,10 +46,10 @@ Ask the agent to install that bundle, or run the plugin manager’s
 > Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
 
 No submodule and no Python checkout is required. The tarball contains the
-packaged subset of the upstream source the plugin installs
+packaged subset of `virtuoso-bridge-lite/` that the plugin installs
 (`pyproject.toml`, `README.md`, `AGENTS.md`, `LICENSE`, `mcp_server.py`,
-`src/**`, `skills/**`), so the plugin only creates its venv and pip-installs
-that source.
+`src/**`, `skills/**`) plus `virtuoso-bridge-lite.pin.json`, so the plugin only
+creates its venv and pip-installs that source.
 
 ### From a git checkout (development)
 
@@ -57,11 +57,12 @@ that source.
 git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
 ```
 
-`vendor/` is a git submodule pinned to upstream virtuoso-bridge-lite. If the
-clone was made without `--recurse-submodules`, initialise it before installing:
+`virtuoso-bridge-lite/` is a git submodule pinned to upstream
+virtuoso-bridge-lite. If the clone was made without `--recurse-submodules`,
+initialise it before installing:
 
 ```powershell
-git submodule update --init vendor
+git submodule update --init virtuoso-bridge-lite
 ```
 
 Install the local bundle through DSH, or ask the agent:
@@ -96,8 +97,8 @@ The environment card provides:
   - source mode (bundled source / local repo / git);
   - Python executable;
   - local repo path or git URL/ref as appropriate;
-  - the `vendor.pin.json` pin (upstream commit, date, license) for the bundled
-    source;
+  - the `virtuoso-bridge-lite.pin.json` pin (upstream commit, date, license) for
+    the bundled source;
   - install log;
   - backend and documentation details.
 
@@ -106,14 +107,18 @@ persist the visible source draft, so the chosen source is actually used.
 
 ### 4.2 Source modes
 
-- **Bundled source** — default; installs the pinned `vendor/` git submodule
-  (`1f186ab`, recorded in `vendor.pin.json`). No tool-repository network
-  access; pip still needs its normal package index. A source install must have
-  the submodule checked out: when `vendor/` is missing or uninitialised the
-  install fails with an actionable error naming
-  `git submodule update --init vendor` (and the pinned commit). npm users never
-  hit that state, because the published tarball carries the packaged subset of
-  `vendor/`.
+- **Bundled source** — default; installs the pinned `virtuoso-bridge-lite/` git
+  submodule (`1f186abfbb3d658211743cd707f3156ed2f59a87`, recorded in
+  `virtuoso-bridge-lite.pin.json`). The pin is an exact commit hash and
+  `.gitmodules` declares no `branch`, so upstream `main` moving cannot change the
+  bundled source; do not run `git submodule update --remote`. No
+  tool-repository network access; pip still needs its normal package index. A
+  source install must have the submodule checked out: when
+  `virtuoso-bridge-lite/` is missing or uninitialised the install fails with an
+  actionable error naming
+  `git submodule update --init virtuoso-bridge-lite` (and the pinned commit). npm
+  users never hit that state, because the published tarball carries the packaged
+  subset of `virtuoso-bridge-lite/`.
 - **Local development repo** — editable install from
   `source.localRepoPath`. Code changes apply on the next runtime start.
 - **Git repository** — clone from `source.repoUrl` at `source.gitRef` into the
@@ -380,11 +385,12 @@ node scripts/check-no-private-data.mjs
 npm pack --dry-run
 ```
 
-`prepare-vendor.mjs --verify-only` confirms that the `vendor/` gitlink matches
-`vendor.pin.json` (the same check the release workflow runs, and the full script
-runs automatically as `prepack`); `check-no-private-data.mjs` is the
-public-release guard for tokens, local paths and backup directories. `npm pack
---dry-run` shows the packaged tarball contents without publishing.
+`prepare-vendor.mjs --verify-only` confirms that the `virtuoso-bridge-lite/`
+gitlink matches `virtuoso-bridge-lite.pin.json` and that `.gitmodules` configures
+no branch (the same check the release workflow runs, and the full script runs
+automatically as `prepack`); `check-no-private-data.mjs` is the public-release
+guard for tokens, local paths and backup directories. `npm pack --dry-run` shows
+the packaged tarball contents without publishing.
 
 Client changes require a DSH page refresh; Host changes require reloading the
 plugin. The plugin’s philosophy is to wrap existing VBL/DSH APIs rather than add
@@ -400,6 +406,6 @@ parallel infrastructure.
 
 ## 14. License
 
-MIT. `vendor/` is the upstream virtuoso-bridge-lite git submodule and retains
-upstream’s MIT license and attribution; the pinned commit, date and license are
-recorded in `vendor.pin.json`.
+MIT. `virtuoso-bridge-lite/` is the upstream virtuoso-bridge-lite git submodule
+and retains upstream’s MIT license and attribution; the pinned commit, date and
+license are recorded in `virtuoso-bridge-lite.pin.json`.

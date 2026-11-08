@@ -41,9 +41,10 @@
 
 > Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
 
-不需要 submodule，也不需要 Python checkout。发布包内含插件所装上游源码的子集
-（`pyproject.toml`、`README.md`、`AGENTS.md`、`LICENSE`、`mcp_server.py`、
-`src/**`、`skills/**`），插件只需创建 venv 并从该源码安装。
+不需要 submodule，也不需要 Python checkout。发布包内含插件所装
+`virtuoso-bridge-lite/` 的打包子集（`pyproject.toml`、`README.md`、`AGENTS.md`、
+`LICENSE`、`mcp_server.py`、`src/**`、`skills/**`）以及
+`virtuoso-bridge-lite.pin.json`，插件只需创建 venv 并从该源码安装。
 
 ### 从 git checkout 安装（开发）
 
@@ -51,11 +52,11 @@
 git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
 ```
 
-`vendor/` 是固定到上游 virtuoso-bridge-lite 的 git submodule。如果 clone 时没有加
-`--recurse-submodules`，安装前先初始化：
+`virtuoso-bridge-lite/` 是固定到上游 virtuoso-bridge-lite 的 git submodule。如果
+clone 时没有加 `--recurse-submodules`，安装前先初始化：
 
 ```powershell
-git submodule update --init vendor
+git submodule update --init virtuoso-bridge-lite
 ```
 
 通过 DSH 插件管理器安装该目录，或让智能体执行：
@@ -89,7 +90,7 @@ git submodule update --init vendor
   - 来源模式（内置源码 / 本地仓库 / git）；
   - Python 可执行文件；
   - 本地路径或 git URL/ref；
-  - 内置来源的 `vendor.pin.json` 固定信息（上游提交、日期、许可）；
+  - 内置来源的 `virtuoso-bridge-lite.pin.json` 固定信息（上游提交、日期、许可）；
   - 安装日志；
   - 后端和文档详情。
 
@@ -98,11 +99,14 @@ git submodule update --init vendor
 
 ### 4.2 来源模式
 
-- **内置源码**：默认，从插件固定的 `vendor/` git submodule 安装（`1f186ab`，
-  记录在 `vendor.pin.json`）。不需要访问工具仓库；pip 仍需包索引。源码安装必须已
-  初始化 submodule：`vendor/` 缺失或未初始化时，安装会报错并给出
-  `git submodule update --init vendor`（以及固定提交）的提示。npm 用户不会遇到该
-  状态，因为发布包内含 `vendor/` 的打包子集。
+- **内置源码**：默认，从插件固定的 `virtuoso-bridge-lite/` git submodule 安装
+  （`1f186abfbb3d658211743cd707f3156ed2f59a87`，记录在
+  `virtuoso-bridge-lite.pin.json`）。固定的是精确提交，`.gitmodules` 不声明 `branch`，
+  因此上游 `main` 更新不会改变内置源码；不要执行 `git submodule update --remote`。
+  不需要访问工具仓库；pip 仍需包索引。源码安装必须已初始化 submodule：
+  `virtuoso-bridge-lite/` 缺失或未初始化时，安装会报错并给出
+  `git submodule update --init virtuoso-bridge-lite`（以及固定提交）的提示。npm 用户
+  不会遇到该状态，因为发布包内含 `virtuoso-bridge-lite/` 的打包子集。
 - **本地开发仓库**：从 `source.localRepoPath` 以 editable 方式安装，代码修改在下次
   运行时启动时生效。
 - **Git 仓库**：按 `source.repoUrl` / `source.gitRef` 克隆到 profile 数据目录。
@@ -342,10 +346,11 @@ node scripts/check-no-private-data.mjs
 npm pack --dry-run
 ```
 
-`prepare-vendor.mjs --verify-only` 校验 `vendor/` gitlink 是否与 `vendor.pin.json`
-一致（发布工作流执行同一检查；完整脚本作为 `prepack` 自动运行）；
-`check-no-private-data.mjs` 是面向 token、本机路径和备份目录的公开发布检查；
-`npm pack --dry-run` 只列出发布包内容，不执行发布。
+`prepare-vendor.mjs --verify-only` 校验 `virtuoso-bridge-lite/` gitlink 是否与
+`virtuoso-bridge-lite.pin.json` 一致，且 `.gitmodules` 未配置 branch（发布工作流执行
+同一检查；完整脚本作为 `prepack` 自动运行）；`check-no-private-data.mjs` 是面向
+token、本机路径和备份目录的公开发布检查；`npm pack --dry-run` 只列出发布包内容，
+不执行发布。
 
 客户端修改后刷新 DSH 页面；Host 修改需重新加载插件。插件原则是封装现有
 VBL/DSH API，而不是增加并行基础设施。
@@ -360,5 +365,5 @@ VBL/DSH API，而不是增加并行基础设施。
 
 ## 14. 许可
 
-MIT。`vendor/` 是 virtuoso-bridge-lite 的上游 git submodule，保留上游 MIT 许可与
-归属；固定提交、日期和许可记录在 `vendor.pin.json`。
+MIT。`virtuoso-bridge-lite/` 是 virtuoso-bridge-lite 的上游 git submodule，保留上游
+MIT 许可与归属；固定提交、日期和许可记录在 `virtuoso-bridge-lite.pin.json`。
