@@ -196,6 +196,54 @@ script body and print what you measured, instead of issuing many small calls.
 With a warm worker a call costs ~12 ms of setup, so the remaining price of a
 small call is the model round trip, not the bridge.
 
+## Rollout: end-to-end results by step
+
+Every number below is a measured wall time for one script tool call on a real
+remote, in the order the steps shipped. `*` marks a value derived from measured
+parts (arithmetic on probe/connect/spawn costs), not measured directly. The
+end-to-end rows (S4/S5) were measured through the merged plugin manager and
+worker, not around a bare process.
+
+| case | S0 before | S1 reused tunnel | S2 probe cache | S3 job core | S4 warm worker | S5 `waitMs` 5 s |
+|---|---|---|---|---|---|---|
+| trivial, slow path (jump host) | 7560 ms | 1340 ms | 540 ms* | 1340 ms | **11 ms** | 11 ms |
+| trivial, direct host (bench) | — | 1211 ms | 411 ms* | 1262 ms | **12 ms** | 12 ms |
+| trivial, live tool call, direct host | 15 200 ms | 2170 ms | 1370 ms* | 2170 ms | 18 ms | 18 ms |
+| realistic (SKILL+shell+upload+download), warm | — | 2063 ms | — | 2140 ms | 646 ms | 646 ms |
+| first call of a session | — | 1211 ms | — | 1262 ms | 810 ms | 810 ms |
+| first call + realistic body, slow path | — | — | — | — | **2892 ms** | 2892 ms |
+| body 4.5 s | inline (~5.9 s) | inline (~5.9 s) | — | — | 4522 ms | **4519 ms inline** |
+| body 5.5 s | inline (~6.9 s) | inline (~6.9 s) | — | — | 5515 ms | **5017 ms + job id**, then succeeded |
+| 5th+ session, same runtime | per-call cost | per-call cost | — | — | 12–27 ms for holders, **~2.1 s fallback** for the excess session | same |
+| 111-call session, tool time | **1837 s** | — | — | — | **~195 s*** (bodies + 18 ms each) | ~195 s |
+
+What each step bought, and where it applies:
+
+* **S1 reused tunnel** — removes the full remote warm-up from every process.
+  Biggest single win on a fresh process: 7.56 s → 1.34 s on the slow path; it is
+  what turned 15.2 s into ~2.2 s live.
+* **S2 probe cache** — a flat ~800 ms per call whenever calls are more than a few
+  seconds apart; invisible once calls are warm.
+* **S3 job-core split** — cost ~4 % on the runner path (1262 vs 1211 ms) and no
+  behavioural change; it is the price of one code path shared by CLI and worker.
+* **S4 warm worker** — removes process start, import and client construction
+  entirely: 1211 ms → 12 ms (direct) and 1340 ms → 11 ms (slow path). Only the
+  first call of a session still pays 810–1475 ms. It is the step that makes the
+  fixed cost negligible, so the remaining cost is the body.
+* **S5 `waitMs` 5 s** — does not change work, only when the answer arrives. A job
+  under ~4.98 s (warm) returns inline; a longer one returns a job id 5 s in and
+  finishes in the background (measured: 5.5 s body bounced at 5017 ms, then
+  `succeeded` with `elapsedSeconds` 5.5).
+* **S6 budget/lock** (shipped with S5) — no latency change in the common case;
+  it keeps a full worker budget degrading gracefully (one ~2.1 s fallback call
+  instead of thrashing warm workers) and stops concurrent acquisition from
+  exceeding `scriptWorkerMax`.
+
+Two honest notes: the S0 "body 4.5 s / 5.5 s" cells are inline because the old
+10 s budget covered them, so S5 trades a longer tool call for a faster return
+plus a poll; and the 111-call session projection assumes the same bodies with a
+warm worker, i.e. it measures the tool overhead only.
+
 ## Measurement caveats
 
 * **Stdout destination changes the measured wall time.** An identical runner on
