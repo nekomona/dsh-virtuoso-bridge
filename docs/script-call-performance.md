@@ -1,14 +1,14 @@
 # Script call performance
 
-How long a `virtuoso_bridge_script` call takes, what the runtime does to keep it
-short, the measurements behind those claims, and how to check for regressions.
+How long a `virtuoso_bridge_script` call takes, which code produces that cost, and
+how to check for regressions.
 
 Two execution paths exist:
 
 * **worker** — one process per (runtime, agent session) that keeps its client
   warm across jobs. Default whenever a runtime is running.
-* **runner** — one process per script. The fallback for no-runtime scripts and
-  the reference point the worker is measured against.
+* **runner** — one process per script. The fallback for scripts without a runtime,
+  and the reference point the worker is measured against.
 
 ## Current cost
 
@@ -25,85 +25,108 @@ console-style output (see [measurement caveats](#measurement-caveats)):
 | **worker, warm** | **realistic** | **646 ms** | 0.0 ms | 645 ms |
 
 The runner's ~1.26 s fixed cost is interpreter start (0.36 s), package import
-(0.21 s), client construction (0.54 s) and ~0.34 s of plugin-side bookkeeping.
-The worker pays those once per process, so a warm call is the job directory plus
-the body — **12 ms** for a trivial script, about 100× faster than the runner.
+(0.21 s), client construction (0.54 s) and ~0.34 s of plugin-side bookkeeping. The
+worker pays those once per process, so a warm call is the job directory, one RPC
+round trip and the body — **12 ms** for a trivial script.
 
-The realistic body is dominated by its own work: four bridge round trips plus a
-file transfer (~645 ms), so batching remains the lever that matters for it.
+A realistic body is dominated by its own work: four bridge round trips plus a
+file transfer (~645 ms).
+
+Measured end to end through the plugin manager and worker on the slowest path in
+the profile (Paramiko plus a jump host): first call of a session 1417 ms
+(spawn → ready → import → connect ≈ 1.25 s of it), warm call 18 ms, warm realistic
+call 1613 ms.
+
+## Where it lives
+
+| file | role |
+|---|---|
+| `runtime/vb_script_exec.py` | `JobRunner`: the single job core — `run()`, `connect()`, `preload_client()`, `session_setup()`, `finalize_interrupted()`, plus `interrupt_thread()`, `snapshot_import_state()` and `prune_job_modules()`. |
+| `runtime/vb_script_worker.py` | `Worker`: the long-lived process — `run_job()`, `status()`, `cancel_job()`, and the request loop implementing the JSON protocol. |
+| `runtime/vb_script.py` | Thin CLI over `JobRunner` for the per-script path. |
+| `lib/manager.js` | Worker registry and routing: `#workerKey`, `workerLimit`, `workerEvictIdleMs`, `#acquireWorker`, `#startWorker`, `#withRuntimeLock`, `workerDisabledReason`, `#runJobInWorker` / `#runJobInProcess`, `#settleJobFromArtifacts`, `#disposeWorker`, `#armWorkerIdle`, `stopRuntimeWorkers`. |
+| `lib/sidecar.js` | The newline-delimited JSON transport the worker is spawned with (unchanged class, reused). |
+| `lib/store.js` | Settings: `scriptWorker`, `scriptWorkerIdleMs`, `scriptWorkerMax`, `scriptWorkerEvictIdleMs`. |
+| `lib/tools.js` | Tool descriptions, the "fewer, larger calls" prompt hint, and the `waitMs` default. |
+| `scripts/bench-script-call.mjs` | `npm run bench:script` — measures both paths and prints phases. |
+| `tests/script-worker.test.mjs`, `tests/store-settings.test.mjs`, `tests/fixtures/virtuoso_bridge/` | Hermetic coverage of the protocol, isolation, crash handling and the settings. |
 
 ## The reused-tunnel fast path
 
-The runtime sidecar connects once and keeps an SSH forward alive. A script's
-`connect()` reuses it instead of re-warming:
+`JobRunner.connect()` implements it:
 
 1. `VirtuosoClient.from_env()` adopts the profile's running tunnel.
 2. `_forwarded_port()` / `_tunnel_forwards()` check that the forward answers.
 3. One cheap handshake (`verify_tunnel()`, a `1+1` eval, ~60 ms) is the evidence
    that the daemon behind it is the one we want; only then is the full warm-up
    skipped.
-4. Otherwise the original path runs unchanged: `warm_remote_session()` for
-   remote connections, `ssh.warm()` for local ones.
+4. Otherwise the original path runs unchanged: `warm_remote_session()` for remote
+   connections, `ssh.warm()` for local ones.
 
 `SSHClient.warm()` still exists and is still correct — instance discovery, daemon
-token, persistent shells, remote setup, endpoint probe, instance verification.
-It is simply redundant once the sidecar tunnel is up.
+token, persistent shells, remote setup, endpoint probe, instance verification. It
+is simply redundant once the sidecar tunnel is up.
 
 Transfers and shells still work: `upload_file`, `download_file` and
-`run_shell_command` bring up their SFTP/shell transport lazily on first use, and
-the worker keeps that transport for later jobs.
+`run_shell_command` bring up their SFTP/shell transport lazily on first use, and a
+worker keeps that transport for later jobs.
 
 `VB_SCRIPT_FULL_WARM=1` restores the always-warm behaviour for debugging.
 
 ## The script worker
 
-`runtime/vb_script_worker.py` runs jobs in-process behind a newline-delimited
-JSON protocol (`lib/sidecar.js` speaks the same shape):
+`runtime/vb_script_worker.py` runs jobs in-process behind a newline-delimited JSON
+protocol (`lib/sidecar.js` speaks the same shape):
 
 * **One process per (runtime, agent session).** Different sessions never share a
   worker, so one agent's namespace, cwd or client can never leak into another's.
-* **Budget `scriptWorkerMax` = 4 workers per runtime.** When the budget is full,
-  the least recently used *idle* worker is reclaimed; a busy worker is never
-  evicted (that would kill running user code). If every worker is busy the plugin
-  falls back to a process per script for that call.
+* **Budget `scriptWorkerMax` = 4 workers per runtime.** See
+  [more sessions than the worker budget](#more-sessions-than-the-worker-budget).
 * **Lazy single connect.** The first job connects and the client is retained.
   Later jobs report `connectSeconds: 0.0`, `tunnelReused: true`,
   `clientReused: true`, and their `connect()` returns the same client.
 * **Same artifacts as the runner.** `status.json`, `result.json`, `error.json`,
   `events.jsonl`, `emit()`, `SystemExit` handling and the script namespace all
-  come from the shared core `runtime/vb_script_exec.py`; `runtime/vb_script.py`
-  is a thin CLI over it.
+  come from the shared core `runtime/vb_script_exec.py`.
 * **Per-job isolation.** Fresh namespace, `os.chdir` to the job workdir with the
-  previous cwd restored, stdout/stderr captured per job, and modules imported
-  from the job workdir are pruned afterwards so a stale `import gen, emit, main`
-  cannot leak into the next job.
+  previous cwd restored, stdout/stderr captured per job, and modules imported from
+  the job workdir are pruned afterwards so a stale `import gen, emit, main` cannot
+  leak into the next job.
 * **Protocol.** `ping` / `status` / `run` / `cancel` / `shutdown`; jobs run one at
   a time, a second `run` while busy is refused with `kind: "busy"`, and the loop
   stays responsive so `cancel` and `status` are answered during a job.
 * **Fallback.** No runtime, `settings.scriptWorker` false,
-  `VB_SCRIPT_DISABLE_WORKER=1`, or a worker that fails to spawn — the plugin logs
-  a warning and runs the job through the process-per-script path. A worker
-  problem never surfaces as a tool failure.
+  `VB_SCRIPT_DISABLE_WORKER=1`, or a worker that fails to spawn — the plugin logs a
+  warning and runs the job through the process-per-script path. A worker problem
+  never surfaces as a tool failure.
 * **Lifecycle.** Idle workers stop after `scriptWorkerIdleMs` (10 min) and all
   workers stop with the runtime.
 
 Known limitation: cancel and timeout are cooperative while user code yields, but a
 job blocked inside a C call is not interruptible; the plugin kills the worker as
-the backstop and the next job gets a fresh one.
+the backstop and the next job gets a fresh one. A worker killed mid-job leaves
+`status.json` at `running`; the plugin writes the terminal failure.
 
-## Validation
+## What the current code guarantees
 
-* Baseline (committed runner before Phase 1) vs the new exec core, same
-  connection and bodies: trivial 1211 → 1262 ms (+4 %), realistic 2063 → 2140 ms
-  (+3.7 %) — the refactor into a shared core did not change the runner's cost.
-* Worker vs runner: warm trivial 12 ms vs 1262 ms; warm realistic 646 ms vs
-  2140 ms.
-* Two consecutive runner-path invocations agreed within ±10 % (trivial +5.2 %,
-  realistic +7.3 %). Warm-up jobs are discarded by the harness before measuring:
-  the first job after an idle period pays one-off bridge setup that later jobs
-  inherit.
-* Four concurrent workers on distinct sessions: realistic first-job wall 1733 ms
-  with per-worker `connect` ~530 ms — connections overlap, no contention cliff.
+* **Artifact parity.** A worker job produces the same `status.json`,
+  `result.json`, `error.json`, `events.jsonl` and script namespace as the runner
+  (`tests/script-worker.test.mjs` compares them case by case).
+* **One connect per worker.** Three autoConnect jobs produce exactly one
+  `from_env` call; later jobs report `clientReused`.
+* **Isolation.** A fresh namespace and restored cwd per job, workdir modules
+  pruned between jobs, and separate processes (therefore separate state) per
+  session.
+* **A failing connect does not fail the job.** `autoConnect` errors are reported
+  as an event and the script runs without `client`.
+* **Cancellation and timeout** answer the request and commit
+  `cancelled`/`timeout` artifacts within a 0.6 s grace, then the job becomes
+  interruptible at the next bytecode boundary.
+* **Two consecutive runner-path invocations** agree within ±10 %; the harness
+  discards one warm-up job per body because the first job after idle pays one-off
+  bridge setup.
+* **Tests.** `npm test` covers the worker protocol, isolation, crash handling,
+  connect-once and the worker settings, hermetically.
 
 ## Shared-resource census
 
@@ -153,23 +176,23 @@ handshakes. In practice the measured maximum was 8.
   **process per script** for that call, logs a warning, and tries the worker again
   on its next call.
 
-That idle threshold exists to stop thrash: without it two sessions would take
-turns evicting each other's warm worker, and every eviction costs a full client
-construction, so both would sit near 2 s per call instead of 12 ms. Measured with
-four warm workers held plus two fallback sessions running concurrently: all jobs
-succeeded, no daemon contention (warm calls stayed at 12–27 ms), connections
-bounded at baseline + 2. The only cost to the excess session is that single slow
-call — about 2.1 s instead of 12 ms.
+The idle threshold stops thrash: reclaiming a worker that was used seconds ago
+would make two sessions take turns evicting each other's warm client, and every
+eviction costs a full client construction. Measured with four warm workers held
+plus two fallback sessions running concurrently: all jobs succeeded, no daemon
+contention (warm calls stayed at 12–27 ms), connections bounded at baseline + 2.
+The only cost to the excess session is that single slow call — about 2.1 s instead
+of 12 ms.
 
 Acquisition is serialised per runtime (`#withRuntimeLock`), so two sessions
 arriving together cannot both judge the budget full, both evict the same idle
 worker and both start a replacement — which would exceed `scriptWorkerMax`.
 
-## `waitMs` and slow networks
+## `waitMs`
 
 The script tool returns as soon as the job settles, or after `waitMs` with a job
 id it can poll — the budget decides *when the answer arrives*, never whether the
-job runs. The default is **5000 ms** (lowered from 10 000).
+job runs. The default is **5000 ms**.
 
 Measured on the worst path in the profile (Paramiko plus a jump host):
 
@@ -180,95 +203,42 @@ Measured on the worst path in the profile (Paramiko plus a jump host):
 | fresh worker + realistic body, end to end | **2892 ms** |
 | of which worker acquisition (spawn → ready → import → connect) | ~1.25 s |
 
-The worst realistic inline call uses 58 % of the 5 s budget. Body ceilings:
-≈4.98 s on a warm worker, ≈3.6 s for a fallback process run (which pays ~1.4 s
-fixed cost first). Jobs above the ceiling are not lost: at the 5 s mark their
-`status.json` is `running`, the tool returns the job id, and they finish normally
-(measured: a 5.5 s body bounced at 5 s and succeeded at 6.6 s). 3000 ms would
-bounce the fresh-worker realistic case on this path; 10 000 ms would only make
-genuinely long jobs hold the tool call for 5 s longer.
+The worst realistic inline call uses 58 % of the budget. Body ceilings: ≈4.98 s on
+a warm worker, ≈3.6 s for a fallback process run (which pays ~1.4 s fixed cost
+first). Jobs above the ceiling are not lost: at the 5 s mark their `status.json`
+is `running`, the tool returns the job id, and they finish normally. Measured on
+the merged path: a 4.5 s body returned inline at 4519 ms, and a 5.5 s body
+returned its job id at 5017 ms and then reached `succeeded`.
 
 ## Fewer, larger calls
 
-No scripting API change was made for this. The tool description and the system
-prompt now say it directly: fold the probes, edits and checks you need into one
-script body and print what you measured, instead of issuing many small calls.
-With a warm worker a call costs ~12 ms of setup, so the remaining price of a
-small call is the model round trip, not the bridge.
-
-## Rollout: end-to-end results by step
-
-Every number below is a measured wall time for one script tool call on a real
-remote, in the order the steps shipped. `*` marks a value derived from measured
-parts (arithmetic on probe/connect/spawn costs), not measured directly. The
-end-to-end rows (S4/S5) were measured through the merged plugin manager and
-worker, not around a bare process.
-
-| case | S0 before | S1 reused tunnel | S2 probe cache | S3 job core | S4 warm worker | S5 `waitMs` 5 s |
-|---|---|---|---|---|---|---|
-| trivial, slow path (jump host) | 7560 ms | 1340 ms | 540 ms* | 1340 ms | **11 ms** | 11 ms |
-| trivial, direct host (bench) | — | 1211 ms | 411 ms* | 1262 ms | **12 ms** | 12 ms |
-| trivial, live tool call, direct host | 15 200 ms | 2170 ms | 1370 ms* | 2170 ms | 18 ms | 18 ms |
-| realistic (SKILL+shell+upload+download), warm | — | 2063 ms | — | 2140 ms | 646 ms | 646 ms |
-| first call of a session | — | 1211 ms | — | 1262 ms | 810 ms | 810 ms |
-| first call + realistic body, slow path | — | — | — | — | **2892 ms** | 2892 ms |
-| body 4.5 s | inline (~5.9 s) | inline (~5.9 s) | — | — | 4522 ms | **4519 ms inline** |
-| body 5.5 s | inline (~6.9 s) | inline (~6.9 s) | — | — | 5515 ms | **5017 ms + job id**, then succeeded |
-| 5th+ session, same runtime | per-call cost | per-call cost | — | — | 12–27 ms for holders, **~2.1 s fallback** for the excess session | same |
-| 111-call session, tool time | **1837 s** | — | — | — | **~195 s*** (bodies + 18 ms each) | ~195 s |
-
-What each step bought, and where it applies:
-
-* **S1 reused tunnel** — removes the full remote warm-up from every process.
-  Biggest single win on a fresh process: 7.56 s → 1.34 s on the slow path; it is
-  what turned 15.2 s into ~2.2 s live.
-* **S2 probe cache** — a flat ~800 ms per call whenever calls are more than a few
-  seconds apart; invisible once calls are warm.
-* **S3 job-core split** — cost ~4 % on the runner path (1262 vs 1211 ms) and no
-  behavioural change; it is the price of one code path shared by CLI and worker.
-* **S4 warm worker** — removes process start, import and client construction
-  entirely: 1211 ms → 12 ms (direct) and 1340 ms → 11 ms (slow path). Only the
-  first call of a session still pays 810–1475 ms. It is the step that makes the
-  fixed cost negligible, so the remaining cost is the body.
-* **S5 `waitMs` 5 s** — does not change work, only when the answer arrives. A job
-  under ~4.98 s (warm) returns inline; a longer one returns a job id 5 s in and
-  finishes in the background (measured: 5.5 s body bounced at 5017 ms, then
-  `succeeded` with `elapsedSeconds` 5.5).
-* **S6 budget/lock** (shipped with S5) — no latency change in the common case;
-  it keeps a full worker budget degrading gracefully (one ~2.1 s fallback call
-  instead of thrashing warm workers) and stops concurrent acquisition from
-  exceeding `scriptWorkerMax`.
-
-Two honest notes: the S0 "body 4.5 s / 5.5 s" cells are inline because the old
-10 s budget covered them, so S5 trades a longer tool call for a faster return
-plus a poll; and the 111-call session projection assumes the same bodies with a
-warm worker, i.e. it measures the tool overhead only.
+The tool description and the system prompt say it directly: fold the probes, edits
+and checks you need into one script body and print what you measured, instead of
+issuing many small calls. With a warm worker a call costs ~12 ms of setup, so the
+remaining price of a small call is the model round trip, not the bridge.
 
 ## Measurement caveats
 
-* **Stdout destination changes the measured wall time.** An identical runner on
-  an identical connection measured ~1210 ms per call with output going to a
-  console or PowerShell pipe, and ~735 ms when redirected to a file. Within one
-  style results are reproducible (≤10 %); the level is not. Console/pipe numbers
-  agree with the plugin's own path (ready 1.08–1.12 s measured through the
-  plugin), so quote those and never mix styles in one comparison.
+* **Stdout destination changes the measured wall time.** An identical runner on an
+  identical connection measured ~1210 ms per call with output going to a console or
+  PowerShell pipe, and ~735 ms when redirected to a file. Within one style results
+  are reproducible (≤10 %); the level is not. Console/pipe numbers agree with the
+  plugin's own path (ready 1.08–1.12 s measured through the plugin), so quote those
+  and never mix styles in one comparison.
 * **Phases.** `envMs` is the gap between the plugin starting a job and the runner
-  receiving it; `importMs` is the package import. In worker mode both are
-  one-shot costs of the worker process, not per-job costs — that is why a warm
-  job shows `import 204` and still takes 12 ms.
-* `settleMs` is computed by the plugin, not reported to the runner's
-  `status.json`, so the benchmark prints `-` for it.
-* An earlier phase-instrumentation bug mixed epoch seconds with epoch
-  milliseconds (`envMs` came out as ≈ −1.79e12). It is fixed; the harness still
-  rejects implausible phases instead of printing them.
+  receiving it; `importMs` is the package import. In worker mode both are one-shot
+  costs of the worker process, not per-job costs — that is why a warm job shows an
+  `importMs` from the worker's first job and still takes 12 ms.
+* `settleMs` is computed by the plugin, not reported to the runner's `status.json`,
+  so the benchmark prints `-` for it.
 
 ## Remaining bottlenecks
 
 What is left is per-job work, not setup: ~12 ms of fixed cost plus whatever the
 script does. The largest remaining lever is therefore the number of tool calls a
 session makes, which the agent controls by folding work into one script body (see
-"Fewer, larger calls"); there is no plugin-side batching API by design. The
-roadmap is [script-performance-roadmap.md](script-performance-roadmap.md).
+[fewer, larger calls](#fewer-larger-calls)); there is no plugin-side batching API
+by design. The roadmap is [script-performance-roadmap.md](script-performance-roadmap.md).
 
 ## Re-measuring
 
@@ -286,6 +256,6 @@ npm run bench:script -- --connection NAME --mode worker --workers 4 --runs 1 --h
 npm run bench:script -- --connection NAME --mode worker --threshold 300
 ```
 
-Use an idle connection that no agent is using. `--json` gives the per-run rows
-and medians; the harness prints the runner/worker file plus its sha256 so a
-number can be traced to the bytes that produced it.
+Use an idle connection that no agent is using. `--json` gives the per-run rows and
+medians; the harness prints the runner/worker file plus its sha256 so a number can
+be traced to the bytes that produced it.
