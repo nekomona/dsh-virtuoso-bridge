@@ -45,6 +45,9 @@ jobs:
             node --check "$file"
           done
 
+      - name: Run the unit tests
+        run: node --test tests/*.test.mjs
+
       - name: Byte-compile Python runtime helpers
         run: |
           set -euo pipefail

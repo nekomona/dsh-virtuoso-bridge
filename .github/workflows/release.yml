@@ -45,6 +45,9 @@ jobs:
             node --check "$file"
           done
 
+      - name: Run the unit tests
+        run: node --test tests/*.test.mjs
+
       - name: Byte-compile Python runtime helpers
         run: |
           set -euo pipefail
@@ -80,16 +83,28 @@ jobs:
           fi
           echo "Release tag $GITHUB_REF_NAME matches package.json version $version"
 
-      - name: Require the NPM_TOKEN repository secret
+      - name: Decide whether npm publish is still needed
+        id: npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          set -euo pipefail
+          package="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
           if [ -z "${NODE_AUTH_TOKEN:-}" ]; then
-            echo "::error::Missing repository secret NPM_TOKEN. Add an npm automation token that can publish @nekomona/dsh-virtuoso-bridge under Settings > Secrets and variables > Actions > New repository secret."
-            exit 1
+            echo "::warning::NPM_TOKEN is not configured; skipping npm publish. Add the repository secret to publish from CI, or publish the tarball manually."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if npm view "$package@$version" version >/dev/null 2>&1; then
+            echo "$package@$version is already on npm; skipping npm publish and continuing with the GitHub release."
+            echo "publish=no" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=yes" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish to npm
+        if: steps.npm.outputs.publish == 'yes'
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: npm publish --access public
