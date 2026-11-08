@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify package, vendor pin and npm tarball
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository and vendor submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: https://registry.npmjs.org
+          # No `cache: npm`: this repository has no lockfile and installs no dependencies.
+
+      - name: Verify vendor submodule matches vendor.pin.json
+        run: node scripts/prepare-vendor.mjs --verify-only
+
+      - name: Check tracked files for private data
+        run: node scripts/check-no-private-data.mjs
+
+      - name: Syntax-check JavaScript entry points
+        run: |
+          set -euo pipefail
+          node --check index.js
+          node --check client.js
+          for file in lib/*.js; do
+            node --check "$file"
+          done
+
+      - name: Byte-compile Python runtime helpers
+        run: |
+          set -euo pipefail
+          python3 -m py_compile runtime/*.py
+
+      - name: Verify provenance pin parses and matches submodule HEAD
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const { execFileSync } = require('node:child_process')
+          const { readFileSync } = require('node:fs')
+          const pin = JSON.parse(readFileSync('vendor.pin.json', 'utf8'))
+          for (const field of ['name', 'version', 'commit', 'commitDate', 'repository', 'submodulePath']) {
+            if (typeof pin[field] !== 'string' || pin[field] === '') {
+              throw new Error('vendor.pin.json field ' + field + ' is missing or empty')
+            }
+          }
+          const head = execFileSync('git', ['-C', 'vendor', 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+          if (pin.commit !== head) {
+            throw new Error('vendor.pin.json commit ' + pin.commit + ' does not match vendor HEAD ' + head)
+          }
+          console.log('vendor.pin.json OK: ' + pin.name + ' ' + pin.version + ' @ ' + pin.commit + ' (' + pin.commitDate + ')')
+          NODE
+
+      - name: Pack the npm tarball and assert its contents
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp -d)"
+          trap 'rm -rf "$tmp"' EXIT
+          npm pack --json --pack-destination "$tmp" \
+            | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=/^\[$/m.exec(s);if(!m){console.error("npm pack --json did not print a JSON array");process.exit(1)}const t=JSON.parse(s.slice(m.index));if(t.length!==1){console.error("expected exactly one tarball, got "+t.length);process.exit(1)}process.stdout.write(t[0].filename)})' \
+            > "$tmp/filename.txt"
+          filename="$(cat "$tmp/filename.txt")"
+          tarball="$tmp/$filename"
+          tar -tzf "$tarball" > "$tmp/contents.txt"
+          failed=0
+          for required in \
+            package/vendor/src/ \
+            package/vendor/skills/ \
+            package/vendor/pyproject.toml \
+            package/vendor.pin.json \
+            package/lib/manager.js \
+            package/client.js
+          do
+            if ! grep -qF "$required" "$tmp/contents.txt"; then
+              echo "::error::npm tarball is missing required path: $required"
+              failed=1
+            fi
+          done
+          for forbidden in \
+            package/vendor/tests/ \
+            package/vendor/docs/ \
+            package/vendor/website/ \
+            package/vendor/.github/ \
+            package/scripts/
+          do
+            if grep -qF "$forbidden" "$tmp/contents.txt"; then
+              echo "::error::npm tarball must not contain: $forbidden"
+              failed=1
+            fi
+          done
+          if [ "$failed" -ne 0 ]; then
+            exit 1
+          fi
+          echo "npm tarball OK: $filename ($(wc -l < "$tmp/contents.txt") entries)"
