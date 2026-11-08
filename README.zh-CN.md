@@ -266,12 +266,12 @@ lib/manager.js           Runtime/connection manager
 lib/tools.js             Agent tool definitions
 runtime/vb_sidecar.py    Per-runtime sidecar
 runtime/vb_deploy.py     Daemon setup deployment
+tests/*.test.mjs         node:test unit tests (host-key evaluation, daemon failure classes)
 virtuoso-bridge-lite/    Pinned virtuoso-bridge-lite git submodule (1f186ab)
 virtuoso-bridge-lite.pin.json  Upstream pin: name, version, commit, date, license
 scripts/prepare-vendor.mjs  Verify/initialise the pinned submodule (prepack)
 scripts/check-no-private-data.mjs  Public-release guard against private data
-.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release),
-                         upstream-watch.yml (weekly + manual upstream pin alerts)
+.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release)
 docs/plugin-guide.md     English detailed guide
 docs/plugin-guide.zh-CN.md  Chinese detailed guide
 README.md                English README
@@ -291,8 +291,8 @@ README.zh-CN.md          Chinese README
 - 守护进程冲突提示、弹窗检测、远程工作目录和双语文档；
 - CI（`.github/workflows/ci.yml`）校验 `virtuoso-bridge-lite/` gitlink 与
   `virtuoso-bridge-lite.pin.json` 一致，并运行公开发布检查
-  （`scripts/check-no-private-data.mjs`）。`.github/workflows/upstream-watch.yml` 每周及
-  手动触发比较上游 `main` 与固定提交，不一致时创建或更新带 `upstream` 标签的 issue。
+  （`scripts/check-no-private-data.mjs`）和单元测试
+  （`node --test tests/*.test.mjs`）。
 
 未在真实 Cadence 硬件上自动验证所有 SKILL/GUI 行为；实际效果取决于已安装的
 virtuoso-bridge-lite、SSH 配置和 CIW 状态。

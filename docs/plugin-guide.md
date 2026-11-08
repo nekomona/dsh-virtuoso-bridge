@@ -378,6 +378,7 @@ node --check index.js
 node --check client.js
 node --check lib/manager.js
 node --check lib/tools.js
+node --test tests/*.test.mjs
 python -m py_compile runtime/vb_sidecar.py
 node --check runtime/vb_deploy.py
 node scripts/prepare-vendor.mjs --verify-only
