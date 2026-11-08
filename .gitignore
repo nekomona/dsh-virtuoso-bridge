@@ -5,8 +5,8 @@ __pycache__/
 *.pyo
 node_modules/
 .tmp-*
-vendor/build/
-vendor/*.egg-info/
-vendor/build/
-vendor/*.egg-info/
-vendor/src/*.egg-info/
+*.tgz
+.npmrc
+
+# Local-only rollback backup, never published. See .local-backup/README.md.
+.local-backup/
