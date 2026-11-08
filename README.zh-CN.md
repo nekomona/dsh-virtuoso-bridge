@@ -6,11 +6,19 @@
 [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite)，
 把 SSH 隧道和 Virtuoso CIW 守护进程变成跨会话存活的管理运行时。
 
-详细中文指南：[`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md) ·
-English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md).
+已在 npm 发布为
+[`@nekomona/dsh-virtuoso-bridge`](https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge)；
+源码和问题跟踪位于
+[nekomona/dsh-virtuoso-bridge](https://github.com/nekomona/dsh-virtuoso-bridge)。
 
-插件内置 virtuoso-bridge-lite 源码快照，不要求单独 checkout；也可以改用本地开发仓库，
-或从指定 git ref 克隆。当前内置快照跟踪上游提交 `1f186ab`（2026-11-03）。
+插件以固定版本的 `vendor/` **git submodule** 提供 virtuoso-bridge-lite，也可以改用
+本地开发仓库，或从指定 git ref 克隆。固定的上游提交为 `1f186ab`（2026-11-04），
+记录在 `vendor.pin.json`。npm 包内含同一份源码，因此通过 npm 安装不需要 git 或
+submodule；源码 checkout 需执行一次 `git submodule update --init vendor`，缺失时
+插件会给出明确的错误提示。
+
+详细中文指南：[`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md) ·
+English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md)
 
 ## 功能概览
 
@@ -26,10 +34,28 @@ English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md).
 
 ## 安装
 
-插件是一个 DSH bundle 包。在本地 clone 后通过 DSH 安装：
+插件是一个 DSH bundle 包，以公开 scoped 包 **`@nekomona/dsh-virtuoso-bridge`** 发布。
+
+### 从 npm 安装（推荐）
+
+让智能体安装该 bundle，或使用插件管理器的 `install_bundle` 指定包名：
+
+> Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
+
+不需要 submodule，也不需要 Python checkout：npm 包内含插件所需的上游工具源码，
+插件会自建 venv 并从该源码 pip 安装。
+
+### 从 git checkout 安装（开发）
 
 ```powershell
-git clone <your-plugin-repository> <plugin-directory>
+git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
+```
+
+`vendor/` 是 git submodule。如果 clone 时没有加 `--recurse-submodules`，
+安装前先初始化：
+
+```powershell
+git submodule update --init vendor
 ```
 
 然后让智能体安装该本地 bundle：
@@ -55,8 +81,10 @@ git clone <your-plugin-repository> <plugin-directory>
 
 选择安装来源：
 
-- **内置快照**：默认，使用插件自带 `vendor/`，不需要访问工具仓库；首次 pip 安装仍需
-  可访问 Python 包索引。
+- **内置源码**（`vendor/` submodule，默认）：安装插件固定的 `vendor/` git
+  submodule，不需要访问工具仓库；首次 pip 安装仍需可访问 Python 包索引。源码安装
+  必须已初始化 submodule，否则插件会报错并提示执行
+  `git submodule update --init vendor`。npm 包内含同一份源码，npm 用户不会遇到该状态。
 - **本地开发仓库**：从 `source.localRepoPath` 以 editable 方式安装，例如
   `C:\src\virtuoso-bridge-lite`。代码修改会在下次运行时启动时生效；打包元数据变化
   后使用“修复”。
@@ -234,7 +262,11 @@ lib/manager.js           Runtime/connection manager
 lib/tools.js             Agent tool definitions
 runtime/vb_sidecar.py    Per-runtime sidecar
 runtime/vb_deploy.py     Daemon setup deployment
-vendor/                  Bundled virtuoso-bridge-lite snapshot
+vendor/                  Pinned virtuoso-bridge-lite git submodule (1f186ab)
+vendor.pin.json          Upstream pin: name, version, commit, date, license
+scripts/prepare-vendor.mjs  Verify/initialise the vendor pin (prepack)
+scripts/check-no-private-data.mjs  Public-release guard against private data
+.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release)
 docs/plugin-guide.md     English detailed guide
 docs/plugin-guide.zh-CN.md  Chinese detailed guide
 README.md                English README
@@ -251,7 +283,9 @@ README.zh-CN.md          Chinese README
 - 主机密钥信任流程、Paramiko/OpenSSH 后端和 jump host；
 - 配置保存、来源切换、缓存路径跟随和诊断；
 - 脚本工具卡、运行时面板折叠、智能体历史和连接状态；
-- 守护进程冲突提示、弹窗检测、远程工作目录和双语文档。
+- 守护进程冲突提示、弹窗检测、远程工作目录和双语文档；
+- CI（`.github/workflows/ci.yml`）校验 `vendor/` gitlink 与 `vendor.pin.json` 一致，
+  并运行公开发布检查（`scripts/check-no-private-data.mjs`）。
 
 未在真实 Cadence 硬件上自动验证所有 SKILL/GUI 行为；实际效果取决于已安装的
 virtuoso-bridge-lite、SSH 配置和 CIW 状态。
@@ -278,4 +312,5 @@ node --check runtime/vb_deploy.py
 
 ## 许可
 
-MIT License。内置 `vendor/` 快照保留 virtuoso-bridge-lite 的 MIT 许可和归属。
+MIT License。`vendor/` 是 virtuoso-bridge-lite 的上游 git submodule，保留上游的
+MIT 许可与归属；上游提交、日期和许可记录在 `vendor.pin.json`。
