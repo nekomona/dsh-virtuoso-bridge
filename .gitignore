@@ -10,3 +10,9 @@ node_modules/
 
 # Local-only rollback backup, never published. See .local-backup/README.md.
 .local-backup/
+
+# Local secrets (npm/GitHub tokens); never commit.
+.env
+
+# Local-only account deny-list for scripts/check-no-private-data.mjs.
+.local-guard.json
