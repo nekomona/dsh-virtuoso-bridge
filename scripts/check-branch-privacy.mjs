@@ -11,7 +11,10 @@
  * What is considered private
  *   - values derived from the local plugin settings (~/.dsh/virtuoso-bridge/*):
  *     server/connection names, hosts, and SSH users;
- *   - the current account name and home directory;
+ *   - on a developer machine, the current account name and home directory. CI
+ *     skips them: the runner image's account (`runner` on Linux, `runneradmin`
+ *     on Windows) is a generic platform account, not a developer identity, and
+ *     `runner` is an ordinary English word in this repository;
  *   - additional comma-separated names from `VB_PRIVATE_NAMES`;
  *   - generic private shapes: non-loopback IPv4, Unix/Windows home paths,
  *     non-example e-mail addresses, private keys and quoted credentials.
@@ -112,6 +115,19 @@ function resolveRange(baseArg) {
 // private values derived from this machine (never printed, never committed)
 // ---------------------------------------------------------------------------
 
+/**
+ * True on GitHub-hosted and most other CI runs. The operating-system account
+ * there belongs to the runner image, not to a developer, so it must not be
+ * derived as a private value: GitHub-hosted runners use `runner` (and
+ * `runneradmin` on Windows), and "runner" also names a job runner throughout
+ * this repository's documentation and code. Private account names reach CI
+ * through `VB_PRIVATE_NAMES` instead.
+ */
+function runsOnCi() {
+  const env = process.env
+  return env.GITHUB_ACTIONS === 'true' || /^(?:1|true)$/i.test(String(env.CI ?? '').trim())
+}
+
 function pluginSettingsFiles() {
   const files = new Set()
   const configured = String(process.env.VB_PLUGIN_DATA_DIR || '').trim()
@@ -144,9 +160,10 @@ function derivePrivateTokens() {
     if (!tokens.has(lower)) tokens.set(lower, category)
   }
 
-  const home = os.homedir()
-  add(home, 'home-dir', 4)
-  add(os.userInfo().username, 'user-name', 3)
+  if (!runsOnCi()) {
+    add(os.homedir(), 'home-dir', 4)
+    add(os.userInfo().username, 'user-name', 3)
+  }
 
   for (const file of pluginSettingsFiles()) {
     let settings
@@ -378,7 +395,9 @@ function main() {
 
   const tokenNote = privateTokens.size
     ? `${privateTokens.size} local private value(s)`
-    : 'no local settings-derived values (CI should supply VB_PRIVATE_NAMES)'
+    : runsOnCi()
+      ? 'no developer identity on CI (only VB_PRIVATE_NAMES applies)'
+      : 'no local settings-derived values (CI should supply VB_PRIVATE_NAMES)'
   console.log(
     `check-branch-privacy: clean — ${commits.length} commit message(s), ${counters.lines} added line(s) in ` +
       `${counters.files.size} file(s), ${range}; guarded by ${tokenNote}.`,
