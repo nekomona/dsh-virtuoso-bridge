@@ -433,8 +433,15 @@ access; a rejected or unavailable approval is final.
 
 ### `virtuoso_bridge_api`
 
-`describe` returns classes, targets, methods, Python signatures, parameter
-kinds and docstrings. `call` invokes one method on:
+`describe` without a target returns a compact index: targets with their class
+and method/property counts, plus the documented classes. `target=` lists one
+target's methods as `name(signature) -> return` with short summaries, its
+properties and child targets; `method=` returns exactly one method with its full
+docstring and parameter table, or lists the defining targets when used alone.
+Answers that still exceed the inline budget (about 14,000 characters) are
+written in full as JSON under `<cache dir>/results/` and returned with that path
+instead of being truncated; the same applies to large `call` results. `call`
+invokes one method on:
 
 ```
 client

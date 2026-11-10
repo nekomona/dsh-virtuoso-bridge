@@ -308,10 +308,27 @@ access**; a rejected or unavailable approval is final.
 Describes and calls any public VBL target:
 
 ```text
+virtuoso_bridge_api action=describe
 virtuoso_bridge_api action=describe target=client
 virtuoso_bridge_api action=describe target=client.schematic
+virtuoso_bridge_api action=describe target=client.schematic method=open_window
+virtuoso_bridge_api action=describe method=open_window
 virtuoso_bridge_api action=call target=client.schematic method=open_window ...
 ```
+
+`describe` without a target returns a compact index on purpose: one line per
+target with its class name and method/property counts, one line per documented
+class, and a hint to describe a target. Add `target=` to get that target's
+methods one line each as `name(signature) -> return` with a short summary, plus
+its properties and child targets; add `method=` for exactly one method with its
+full docstring and parameter table. `method=` alone lists which targets define
+that method.
+
+If an answer still exceeds the inline budget (about 14,000 characters), it is
+not cut off: the full payload is written as JSON under `<cache dir>/results/`
+and the reply ends with that path so it can be read or grepped. This also
+applies to large `action=call` results; clear them with
+`virtuoso_bridge_setup action=clear_cache cache=results`.
 
 Targets include `client`, `client.schematic`, `client.layout`, `client.library`,
 `client.symbol`, `client.maestro`, `client.sos`, `client.dialogs`,

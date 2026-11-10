@@ -260,10 +260,23 @@ virtuoso_bridge_runtime action=select_instance connection=lab port=65123
 描述或调用任意公开 VBL 目标：
 
 ```text
+virtuoso_bridge_api action=describe
 virtuoso_bridge_api action=describe target=client
 virtuoso_bridge_api action=describe target=client.schematic
+virtuoso_bridge_api action=describe target=client.schematic method=open_window
+virtuoso_bridge_api action=describe method=open_window
 virtuoso_bridge_api action=call target=client.schematic method=open_window ...
 ```
+
+不带 `target=` 的 `describe` 有意返回紧凑索引：每个目标一行，含类名和方法/属性数量；
+每个已写入文档的类一行；另有一行提示去描述具体目标。加上 `target=` 可获得该目标的每个方法
+一行（`name(signature) -> return` 加一句摘要），以及属性和子目标路径；再加上 `method=`
+则只返回一个方法，含完整 docstring 和参数表。只给 `method=` 会列出定义该方法的
+所有目标。
+
+结果仍然超出内联预算（约 14,000 字符）时不会被截断：完整负载会以 JSON 写入
+`<cache dir>/results/`，回复末尾给出该路径，可直接读取或 grep。较大的 `action=call`
+结果同样如此；用 `virtuoso_bridge_setup action=clear_cache cache=results` 清理。
 
 目标包括 `client`、`client.schematic`、`client.layout`、`client.library`、
 `client.symbol`、`client.maestro`、`client.sos`、`client.dialogs`、
