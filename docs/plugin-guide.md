@@ -143,6 +143,15 @@ Advanced connection fields include jump host, SSH backend, SSH proxy, identity
 file, role overrides (`daemonHost`, `deployHost`, `guiHost`, `spectreHost`),
 remote scratch root, client id, notes, and sub-instances.
 
+**Test** is a layered health report, not just an SSH ping. It shows SSH reachability
+and authentication, the remote Python interpreter, whether the configured scratch
+root exists/is private/writable, and what answers the configured daemon port
+(`ready`, `no-listener`, `legacy`, `auth`, `timeout`). The daemon probe also runs
+when the runtime is stopped, and the card marks the target ready only when both
+SSH and a signed daemon pass. A fixed deployment result says whether it reused an
+existing daemon; a missing root under the home is created (with a `_`/`-` typo
+warning), while a missing root elsewhere gets a specific `mkdir` hint.
+
 ### 4.4 Credentials
 
 Daemon tokens are stored through the DSH credentials service, not in the
@@ -162,7 +171,11 @@ load("/path/to/virtuoso_setup.il")
 ### Fixed-port mode
 
 The connection selects a remote port (or derives one from the SSH user). The
-CIW-side setup starts the daemon on that endpoint.
+CIW-side setup starts the daemon on that endpoint. Starting such a connection
+first probes that port and attaches to a signed, already-running daemon without
+deploying; deployment is the fallback when nothing answers. The result carries
+`recommendedAutoSessions` because a fixed legacy deployment is not discoverable
+after a CIW restart.
 
 ### Automatic sessions
 

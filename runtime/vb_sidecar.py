@@ -31,9 +31,7 @@ import enum
 import inspect
 import json
 import os
-import secrets
 import shlex
-import socket
 import sys
 import threading
 import time
@@ -307,10 +305,6 @@ def _describe_class(cls: type) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
-def _preview_bytes(raw: bytes, limit: int = 240) -> str:
-    return raw[:limit].decode("utf-8", errors="replace")
-
-
 def _load_line(setup_path: Any) -> str | None:
     path = str(setup_path or "").strip()
     if not path:
@@ -342,6 +336,9 @@ class BridgeRuntime:
         self.connect_finished = 0.0
         self.daemon_probe: dict[str, Any] | None = None
         self.scratch_info: dict[str, Any] | None = None
+        self.scratch_root: str = ""
+        self.scratch_configured: str = ""
+        self.attach_info: dict[str, Any] | None = None
         self.lock = threading.RLock()
         self.started_at = time.time()
         self.last_activity = time.time()
@@ -367,18 +364,84 @@ class BridgeRuntime:
             pass
 
     def _resolve_scratch_root(self, ssh: Any) -> None:
-        """Resolve and prepare the configured remote scratch root once.
+        """Resolve the configured root without creating anything.
 
-        Upstream uses the value literally in fixed mode while discovery expands
-        ``~`` itself; and the automatic-instance publisher requires the root
-        itself to be a private directory, so a pre-existing permissive (or
-        symlinked) root made deployment fail even though a manual write into the
-        same directory succeeded. Resolve the real absolute path and prepare it
-        here so every later step agrees.
+        Deployment (and only deployment) may create it; a start that attaches
+        to a healthy running daemon must not depend on the scratch root at all.
         """
+        from vb_plugin_env import resolve_scratch_root
+
+        self.scratch_configured = os.environ.get("VB_REMOTE_SCRATCH_ROOT", "").strip()
+        self.scratch_root = resolve_scratch_root(ssh, self.profile)
+
+    def _prepare_scratch_root(self, ssh: Any) -> None:
         from vb_plugin_env import prepare_scratch_root
 
         self.scratch_info = prepare_scratch_root(ssh, self.profile)
+
+    def _try_attach_existing(self, ssh: Any, timeout: int) -> dict[str, Any] | None:
+        """Reuse a signed daemon that answers the configured port.
+
+        Deployment is a fallback, not a precondition: a fixed legacy connection
+        whose scratch root is missing must still attach to the running daemon.
+        Automatic-session connections are skipped here because their selection
+        publication happens in ``warm()``.
+        """
+        if self.local or getattr(ssh, "_discover_instances", False):
+            self.attach_info = {"attached": False, "reason": "local or automatic session"}
+            return None
+        try:
+            ssh.ensure_tunnel()
+        except Exception as exc:  # noqa: BLE001 - fall back to deploy diagnostics
+            self.attach_info = {"attached": False, "error": f"{type(exc).__name__}: {exc}"}
+            return None
+        token = None
+        token_error = None
+        try:
+            token = ssh.read_daemon_token()
+        except Exception as exc:  # noqa: BLE001
+            token_error = f"{type(exc).__name__}: {exc}"
+        from vb_daemon_probe import auth_is_off, probe_tunnel_daemon
+
+        probe = probe_tunnel_daemon(getattr(ssh, "port", 0), token, timeout)
+        if token_error:
+            probe["tokenError"] = token_error
+        self.daemon_probe = probe
+        state = probe.get("state")
+        authenticated = bool(probe.get("signed")) or auth_is_off(probe.get("auth"))
+        if state != "ready" or not authenticated:
+            self.attach_info = {
+                "attached": False,
+                "probe": probe,
+                "reason": (
+                    f"daemon state {state!r} is not a signed/ready endpoint"
+                    if state == "ready"
+                    else f"no attachable daemon ({state})"
+                ),
+            }
+            return None
+        # Skip deployment but let warm() create the token/persistent shell,
+        # reuse this tunnel and persist connection state.
+        ssh._remote_setup_done = True
+        try:
+            saved = ssh.read_state() or {}
+        except Exception:  # noqa: BLE001
+            saved = {}
+        setup_path = saved.get("setup_path") or getattr(ssh, "_remote_virtuoso_setup_path", None)
+        if setup_path:
+            ssh._remote_virtuoso_setup_path = setup_path
+        self.attach_info = {
+            "attached": True,
+            "port": getattr(ssh, "remote_port", None),
+            "probe": probe,
+            "setupPath": setup_path,
+            "message": "reused an already running bridge daemon; deployment was skipped",
+        }
+        log(
+            "reusing an already running bridge daemon on remote port "
+            f"{getattr(ssh, 'remote_port', '?')}; deployment skipped"
+        )
+        return probe
 
     def _prepare_dialog_helper(self, ssh: Any) -> None:
         """Predeploy/verify the existing X11 dialog helper for this runtime.
@@ -498,6 +561,9 @@ class BridgeRuntime:
             "connectError": self.connect_error,
             "daemonProbe": self.daemon_probe,
             "scratch": self.scratch_info,
+            "scratchRoot": self.scratch_root,
+            "scratchConfigured": self.scratch_configured,
+            "attach": self.attach_info,
             "connectMs": round((self.connect_finished - self.connect_started) * 1000)
             if self.connect_finished
             else None,
@@ -558,113 +624,21 @@ class BridgeRuntime:
     def _probe_tunnel_daemon(self, ssh: Any, timeout: float) -> dict[str, Any]:
         """Classify what answers the capability handshake behind the tunnel.
 
-        A CIW whose setup was never loaded has no listener on the forwarded
-        port.  The upstream cross-user identity check then reports a raw
-        socket error ("could not determine the Unix user ...") which hides
-        the actionable fact.  This probe is side-effect free (an ``op=hello``
-        request with no ``skill`` field) and distinguishes:
-
-        ready        - a current bridge daemon (possibly unsigned/auth off)
-        auth         - a bridge daemon that refuses our token
-        legacy       - something answers, but not with signed capabilities
-        no-listener  - the forwarded remote port refused/reset the connection
-        timeout      - the endpoint accepted but never answered (indeterminate)
+        See :func:`vb_daemon_probe.probe_tunnel_daemon`; this wrapper reads the
+        saved daemon token (read-only) and records a token error instead of
+        crashing the connect attempt.
         """
-        probe: dict[str, Any] = {
-            "state": "unknown",
-            "port": int(getattr(ssh, "port", 0) or 0),
-            "checkedAt": time.time(),
-        }
-        port = probe["port"]
-        if not port:
-            probe.update(state="unreachable", message="the tunnel has no local port")
-            return probe
+        from vb_daemon_probe import probe_tunnel_daemon
+
         token: str | None = None
+        token_error: str | None = None
         try:
-            token = ssh.read_daemon_token() or ssh.ensure_daemon_token()
+            token = ssh.read_daemon_token()
         except Exception as exc:  # noqa: BLE001 - probe must never crash connect
-            probe["tokenError"] = f"{type(exc).__name__}: {exc}"
-        try:
-            from virtuoso_bridge import daemon_auth
-
-            proto = daemon_auth.PROTOCOL_VERSION
-            nonce = secrets.token_hex(16)
-            payload: dict[str, Any] = {"proto": proto, "nonce": nonce, "op": "hello"}
-            if token:
-                payload["mac"] = daemon_auth.hello_mac(token, nonce=nonce)
-        except Exception as exc:  # noqa: BLE001
-            probe.update(state="unknown", message=f"cannot build hello: {type(exc).__name__}: {exc}")
-            return probe
-        budget = max(3.0, min(float(timeout or 10), 15.0))
-        deadline = time.monotonic() + budget
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(budget)
-                sock.connect(("127.0.0.1", port))
-                sock.sendall(json.dumps(payload).encode("utf-8"))
-                sock.shutdown(socket.SHUT_WR)
-                chunks: list[bytes] = []
-                received = 0
-                while True:
-                    remaining = deadline - time.monotonic()
-                    if remaining <= 0:
-                        raise socket.timeout("capability probe deadline expired")
-                    sock.settimeout(remaining)
-                    chunk = sock.recv(65536)
-                    if not chunk:
-                        break
-                    received += len(chunk)
-                    chunks.append(chunk)
-                    if received > 1_000_000:
-                        break
-            raw = b"".join(chunks)
-        except (socket.timeout, TimeoutError) as exc:
-            probe.update(state="timeout", message=f"{type(exc).__name__}: {exc}")
-            return probe
-        except OSError as exc:
-            code = getattr(exc, "winerror", None) or getattr(exc, "errno", None)
-            text = f"{type(exc).__name__}: {exc}"
-            # OpenSSH -L accepts the local connection and then aborts it when
-            # the remote port has no listener: Windows reports WSAECONNABORTED
-            # (10053) or WSAECONNRESET (10054), POSIX ECONNRESET/ECONNREFUSED.
-            if code in (10053, 10054, 10061, 104, 111):
-                probe.update(state="no-listener", message=text, socketCode=code)
-            else:
-                probe.update(state="unreachable", message=text, socketCode=code)
-            return probe
-        if raw[:1] == b"\x02":
-            body = raw[1:]
-            try:
-                from virtuoso_bridge import daemon_auth
-
-                if token and daemon_auth.looks_like_hex_mac(body):
-                    body = daemon_auth.verify_response_bytes(raw, token, nonce)[1:]
-                    probe["signed"] = True
-                else:
-                    probe["signed"] = False
-            except Exception as exc:  # noqa: BLE001 - auth/handshake mismatch
-                probe.update(state="auth", message=f"capability response failed authentication: {type(exc).__name__}: {exc}")
-                return probe
-            try:
-                caps = json.loads(body.decode("utf-8", errors="ignore"))
-            except Exception:  # noqa: BLE001 - answered but unparseable
-                probe.update(state="legacy", message="the daemon answered the capability handshake with non-JSON data", preview=_preview_bytes(raw))
-                return probe
-            if isinstance(caps, dict):
-                probe["build"] = caps.get("build")
-                probe["auth"] = caps.get("auth")
-                probe["protocol"] = caps.get("proto")
-            probe.update(state="ready")
-            return probe
-        if raw[:1] == b"\x15":
-            message = raw[1:].decode("utf-8", errors="ignore").strip()[:600]
-            probe["message"] = message
-            probe.update(state="auth" if message.startswith("AuthError") else "legacy")
-            return probe
-        if not raw:
-            probe.update(state="legacy", message="the daemon closed the capability handshake without answering")
-            return probe
-        probe.update(state="legacy", message="the daemon did not answer the bridge capability handshake", preview=_preview_bytes(raw))
+            token_error = f"{type(exc).__name__}: {exc}"
+        probe = probe_tunnel_daemon(getattr(ssh, "port", 0), token, timeout)
+        if token_error:
+            probe["tokenError"] = token_error
         return probe
 
     def _degraded_client(self, ssh: Any, timeout: int) -> Any:
@@ -751,6 +725,12 @@ class BridgeRuntime:
                 )
                 self._resolve_scratch_root(ssh)
                 self.tunnel = ssh
+                # Probe before deployment: an existing signed daemon on the
+                # configured port must be attachable even when the configured
+                # scratch root is missing or needs repair.
+                attached = self._try_attach_existing(ssh, timeout)
+                if attached is None:
+                    self._prepare_scratch_root(ssh)
                 ssh.warm(timeout=timeout)
                 self._prepare_dialog_helper(ssh)
                 if self.local:
@@ -825,6 +805,9 @@ class BridgeRuntime:
             except Exception as exc:
                 self.connect_finished = time.time()
                 self.connect_error = f"{type(exc).__name__}: {exc}"
+                hint = getattr(exc, "hint", "")
+                if hint:
+                    self.connect_error += f"\nHint: {hint}"
                 raise
 
     def disconnect(self, params: dict[str, Any]) -> dict[str, Any]:

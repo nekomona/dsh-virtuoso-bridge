@@ -82,3 +82,25 @@ test('scriptWorker can be switched off and 0 means an unlimited budget', async (
     assert.equal(updated.scriptWorkerMax, 0)
   })
 })
+
+test('a same-name save updates the existing connection instead of duplicating it', async () => {
+  await withStore(undefined, async (store) => {
+    const first = await store.upsertConnection({ name: 'lab', host: 'lab.example', user: 'designer' })
+    assert.equal(first.id.startsWith('conn_'), true)
+    const second = await store.upsertConnection({ name: 'lab', host: 'lab2.example', user: 'designer' })
+    assert.equal(second.id, first.id, 'the saved id must be reused for a same-name tool save')
+    assert.equal(second.host, 'lab2.example')
+    const rows = store.snapshot().connections.filter((item) => item.name.toLowerCase() === 'lab')
+    assert.equal(rows.length, 1)
+  })
+})
+
+test('a different id may not reuse another connection name', async () => {
+  await withStore(undefined, async (store) => {
+    await store.upsertConnection({ name: 'lab', host: 'lab.example', user: 'designer' })
+    await assert.rejects(
+      store.upsertConnection({ id: 'conn_other', name: 'lab', host: 'other.example', user: 'designer' }),
+      /already exists/,
+    )
+  })
+})

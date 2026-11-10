@@ -54,6 +54,16 @@ window.__ModuleLoader__.load({
       'delete': 'Delete',
       'edit': 'Edit',
       'test': 'Test',
+      'test.ready': 'Target ready',
+      'test.sshOnly': 'SSH reachable, target not ready',
+      'test.failed': 'Connection test failed',
+      'test.ssh': 'SSH',
+      'test.python': 'Remote Python',
+      'test.scratch': 'Scratch root',
+      'test.daemon': 'Daemon',
+      'test.hint': 'Hint',
+      'test.hostKey': 'Host key confirmation required',
+      'deploy.guidance': 'Fixed legacy deployment (not discoverable):',
       'add': 'Add',
       'start': 'Start',
       'stop': 'Stop',
@@ -322,6 +332,16 @@ window.__ModuleLoader__.load({
       'delete': '删除',
       'edit': '编辑',
       'test': '测试',
+      'test.ready': '目标已就绪',
+      'test.sshOnly': 'SSH 可达，但目标未就绪',
+      'test.failed': '连接测试失败',
+      'test.ssh': 'SSH',
+      'test.python': '远端 Python',
+      'test.scratch': '暂存根目录',
+      'test.daemon': '守护进程',
+      'test.hint': '提示',
+      'test.hostKey': '需要确认主机密钥',
+      'deploy.guidance': '固定旧端口部署（不可自动发现）：',
       'add': '添加',
       'start': '启动',
       'stop': '停止',
@@ -2424,6 +2444,85 @@ window.__ModuleLoader__.load({
             // Clipboard access is optional.
           }
         }
+        const renderTestResult = (result) => {
+          if (!result) return null
+          const checks = result.checks || {}
+          const rows = []
+          const addRow = (key, labelText, ok, detail, hint) => {
+            rows.push(
+              h(
+                'div',
+                { className: 'vb-field', key },
+                h(
+                  'div',
+                  { className: 'vb-row vb-between vb-wrap' },
+                  h('span', { className: 'vb-strong' }, labelText),
+                  h('span', { className: ok ? 'vb-muted' : 'vb-error', title: String(detail || '') }, String(detail || '—').slice(0, 400)),
+                ),
+                hint
+                  ? h('div', { className: ok ? 'vb-muted' : 'vb-error' }, String(hint).slice(0, 600))
+                  : null,
+              ),
+            )
+          }
+          const ssh = checks.ssh || {}
+          addRow(
+            'ssh',
+            label('test.ssh'),
+            Boolean(ssh.ok),
+            ssh.local
+              ? 'local connection (SSH not used)'
+              : ssh.ok
+                ? `ok${ssh.elapsedMs ? ` · ${ssh.elapsedMs} ms` : ''}`
+                : ssh.error || ssh.detail || 'failed',
+          )
+          const python = checks.remotePython
+          if (python) {
+            addRow(
+              'python',
+              label('test.python'),
+              Boolean(python.ok),
+              python.ok
+                ? python.selected
+                  ? `${python.selected.version || python.selected.path} (${python.selected.path})`
+                  : 'found'
+                : python.error || python.detail || 'not found',
+            )
+          }
+          const scratch = checks.scratchRoot
+          if (scratch) {
+            addRow(
+              'scratch',
+              label('test.scratch'),
+              Boolean(scratch.ok),
+              scratch.ok
+                ? `ready${scratch.mode ? ` (${scratch.mode})` : ''}${scratch.resolved ? ` · ${scratch.resolved}` : ''}`
+                : `${scratch.error || 'not ready'}${scratch.resolved ? ` · ${scratch.resolved}` : ''}`,
+              scratch.hint,
+            )
+          }
+          const daemon = checks.daemon
+          if (daemon) {
+            addRow(
+              'daemon',
+              label('test.daemon'),
+              daemon.state === 'ready',
+              `${daemon.state || 'unknown'}${daemon.build ? ` (${daemon.build})` : ''}${daemon.signed ? ' · signed' : ''}` +
+                `${daemon.remotePort || daemon.port ? ` · port ${daemon.remotePort || daemon.port}` : ''}` +
+                `${daemon.summary || daemon.message ? ` · ${String(daemon.summary || daemon.message).slice(0, 300)}` : ''}`,
+            )
+          }
+          const summary = result.ready ? label('test.ready') : result.ok ? label('test.sshOnly') : label('test.failed')
+          return h(
+            'div',
+            { className: 'vb-card flat' },
+            h('div', { className: result.ready ? 'vb-ok' : 'vb-error' }, summary),
+            rows,
+            result.pendingHostKey?.unknown?.length
+              ? h('div', { className: 'vb-error' }, label('test.hostKey'))
+              : null,
+          )
+        }
         return h(
           'div',
           { className: 'vb-root vb-settings' },
@@ -2619,7 +2718,7 @@ window.__ModuleLoader__.load({
                       `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.autoSessions ? 'auto' : connection.port}${connection.remoteWorkDir ? ` · ${connection.remoteWorkDir}` : ''}`,
                     ),
                     testResults[connection.id]
-                      ? h('div', { className: testResults[connection.id].ok ? 'vb-muted' : 'vb-error' }, testResults[connection.id].detail || (testResults[connection.id].ok ? 'SSH OK' : 'SSH failed'))
+                      ? renderTestResult(testResults[connection.id])
                       : null,
                     conflict?.connectionId === connection.id
                       ? h(
@@ -2676,6 +2775,19 @@ window.__ModuleLoader__.load({
                           deployResults[connection.id].shared
                             ? h('div', { className: 'vb-muted' }, deployResults[connection.id].message || label('deploy.shared'))
                             : h('div', { className: 'vb-muted' }, label('deploy.ready')),
+                          deployResults[connection.id].guidance
+                            ? h('div', { className: 'vb-error' }, `${label('deploy.guidance')} ${deployResults[connection.id].guidance}`)
+                            : null,
+                          deployResults[connection.id].scratchWarning
+                            ? h('div', { className: 'vb-muted' }, deployResults[connection.id].scratchWarning)
+                            : null,
+                          deployResults[connection.id].scratchRoot
+                            ? h(
+                                'div',
+                                { className: 'vb-mono vb-muted vb-ellipsis', title: deployResults[connection.id].scratchRoot },
+                                `${label('test.scratch')}: ${deployResults[connection.id].scratchRoot}`,
+                              )
+                            : null,
                           deployResults[connection.id].setupPath
                             ? h('div', { className: 'vb-mono vb-muted vb-ellipsis', title: deployResults[connection.id].setupPath }, deployResults[connection.id].setupPath)
                             : null,

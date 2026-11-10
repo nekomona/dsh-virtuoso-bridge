@@ -221,13 +221,15 @@ scratch root**. It is used when a connection leaves its own `remoteScratchRoot`
 empty and is passed to deployment, discovery, shells and scripts as
 `VB_REMOTE_SCRATCH_ROOT`; a per-connection value overrides it. Deployment
 therefore follows the same root as the runtime rather than falling back to
-`/tmp`. A leading `~/` is expanded on the remote account, symlinks are resolved
-to the real directory, and the root is created/tightened to a private `0700`
-directory before an automatic deployment. The deploy result reports both
-`configuredScratchRoot` and the resolved `scratchRoot`, so the load path can
-never silently disagree with the configured value. A permissive pre-existing
-root (or a symlinked one) no longer makes deployment report a write failure
-while a plain `echo` into the same directory succeeds.
+`/tmp`. A leading `~/` is expanded on the remote account and symlinks are
+resolved to the real directory. Before any deployment (fixed or automatic) the
+root is checked: a missing root under the account home is created with mode
+`0700` (with a warning if a sibling path differs only by `_` vs `-`), a
+permissive user-owned root is tightened, and a symlink, wrong owner,
+non-directory or missing path outside the home gets its own actionable error.
+The deploy result reports `configuredScratchRoot`, the resolved `scratchRoot`,
+`scratchCreated`/`scratchTightened` and any warning, so the load path can never
+silently disagree with the configured value.
 
 For a site-wide bootstrap, install the upstream shared bundle on the Linux
 Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
@@ -245,7 +247,10 @@ not overwrite it; the panel shows both available package versions and asks for a
 explicit red **Overwrite** confirmation. The old bundle is retained. A shared
 `daemonSetup` is reported as read-only and is never replaced by a client. The
 same action is available as `virtuoso_bridge_runtime` action `deploy_daemon` with
-`replace: true`.
+`replace: true`. A fixed legacy deployment result carries
+`recommendedAutoSessions` and a guidance line: it is not discoverable after a CIW
+restart, so automatic sessions or a shared `install-daemon` setup are preferred
+for long-lived deployments.
 
 #### Workdir sub-instances
 
@@ -328,8 +333,14 @@ tool call can never delete or rewrite the config file a running tunnel uses.
 
 ## Runtime lifecycle
 
-`virtuoso_bridge_runtime` action `start` starts the managed SSH tunnel,
-deploys the remote setup and connects the sidecar. A runtime reports:
+`virtuoso_bridge_runtime` action `start` starts the managed SSH tunnel and
+connects the sidecar. For a fixed-port connection it first probes the configured
+daemon port: if this account's daemon answers with a signed capability handshake,
+the runtime attaches to it and **skips deployment entirely** (status reports
+`attach.attached` and the reused setup path). Only when no attachable daemon is
+present does it prepare the scratch root, deploy the setup and continue as
+before. This keeps a broken or missing scratch root from blocking a live
+instance, including one deployed by another client/machine. A runtime reports:
 
 * **starting / connecting** — sidecar and tunnel are being established.
 * **needs-trust** — a first connection offered an unknown SSH host key. The
@@ -346,8 +357,8 @@ deploys the remote setup and connects the sidecar. A runtime reports:
 
 Runtime snapshots carry a separate `daemon` object and `connectionStatus`:
 `ready`, `no-response`, `auth-failed`, `unreachable` or `unknown`. Startup
-records it from the connect handshake, and **Test** queries it again when a
-runtime sidecar is available. The runtime panel shows it as its own chip next to
+records it from the connect handshake, and **Test** probes it even when the
+runtime is stopped. The runtime panel shows it as its own chip next to
 the connection state.
 
 Automatic-session runtimes also expose the selected `instance` (`port`, Virtuoso
@@ -400,7 +411,12 @@ of returning immediately while the runtime is still starting. `instances`
 performs read-only automatic-session discovery; `select_instance` stores the
 chosen port on the connection before a restart. `test_connection` uses the same
 SSH backend as the bridge — Paramiko sessions never launch `ssh.exe` — and
-includes the daemon status when a runtime is already reachable.
+returns a structured health report: `ssh`, `remotePython`, `scratchRoot` and a
+signed/unsigned `daemon` probe, even when no runtime sidecar exists. It never
+deploys or creates the scratch root; the UI renders every check and marks the
+target `ready` only when SSH and a signed daemon both pass. Saving a connection
+without an `id` updates the row with the same name instead of creating a
+duplicate; the tool result says `updated` or `created`.
 
 ### `virtuoso_bridge_api`
 

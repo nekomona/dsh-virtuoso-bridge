@@ -229,10 +229,38 @@ class Result:
 class Runner:
     def __init__(self):
         self.commands = []
+        self.existing = {}
+    def _paths(self, command):
+        return [p for p in ("/home/username/.scratch", "/tmp/virtuoso_bridge_fixture") if p in command]
     def run_command(self, command, timeout=None):
         self.commands.append(command)
         if "getent passwd" in command:
             return Result("/home/username\\n")
+        if command.startswith("id -u"):
+            return Result("1000\\n")
+        if "printf 'KIND" in command or "printf 'KIND %s" in command or "KIND %s\\n" in command:
+            paths = self._paths(command)
+            path = paths[0] if paths else ""
+            if path in self.existing:
+                return Result(
+                    "KIND DIR\\nOWNER 1000\\nMODE %s\\nPARENT %s\\nPARENTKIND DIR\\nWRITABLE yes\\nPARENTWRITABLE yes\\n"
+                    % (self.existing[path], "/home/username" if path.startswith("/home") else "/tmp")
+                )
+            parent = "/home/username" if path.startswith("/home") else "/tmp"
+            return Result(
+                "KIND MISSING\\nOWNER \\nMODE \\nPARENT %s\\nPARENTKIND DIR\\nWRITABLE no\\nPARENTWRITABLE yes\\n" % parent
+            )
+        if "mkdir -p -m 700" in command:
+            for path in self._paths(command):
+                self.existing[path] = "700"
+            return Result("")
+        if "chmod 700" in command:
+            for path in self._paths(command):
+                self.existing[path] = "700"
+            return Result("")
+        if "readlink -f" in command:
+            paths = self._paths(command)
+            return Result((paths[0] if paths else "") + "\\n")
         return Result("")
 
 ssh = type("SSH", (), {"_discover_instances": True, "deployment_runner": Runner()})()

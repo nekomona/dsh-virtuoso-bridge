@@ -35,24 +35,40 @@ test.after(() => {
 })
 
 /** A manager wired to a stub deploy helper instead of a real Python client. */
-function buildManager({ connection, settings = {} }) {
+function buildManager({ connection, settings = {}, failure }) {
   const pluginDir = scratch()
   const dataDir = scratch()
   mkdirSync(path.join(pluginDir, 'runtime'), { recursive: true })
+  const payload = failure
+    ? [
+        '{',
+        '  "ok": False,',
+        '  "error": "The scratch root does not exist: /home/username/.virtuoso_bridge",',
+        '  "errorCode": "scratch-root-missing",',
+        '  "path": "/home/username/.virtuoso_bridge",',
+        '  "hint": "Create it with mkdir -p -m 700 /home/username/.virtuoso_bridge",',
+        '  "scratchRoot": "/home/username/.virtuoso_bridge"',
+        '}',
+      ]
+    : [
+        '{',
+        '  "ok": True,',
+        '  "argv": sys.argv[1:],',
+        '  "scratchEnv": os.environ.get("VB_REMOTE_SCRATCH_ROOT", ""),',
+        '  "pythonpath": os.environ.get("PYTHONPATH", ""),',
+        '  "ambientRemoteHost": os.environ.get("VB_REMOTE_HOST", ""),',
+        '  "setupPath": "/resolved/scratch/daemon/virtuoso_setup.il",',
+        '  "scratchRoot": "/resolved/scratch",',
+        '  "scratchCreated": True,',
+        '  "scratchWarning": "created missing root",',
+        '  "clientId": "tester",',
+        '  "recommendedAutoSessions": True,',
+        '  "guidance": "Prefer autoSessions for discoverable deployments."',
+        '}',
+      ]
   writeFileSync(
     path.join(pluginDir, 'runtime', 'vb_deploy.py'),
-    [
-      'import json, os, sys',
-      'print(json.dumps({',
-      '  "ok": True,',
-      '  "argv": sys.argv[1:],',
-      '  "scratchEnv": os.environ.get("VB_REMOTE_SCRATCH_ROOT", ""),',
-      '  "pythonpath": os.environ.get("PYTHONPATH", ""),',
-      '  "ambientRemoteHost": os.environ.get("VB_REMOTE_HOST", ""),',
-      '  "setupPath": "/resolved/scratch/daemon/virtuoso_setup.il",',
-      '  "scratchRoot": "/resolved/scratch",',
-      '}))',
-    ].join('\n'),
+    ['import json, os, sys', `print(json.dumps(${payload.join('\n')}))`].join('\n'),
     'utf8',
   )
   const snapshot = { ...settings, connections: [connection] }
@@ -113,12 +129,47 @@ test('deploy_daemon runs the plugin helper with the saved connection and an isol
     assert.equal(result.scratchEnv, '~/.scratch/', 'the saved scratch root must reach the helper unchanged')
     assert.equal(result.pythonpath, '', 'PYTHONPATH from another installation must not reach the helper')
     assert.equal(result.ambientRemoteHost, '', 'ambient VB_* values must not select another host')
+    assert.equal(result.scratchCreated, true)
+    assert.equal(result.clientId, 'tester')
+    assert.equal(result.recommendedAutoSessions, true)
+    assert.match(result.guidance, /autoSessions/)
     await manager.dispose()
   } finally {
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key]
       else process.env[key] = value
     }
+  }
+})
+
+test('deploy_daemon surfaces the structured scratch-root cause and hint', { skip: NO_PYTHON }, async () => {
+  const connection = {
+    id: 'conn_typo',
+    name: 'typo',
+    kind: 'remote',
+    host: 'lab.example',
+    user: 'designer',
+    sshPort: 22,
+    sshBackend: 'openssh',
+    port: 65432,
+    autoSessions: false,
+    subInstances: [],
+    remoteScratchRoot: '~/.virtuoso_bridge',
+    envShell: 'auto',
+    extraEnv: {},
+  }
+  const { manager } = buildManager({ connection, failure: true })
+  try {
+    await assert.rejects(manager.deployDaemon('typo'), (error) => {
+      assert.equal(error.code, 'scratch-root-missing')
+      assert.equal(error.details.code, 'scratch-root-missing')
+      assert.equal(error.details.path, '/home/username/.virtuoso_bridge')
+      assert.match(error.details.hint, /mkdir -p -m 700/)
+      assert.match(error.message, /scratch root does not exist/)
+      return true
+    })
+  } finally {
+    await manager.dispose()
   }
 })
 

@@ -99,9 +99,11 @@ upload is part of virtuoso-bridge, not a new plugin function.
 Read the runtime state instead of guessing from a single log line:
 
 1. `virtuoso_bridge_runtime` action `"status"` reports `stage`, `daemon`,
-   `daemonProbe`, `setupHint` and `error`. `"waiting"` means SSH login and the
-   tunnel succeeded but nothing answers the bridge on the configured daemon
-   port; the CIW still has to load the prepared setup.
+   `daemonProbe`, `setupHint`, `attach` and `error`. `"waiting"` means SSH login and
+   the tunnel succeeded but nothing answers the bridge on the configured daemon
+   port; the CIW still has to load the prepared setup. A fixed-port start first
+   probes that port: a signed existing daemon is attached (no deployment and no
+   CIW load), and `attach.attached` records it.
 2. A host normally offers several key types (ed25519, ecdsa, rsa) and
    known_hosts usually contains only some of them. A key type that is simply
    absent is treated as untrusted, not as a changed key, and a host with at
@@ -121,7 +123,11 @@ Read the runtime state instead of guessing from a single log line:
 4. Deployment runs over SSH and can take longer than the dashboard's short
    status-poll budget. The dashboard gives long actions their own timeout and
    keeps the printed setup path/load line visible; do not retry a deploy just
-   because a browser request timed out.
+   because a browser request timed out. A deploy error carries `errorCode`,
+   `path` and `hint` (for example a missing scratch root under the home is
+   created automatically, while a missing path elsewhere names the required
+   `mkdir -p -m 700`). `test_connection` reports SSH, remote Python, scratch root
+   and daemon checks even when no runtime is running.
 
 ## Failure rules
 
