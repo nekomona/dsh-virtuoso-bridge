@@ -129,6 +129,12 @@ git submodule update --init virtuoso-bridge-lite
 （`daemonHost`、`deployHost`、`guiHost`、`spectreHost`）、远程暂存根目录、
 client id、备注和子实例。
 
+创建连接、或修改现有连接的 SSH 目标，属于工作区之外的修改。连接是一项长期授权：
+启动它会在该账号上打开 SSH 会话和已签名的 bridge 守护进程，智能体因此可以运行
+shell、Python 和 SKILL。所以智能体工具会通过 DSH 权限卡片请求用户批准，除非会话
+具备 **完全权限**（`danger-full-access`）；被拒绝或批准不可用即终态。重复提交相同 SSH
+目标（同时修改备注、暂存根目录、子实例、环境等）以及配置页自身的 **保存** 按钮无需批准。
+
 ### 4.4 凭据
 
 守护进程 token 写入 DSH credentials 服务，不保存在连接 JSON 或日志中。
@@ -244,7 +250,10 @@ virtuoso_bridge_runtime action=select_instance connection=lab port=65123
 ```
 
 `status` 只显示活跃/近期智能体，并报告项目 cwd、守护进程状态、弹窗状态、
-首次就绪前的 setup 提示和错误。
+首次就绪前的 setup 提示和错误。`save_connection` 在 `id` 和 `name` 都不匹配现有
+连接时创建新行；现有行的 `host`、`user`、`sshPort`、`jumpHost`/`jumpUser` 或角色
+主机变化时视为重定向。这两种情况都会通过 DSH 权限卡片请求用户批准，除非会话具备
+**完全权限**；被拒绝或批准不可用即终态。
 
 ### `virtuoso_bridge_api`
 
@@ -296,6 +305,8 @@ result = {"windows": client.schematic.list_windows()}
 ## 10. 安全
 
 - 主机密钥必须显式信任；变更密钥视为冲突，不会被静默替换。
+- 创建连接或修改其 SSH 目标是工作区之外的访问授权；会话不具备完全权限时智能体工具
+  会请求批准，拒绝即终态。
 - 守护进程 token 由 DSH credentials 保存，通过 sidecar 环境传入。
 - Dashboard 通过仅回环可读的端点引导每进程 token。
 - 远程 setup 路径由 VBL 进行私有目录和所有权校验。

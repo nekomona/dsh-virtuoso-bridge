@@ -194,6 +194,17 @@ Add a connection in the left **Virtuoso Bridge** configuration panel or with
 }
 ```
 
+Creating a new connection, or changing an existing row's SSH target, is a
+modification outside the workspace: a saved connection is a standing grant, so
+starting it gives the agent full access (shell, Python and SKILL) on that host.
+`virtuoso_bridge_runtime` therefore asks the user for approval through DSH's
+permission card unless the session runs with **Full access**
+(`danger-full-access`). Saves that repeat the same SSH target alongside notes,
+scratch roots, sub-instances or environment save without a prompt, and the
+configuration page's own **Save** button is user-initiated. A rejected or
+unavailable approval is final; create the row from the configuration page
+instead of working around it.
+
 In fixed mode, leaving `port` blank derives the bridge's stable per-user daemon
 port from the SSH user name (SHA-1, range 65000–65499), matching
 `virtuoso_bridge.basic.bridge._default_remote_port`. In automatic mode
@@ -416,7 +427,9 @@ signed/unsigned `daemon` probe, even when no runtime sidecar exists. It never
 deploys or creates the scratch root; the UI renders every check and marks the
 target `ready` only when SSH and a signed daemon both pass. Saving a connection
 without an `id` updates the row with the same name instead of creating a
-duplicate; the tool result says `updated` or `created`.
+duplicate; the tool result says `updated` or `created`. Creating a connection or
+changing its SSH target asks the user for approval unless the session has Full
+access; a rejected or unavailable approval is final.
 
 ### `virtuoso_bridge_api`
 
@@ -528,6 +541,7 @@ lib/sidecar.js        line-JSON sidecar process client
 lib/manager.js        runtimes, sidecars, script jobs, actions, state, orphans
 lib/http.js           token-protected state/action/SSE transport
 lib/tools.js          four agent tools + prompt section
+lib/connection-access.js  new-connection / SSH-retarget approval gate
 runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
 runtime/vb_script.py  isolated batch script runner (thin CLI over the job core)
 runtime/vb_script_exec.py  shared job core: artifacts, connect, watchdog, namespace

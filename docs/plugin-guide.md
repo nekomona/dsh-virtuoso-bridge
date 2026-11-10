@@ -152,6 +152,15 @@ SSH and a signed daemon pass. A fixed deployment result says whether it reused a
 existing daemon; a missing root under the home is created (with a `_`/`-` typo
 warning), while a missing root elsewhere gets a specific `mkdir` hint.
 
+Creating a connection — or changing an existing row's SSH target — is a
+modification outside the workspace. The profile is a standing grant: starting it
+opens an SSH session and a signed bridge daemon on that account, where the agent
+can run shell commands, Python and SKILL. The agent tool therefore asks for
+approval through DSH's permission card unless the session has **Full access**
+(`danger-full-access`); a rejected or unavailable approval is final. Saves that
+repeat the same SSH target (notes, scratch roots, sub-instances, environment)
+and the page's own **Save** button need no approval.
+
 ### 4.4 Credentials
 
 Daemon tokens are stored through the DSH credentials service, not in the
@@ -288,6 +297,11 @@ virtuoso_bridge_runtime action=select_instance connection=lab port=65123
 
 `status` includes only active/recent agents; it reports project cwd, daemon
 state, dialog state, setup hint (only before first readiness), and errors.
+`save_connection` creates the row when neither its `id` nor its `name` matches an
+existing connection, and an existing row is retargeted when `host`, `user`,
+`sshPort`, `jumpHost`/`jumpUser` or a role host changes. Both cases ask the user
+for approval through DSH's permission card unless the session has **Full
+access**; a rejected or unavailable approval is final.
 
 ### `virtuoso_bridge_api`
 
@@ -342,6 +356,9 @@ Behavior:
 
 - Host-key trust is explicit; changed keys are conflicts, never silently
   replaced.
+- Creating a connection or changing its SSH target is an outside-workspace
+  access grant; the agent tool asks for approval unless the session has Full
+  access, and a rejection is final.
 - Daemon tokens are held by DSH credentials and passed through the sidecar env.
 - The dashboard bootstraps a per-process token over a loopback-only endpoint.
 - Remote setup paths are private and ownership-checked by VBL.

@@ -134,6 +134,13 @@ X11 关闭、保存 setup、history/job 策略），不新增引擎。
 
 凭据（守护进程 token）写入 DSH credentials 服务，不写入连接配置或日志。
 
+创建新连接、或修改现有连接的 SSH 目标，属于工作区之外的修改：保存后的连接是一项
+长期授权，启动它会让智能体在该主机上获得完全访问权限（shell、Python 与 SKILL）。
+因此 `virtuoso_bridge_runtime` 会通过 DSH 权限卡片请求用户批准，除非会话处于
+**完全权限**（`danger-full-access`）。重复提交相同 SSH 目标并同时修改备注、暂存根目录、
+子实例或环境的保存不会触发确认；配置页自身的 **保存** 按钮由用户操作，也不需要批准。
+被拒绝或无法获得批准时该操作就是终态，请改用配置页创建连接，不要绕过。
+
 ## 守护进程部署与覆盖
 
 **部署守护进程设置** 只准备/上传生成的 account bootstrap，不启动隧道、不连接守护进程，
@@ -195,6 +202,9 @@ load("/path/to/virtuoso_setup.il")
 - `instances` / `select_instance`
 - `detect_shell`
 - `host_key` / `trust_host`
+
+创建连接或修改其 SSH 目标时，`save_connection` 会在会话不具备完全权限时请求批准；
+拒绝或批准不可用即终态。
 
 ### `virtuoso_bridge_api`
 
