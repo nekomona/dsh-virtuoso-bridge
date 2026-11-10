@@ -341,6 +341,7 @@ class BridgeRuntime:
         self.connect_started = 0.0
         self.connect_finished = 0.0
         self.daemon_probe: dict[str, Any] | None = None
+        self.scratch_info: dict[str, Any] | None = None
         self.lock = threading.RLock()
         self.started_at = time.time()
         self.last_activity = time.time()
@@ -358,40 +359,26 @@ class BridgeRuntime:
         replace them; an empty runtime env file makes that load a no-op.
         """
         try:
-            from virtuoso_bridge.env import set_runtime_env_file
+            from vb_plugin_env import isolate_runtime_env
 
-            data_dir = Path(os.environ.get("VB_PLUGIN_DATA_DIR") or _THIS.parent.parent)
-            data_dir.mkdir(parents=True, exist_ok=True)
-            empty = data_dir / "empty.env"
-            if not empty.exists():
-                empty.write_text("# intentionally empty: the DSH plugin owns VB_* values\n", encoding="utf-8")
-            set_runtime_env_file(empty)
+            isolate_runtime_env()
         except Exception:
             # The import itself is reported later by package_info().
             pass
 
     def _resolve_scratch_root(self, ssh: Any) -> None:
-        """Expand a leading ``~/`` for the bridge's remote path helpers.
+        """Resolve and prepare the configured remote scratch root once.
 
-        The upstream deployment path uses ``VB_REMOTE_SCRATCH_ROOT`` literally
-        in fixed mode, while discovery expands ``~`` itself.  Resolve once here
-        so deployment and daemon startup use the same absolute root.
+        Upstream uses the value literally in fixed mode while discovery expands
+        ``~`` itself; and the automatic-instance publisher requires the root
+        itself to be a private directory, so a pre-existing permissive (or
+        symlinked) root made deployment fail even though a manual write into the
+        same directory succeeded. Resolve the real absolute path and prepare it
+        here so every later step agrees.
         """
-        value = os.environ.get("VB_REMOTE_SCRATCH_ROOT", "")
-        if not value.startswith("~/"):
-            return
-        runner = getattr(ssh, "ssh_runner", None)
-        if runner is not None:
-            result = runner.run_command('getent passwd "$(id -u)" | cut -d: -f6')
-            home = (result.stdout or "").strip()
-            if result.returncode or not home.startswith("/"):
-                raise RuntimeError(f"Cannot resolve the remote home for scratch root {value!r}")
-        else:
-            home = str(Path.home())
-        resolved = home.rstrip("/") + value[1:]
-        os.environ["VB_REMOTE_SCRATCH_ROOT"] = resolved
-        suffix = f"_{self.profile}" if self.profile else ""
-        os.environ[f"VB_REMOTE_SCRATCH_ROOT{suffix}"] = resolved
+        from vb_plugin_env import prepare_scratch_root
+
+        self.scratch_info = prepare_scratch_root(ssh, self.profile)
 
     def _prepare_dialog_helper(self, ssh: Any) -> None:
         """Predeploy/verify the existing X11 dialog helper for this runtime.
@@ -510,6 +497,7 @@ class BridgeRuntime:
             "connected": self.client is not None,
             "connectError": self.connect_error,
             "daemonProbe": self.daemon_probe,
+            "scratch": self.scratch_info,
             "connectMs": round((self.connect_finished - self.connect_started) * 1000)
             if self.connect_finished
             else None,

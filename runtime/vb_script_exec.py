@@ -312,15 +312,12 @@ class JobRunner:
             return self.client
 
         from virtuoso_bridge import VirtuosoClient
-        from virtuoso_bridge.env import set_runtime_env_file
 
-        data_dir = Path(self.context.get("dataDir") or self.job_dir)
         try:
-            data_dir.mkdir(parents=True, exist_ok=True)
-            empty = data_dir / "empty.env"
-            if not empty.exists():
-                empty.write_text("# intentionally empty: the DSH plugin owns VB_* values\n", encoding="utf-8")
-            set_runtime_env_file(empty)
+            from vb_plugin_env import isolate_runtime_env
+
+            os.environ["VB_PLUGIN_DATA_DIR"] = str(self.context.get("dataDir") or self.job_dir)
+            isolate_runtime_env()
         except Exception:
             pass
 

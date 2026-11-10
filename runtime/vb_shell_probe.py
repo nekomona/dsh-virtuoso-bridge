@@ -33,14 +33,9 @@ PROBE = (
 
 def _isolate_env() -> None:
     try:
-        from virtuoso_bridge.env import set_runtime_env_file
+        from vb_plugin_env import isolate_runtime_env
 
-        data_dir = Path(os.environ.get("VB_PLUGIN_DATA_DIR") or _THIS.parent.parent)
-        data_dir.mkdir(parents=True, exist_ok=True)
-        empty = data_dir / "empty.env"
-        if not empty.exists():
-            empty.write_text("# intentionally empty: the DSH plugin owns VB_* values\n", encoding="utf-8")
-        set_runtime_env_file(empty)
+        isolate_runtime_env()
     except Exception:
         pass
 

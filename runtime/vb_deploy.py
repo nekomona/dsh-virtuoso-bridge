@@ -10,9 +10,13 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
+
+_THIS = Path(__file__).resolve()
+_RUNTIME_DIR = _THIS.parent
+if str(_RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_DIR))
 
 
 def main() -> int:
@@ -24,9 +28,13 @@ def main() -> int:
     args = parser.parse_args()
     ssh = None
     try:
-        from virtuoso_bridge.env import set_runtime_env_file
+        # Import the plugin helper before ``virtuoso_bridge``: it points the
+        # upstream .env loader at this plugin's empty env file so another local
+        # installation (~/.virtuoso-bridge/.env) cannot replace the values the
+        # plugin derived from the saved connection.
+        from vb_plugin_env import isolate_runtime_env, prepare_scratch_root, resolve_scratch_root
 
-        set_runtime_env_file(Path(args.env_file) if args.env_file else None)
+        isolate_runtime_env(args.env_file)
         from virtuoso_bridge.transport.tunnel import SSHClient
         from virtuoso_bridge.virtuoso.ops import escape_skill_string
 
@@ -37,19 +45,13 @@ def main() -> int:
             selected_port=selected_port,
             replace_setup=args.replace,
         )
-        scratch = os.environ.get("VB_REMOTE_SCRATCH_ROOT", "")
-        if scratch.startswith("~/"):
-            runner = getattr(ssh, "ssh_runner", None)
-            if runner is not None:
-                result = runner.run_command('getent passwd "$(id -u)" | cut -d: -f6')
-                home = (result.stdout or "").strip()
-                if result.returncode or not home.startswith("/"):
-                    raise RuntimeError(f"Cannot resolve the remote home for scratch root {scratch!r}")
-            else:
-                home = str(Path.home())
-            resolved = home.rstrip("/") + scratch[1:]
-            os.environ["VB_REMOTE_SCRATCH_ROOT"] = resolved
-            os.environ[f"VB_REMOTE_SCRATCH_ROOT_{args.profile}"] = resolved
+        scratch = resolve_scratch_root(ssh, args.profile)
+        # A deploy writes into the configured scratch root; prepare it exactly
+        # like a runtime start so a permissive pre-existing directory (or a
+        # symlinked one) does not make the publisher refuse an otherwise
+        # writable directory.
+        prepared = prepare_scratch_root(ssh, args.profile)
+        scratch = prepared.get("root", scratch)
         shared = str(getattr(ssh, "_shared_setup", "") or "")
         if shared:
             payload = {
@@ -58,6 +60,9 @@ def main() -> int:
                 "autoSessions": bool(getattr(ssh, "_discover_instances", False)),
                 "setupPath": shared,
                 "loadLine": 'load("%s")' % escape_skill_string(shared),
+                "remoteScratchRoot": scratch,
+                "scratchRoot": scratch,
+                "scratchPrepared": bool(prepared.get("prepared")),
                 "message": "Shared daemon setup is managed by install-daemon and is never overwritten by a client.",
             }
         else:
@@ -74,6 +79,13 @@ def main() -> int:
                 "setupPath": setup_path,
                 "loadLine": 'load("%s")' % escape_skill_string(setup_path) if setup_path else None,
                 "remoteWorkDir": getattr(ssh, "remote_work_dir", None),
+                # Show the root that was actually used, next to the configured
+                # value, so a deployment path can never silently disagree with
+                # the connection's remoteScratchRoot.
+                "remoteScratchRoot": scratch,
+                "scratchRoot": scratch,
+                "scratchPrepared": bool(prepared.get("prepared")),
+                "scratchWarning": prepared.get("warning"),
                 "replaced": bool(args.replace),
             }
             if not setup_path:

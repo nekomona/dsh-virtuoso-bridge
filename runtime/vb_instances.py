@@ -12,6 +12,11 @@ import json
 import sys
 from pathlib import Path
 
+_THIS = Path(__file__).resolve()
+_RUNTIME_DIR = _THIS.parent
+if str(_RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_DIR))
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -21,9 +26,12 @@ def main() -> int:
     parser.add_argument("--env-file", default="")
     args = parser.parse_args()
     try:
-        from virtuoso_bridge.env import set_runtime_env_file
+        # Isolate the upstream .env loader before importing the client: a second
+        # local installation's ~/.virtuoso-bridge/.env must not replace this
+        # connection's host or scratch root.
+        from vb_plugin_env import isolate_runtime_env, resolve_scratch_root
 
-        set_runtime_env_file(Path(args.env_file) if args.env_file else None)
+        isolate_runtime_env(args.env_file)
         from virtuoso_bridge.transport.tunnel import SSHClient
 
         selected_port = args.instance_port if args.instance_port else None
@@ -33,6 +41,7 @@ def main() -> int:
             selected_port=selected_port,
         )
         try:
+            scratch = resolve_scratch_root(ssh, args.profile)
             rows = ssh.list_instances(timeout=args.timeout)
             payload = {
                 "ok": True,
@@ -41,6 +50,7 @@ def main() -> int:
                 "selected": getattr(ssh, "instance_record", None),
                 "expectedWorkDir": getattr(ssh, "expected_work_dir", ""),
                 "setupPath": getattr(ssh, "setup_path", None),
+                "remoteScratchRoot": scratch,
             }
         finally:
             ssh.close()

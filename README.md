@@ -221,7 +221,13 @@ scratch root**. It is used when a connection leaves its own `remoteScratchRoot`
 empty and is passed to deployment, discovery, shells and scripts as
 `VB_REMOTE_SCRATCH_ROOT`; a per-connection value overrides it. Deployment
 therefore follows the same root as the runtime rather than falling back to
-`/tmp`.
+`/tmp`. A leading `~/` is expanded on the remote account, symlinks are resolved
+to the real directory, and the root is created/tightened to a private `0700`
+directory before an automatic deployment. The deploy result reports both
+`configuredScratchRoot` and the resolved `scratchRoot`, so the load path can
+never silently disagree with the configured value. A permissive pre-existing
+root (or a symlinked one) no longer makes deployment report a write failure
+while a plain `echo` into the same directory succeeds.
 
 For a site-wide bootstrap, install the upstream shared bundle on the Linux
 Cadence host with `virtuoso-bridge install-daemon <versioned-directory>` and set
@@ -285,11 +291,19 @@ with a gray status; sessions active within the last ten minutes (or with a
 running operation) keep the normal live marker.
 
 On the first connection the plugin reads the offered host keys and stops in
-the **needs-trust** state with their SHA-256 fingerprints. It does not trust or
-add a key until the user confirms it (the runtime-panel button, or a `trust_host`
-tool call made only after the user confirms the fingerprint). Trust writes that
-single key to `~/.ssh/known_hosts`. A changed key is reported as a conflict and
-never silently replaced. Failed starts report the stage, SSH/daemon output,
+the **needs-trust** state with their SHA-256 fingerprints. The probe targets the
+endpoint SSH actually reaches: `HostName`, `Port` and `HostKeyAlias` from
+`~/.ssh/config` are resolved (as the Paramiko backend already does), so a saved
+alias or a non-default configured SSH port no longer reports a fingerprint from
+a different server that differs from the locally saved host key. Each offered
+fingerprint is labelled with the host it belongs to; a jump host's key is marked
+separately. It does not trust or add a key until the user confirms it (the
+runtime-panel button, or a `trust_host` tool call made only after the user
+confirms the fingerprint). A trust call can only select a key the fresh probe
+actually offered; the tool argument never defines what is written. Trust writes
+that single key to `~/.ssh/known_hosts`, under both names a remapped host may be
+looked up by (the saved alias for OpenSSH, the resolved host name for Paramiko).
+A changed key is reported as a conflict and never silently replaced. Failed starts report the stage, SSH/daemon output,
 traceback and host-key probe result in the runtime panel and tool error.
 
 Auth uses the system `ssh` configuration (agent, keys, `~/.ssh/config`) or the
@@ -300,9 +314,17 @@ the UI and is never returned by the panels, tools or logs. Local
 connections (`localhost`, `127.0.0.1`, `::1`) skip SSH and use the local
 bridge token file exactly like `virtuoso-bridge` local mode.
 
-The plugin never copies the user's `~/.virtuoso-bridge/.env`: the Python client
-is isolated from it with an empty runtime env file, so a saved connection is
-authoritative for that runtime.
+The plugin never copies the user's `~/.virtuoso-bridge/.env`: every Python helper
+(deploy, discovery, SSH test, sidecar, shell probe, scripts) is isolated from it
+with the plugin's empty runtime env file before `virtuoso_bridge` is imported, so
+a saved connection is authoritative for that runtime. A second local
+virtuoso-bridge installation cannot tamper with plugin calls either: helper
+processes are started from the plugin venv with `-E -s`, inherit no
+`PYTHONPATH`/`PYTHONHOME`/`VIRTUAL_ENV` and no ambient `VB_*` values, and the
+venv probe refuses to report ready when the imported `virtuoso_bridge` comes
+from outside the plugin venv (except an explicitly configured editable local
+checkout). The generated per-runtime SSH config is also content-addressed, so a
+tool call can never delete or rewrite the config file a running tunnel uses.
 
 ## Runtime lifecycle
 

@@ -34,6 +34,17 @@ test('Paramiko config never carries OpenSSH host-key pinning options', () => {
   assert.match(config.text, /Host host\.example/)
 })
 
+test('a resolved ssh_config port is written so the generated config reaches the same endpoint', () => {
+  const config = buildSshConfig({
+    ...base,
+    connection: { host: 'lab', user: 'designer', sshBackend: 'openssh' },
+    sshPort: 2222,
+    hostKeyAlgorithms: ['ssh-ed25519'],
+  })
+  assert.match(config.text, /Port 2222/)
+  assert.doesNotMatch(config.text, /Port 22\n/)
+})
+
 test('the default backend keeps the OpenSSH pin', () => {
   const config = buildSshConfig({
     ...base,

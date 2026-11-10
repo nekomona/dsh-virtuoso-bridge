@@ -14,6 +14,11 @@ import sys
 import traceback
 from pathlib import Path
 
+_THIS = Path(__file__).resolve()
+_RUNTIME_DIR = _THIS.parent
+if str(_RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_DIR))
+
 # Use the package installed in the plugin venv; the setup manager owns source
 # selection.  VB_FORCE_VENDOR_SRC is an explicit diagnostic escape hatch.
 if os.environ.get("VB_FORCE_VENDOR_SRC") == "1":
@@ -28,6 +33,9 @@ def main() -> int:
     args = parser.parse_args()
     result = {"profile": args.profile, "stopped": False}
     try:
+        from vb_plugin_env import isolate_runtime_env
+
+        isolate_runtime_env()
         from virtuoso_bridge.transport.tunnel import SSHClient
 
         running = SSHClient.is_running(args.profile)

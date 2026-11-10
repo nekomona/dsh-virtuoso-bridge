@@ -11,6 +11,11 @@ import json
 import sys
 from pathlib import Path
 
+_THIS = Path(__file__).resolve()
+_RUNTIME_DIR = _THIS.parent
+if str(_RUNTIME_DIR) not in sys.path:
+    sys.path.insert(0, str(_RUNTIME_DIR))
+
 
 def main() -> int:
     parser = argparse.ArgumentParser()
@@ -19,10 +24,11 @@ def main() -> int:
     parser.add_argument("--timeout", type=int, default=20)
     args = parser.parse_args()
     try:
-        from virtuoso_bridge.env import set_runtime_env_file
+        # Isolate the upstream .env loader so another local installation cannot
+        # change the host, port or scratch root this test reports on.
+        from vb_plugin_env import isolate_runtime_env
 
-        if args.env_file is not None:
-            set_runtime_env_file(Path(args.env_file) if args.env_file else None)
+        isolate_runtime_env(args.env_file)
         from virtuoso_bridge.transport.tunnel import SSHClient
 
         ssh = SSHClient.from_env(keep_remote_files=True, profile=args.profile)

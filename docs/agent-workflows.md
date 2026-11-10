@@ -108,7 +108,10 @@ Read the runtime state instead of guessing from a single log line:
    least one trusted type starts normally: SSH is pinned to the trusted types
    in the generated config. Only a *different key of the same type* is a
    conflict, and that must be reviewed and removed from known_hosts by the
-   user (`ssh-keygen -R <host>`); it is never replaced automatically.
+   user (`ssh-keygen -R <host>`); it is never replaced automatically. The
+   reported fingerprint belongs to the resolved `HostName`/`Port` (and
+   `HostKeyAlias` when set), not to the saved alias at port 22; each listed
+   fingerprint names its host, and a jump-host key is marked separately.
 3. An older daemon (for example an old mission bundle whose bridge listens on
    another port) is not reused. The plugin's `daemonProbe` reports
    `no-listener` or `legacy`, and the error hint gives the remedy: run
