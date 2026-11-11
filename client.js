@@ -1294,63 +1294,154 @@ window.__ModuleLoader__.load({
         )
       }
 
+      // -- shared state channel ---------------------------------------------
+      // Every panel that shows bridge state used to own a `/events` stream and
+      // a 5 s `/state` poll. There are three mount points (right-sidebar tab,
+      // settings page, composer opener), so the page could hold three
+      // never-ending HTTP/1.1 responses, and a browser allows only six per
+      // origin. Once the pool was full, a `/state` fetch waited in the queue
+      // until its 12 s AbortSignal fired and the panel reported "did not
+      // answer within 12s" while the host was idle. One channel for the whole
+      // page fixes that: a single stream, a single fallback poller, and a
+      // panel remount (e.g. after an action completes) no longer churns either.
+      const stateChannel = {
+        state: null,
+        error: '',
+        live: false,
+        subscribers: new Set(),
+        refs: 0,
+        source: undefined,
+        pollTimer: undefined,
+        reconnectTimer: undefined,
+        reconnectDelay: 3_000,
+        inFlight: false,
+        stopped: false,
+      }
+
+      function publishState(patch) {
+        Object.assign(stateChannel, patch)
+        for (const notify of stateChannel.subscribers) {
+          try {
+            notify()
+          } catch {
+            // one subscriber must not break the channel
+          }
+        }
+      }
+
+      async function loadState(force = false) {
+        if (stateChannel.stopped || stateChannel.inFlight) return
+        // The stream already pushes every change; polling on top of it only
+        // competes for the same origin connections.
+        if (!force && stateChannel.live) return
+        stateChannel.inFlight = true
+        try {
+          const data = await request('/state')
+          if (!stateChannel.stopped) publishState({ state: data.state, error: '' })
+        } catch (failure) {
+          if (!stateChannel.stopped) publishState({ error: failure.message })
+        } finally {
+          stateChannel.inFlight = false
+        }
+      }
+
+      function closeEventStream(retry = false) {
+        const source = stateChannel.source
+        stateChannel.source = undefined
+        if (source) {
+          try {
+            source.close()
+          } catch {
+            // ignore
+          }
+        }
+        clearTimeout(stateChannel.reconnectTimer)
+        stateChannel.reconnectTimer = undefined
+        if (!retry || stateChannel.stopped) return
+        const delay = stateChannel.reconnectDelay
+        stateChannel.reconnectDelay = Math.min(stateChannel.reconnectDelay * 2, 30_000)
+        stateChannel.reconnectTimer = setTimeout(() => {
+          stateChannel.reconnectTimer = undefined
+          openEventStream()
+        }, delay)
+      }
+
+      async function openEventStream() {
+        if (stateChannel.stopped || stateChannel.source) return
+        let current
+        try {
+          current = await ensureSession()
+        } catch {
+          publishState({ live: false })
+          return
+        }
+        if (stateChannel.stopped || stateChannel.source) return
+        const url = `${current.base}/events${current.token ? `?token=${encodeURIComponent(current.token)}` : ''}`
+        const source = new EventSource(url)
+        stateChannel.source = source
+        source.onopen = () => {
+          stateChannel.reconnectDelay = 3_000
+          publishState({ live: true })
+        }
+        source.onmessage = (event) => {
+          try {
+            const payload = JSON.parse(event.data)
+            if (payload?.type === 'state' && payload.state) {
+              publishState({ state: payload.state, live: true, error: '' })
+            }
+          } catch {
+            // ignore malformed frames
+          }
+        }
+        source.onerror = () => {
+          publishState({ live: false })
+          // A transient drop reconnects on its own; a stream the browser closed
+          // for good (e.g. 403/404 after a host restart) needs a fresh one.
+          if (source.readyState === 2) closeEventStream(true)
+        }
+      }
+
+      function startStateChannel() {
+        if (stateChannel.source || stateChannel.pollTimer) return
+        stateChannel.stopped = false
+        openEventStream()
+        loadState()
+        stateChannel.pollTimer = setInterval(() => {
+          if (stateChannel.live) return
+          if (typeof document !== 'undefined' && document.hidden) return
+          loadState()
+        }, 5_000)
+      }
+
+      function stopStateChannel() {
+        stateChannel.stopped = true
+        clearInterval(stateChannel.pollTimer)
+        stateChannel.pollTimer = undefined
+        closeEventStream(false)
+        stateChannel.state = null
+        stateChannel.error = ''
+        stateChannel.live = false
+      }
+
       function useBridgeState() {
-        const [state, setState] = React.useState(null)
-        const [error, setError] = React.useState('')
-        const [live, setLive] = React.useState(false)
-        const [nonce, setNonce] = React.useState(0)
-        const reload = React.useCallback(() => setNonce((value) => value + 1), [])
+        const [, rerender] = React.useState(0)
         React.useEffect(() => {
-          let disposed = false
-          let source
-          let timer
-          async function load() {
-            try {
-              const data = await request('/state')
-              if (disposed) return
-              setState(data.state)
-              setError('')
-            } catch (failure) {
-              if (!disposed) setError(failure.message)
-            }
-          }
-          load()
-          ;(async () => {
-            try {
-              const current = await ensureSession()
-              if (disposed) return
-              const url = `${current.base}/events${current.token ? `?token=${encodeURIComponent(current.token)}` : ''}`
-              source = new EventSource(url)
-              source.onopen = () => setLive(true)
-              source.onmessage = (event) => {
-                try {
-                  const payload = JSON.parse(event.data)
-                  if (payload?.type === 'state' && payload.state) {
-                    setState(payload.state)
-                    setLive(true)
-                    setError('')
-                  }
-                } catch {
-                  // ignore malformed frames
-                }
-              }
-              source.onerror = () => setLive(false)
-            } catch {
-              setLive(false)
-            }
-          })()
-          timer = setInterval(load, 5000)
+          stateChannel.stopped = false
+          stateChannel.refs += 1
+          const notify = () => rerender((value) => value + 1)
+          stateChannel.subscribers.add(notify)
+          startStateChannel()
           return () => {
-            disposed = true
-            clearInterval(timer)
-            try {
-              source?.close()
-            } catch {
-              // ignore
-            }
+            stateChannel.subscribers.delete(notify)
+            stateChannel.refs -= 1
+            if (stateChannel.refs <= 0) stopStateChannel()
           }
-        }, [nonce])
-        return { state, error, live, reload }
+        }, [])
+        const reload = React.useCallback(() => {
+          loadState(true)
+          if (!stateChannel.source) openEventStream()
+        }, [])
+        return { state: stateChannel.state, error: stateChannel.error, live: stateChannel.live, reload }
       }
 
       function useAction(reload, agentId) {
@@ -2296,7 +2387,13 @@ window.__ModuleLoader__.load({
           })
         }, [state, draft])
         if (!state || !draft) {
-          return h('div', { className: 'vb-root vb-settings' }, styleElement, h('div', { className: 'vb-muted' }, error || label('loading')))
+          return h(
+            'div',
+            { className: 'vb-root vb-settings' },
+            styleElement,
+            h('div', { className: 'vb-muted' }, error || label('loading')),
+            error ? h(Button, { onClick: reload }, label('retry')) : null,
+          )
         }
         const setup = state.setup || {}
         const connections = state.connections || []
