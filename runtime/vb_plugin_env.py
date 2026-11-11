@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Plugin-owned runtime environment, remote scratch roots and health checks.
+"""Plugin-owned runtime environment, remote scratch roots, tunnel adoption and
+health checks.
 
-Three problems this module solves for every helper that imports
+Four problems this module solves for every helper that imports
 ``virtuoso_bridge``:
 
 * The upstream client calls ``load_vb_env(override=True)``, which walks upward
@@ -24,6 +25,13 @@ Three problems this module solves for every helper that imports
   actionable hint so the dashboard, tools and logs can say "the root does not
   exist, create it with ..." instead of "set a directory only you can write".
 
+* The DSH plugin (the JS host) owns the long-lived OpenSSH port forward for a
+  remote runtime.  Every Python helper must adopt that process instead of
+  asking ``SSHClient`` to spawn a second ``ssh.exe``: ``install_plugin_tunnel``
+  monkey-patches the upstream client once, and each ``SSHClient.from_env`` then
+  adopts the plugin's PID/local port.  Tunnel liveness is answered from that
+  PID, never by TCP-probing the forwarding port.
+
 Only the Python standard library is imported at module load: ``virtuoso_bridge``
 is imported lazily after :func:`isolate_runtime_env` has run.
 """
@@ -33,6 +41,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+from dataclasses import dataclass
 from pathlib import Path
 
 _THIS = Path(__file__).resolve()
@@ -79,7 +88,420 @@ def isolate_runtime_env(env_file: str | Path | None = None) -> Path:
     requested = str(env_file or "").strip()
     path = Path(requested) if requested else empty_env_file()
     set_runtime_env_file(path)
+    # The plugin-owned tunnel switches itself on through the environment, so the
+    # adoption hook is installed here: every helper calls this function before
+    # it constructs an SSHClient, and the patch is a no-op without the switch.
+    install_plugin_tunnel()
     return path
+
+
+# --------------------------------------------------------------------------
+# Plugin-owned SSH tunnel (the DSH host starts the forward, Python adopts it)
+# --------------------------------------------------------------------------
+#
+# The Host sets these variables for every helper process of a remote runtime:
+#
+#   VB_PLUGIN_TUNNEL_OWNER       "plugin": the switch (with a positive PID)
+#   VB_PLUGIN_TUNNEL_PID         PID of the plugin's long-lived ssh process
+#   VB_PLUGIN_TUNNEL_LOCAL_PORT  local port that forward listens on
+#   VB_PLUGIN_TUNNEL_REMOTE_PORT remote daemon port the forward targets
+#   VB_LOCAL_PORT_<profile>      the same local port (upstream SSHClient reads it)
+#   VB_REMOTE_PORT_<profile>     the same remote port
+#
+# With the switch on, upstream SSHClient must never start or stop an ssh
+# process for the tunnel: it adopts the PID, reports liveness from that PID and
+# raises instead of starting a replacement.  The Host kills its own process.
+
+PLUGIN_TUNNEL_OWNER_ENV = "VB_PLUGIN_TUNNEL_OWNER"
+PLUGIN_TUNNEL_PID_ENV = "VB_PLUGIN_TUNNEL_PID"
+PLUGIN_TUNNEL_LOCAL_PORT_ENV = "VB_PLUGIN_TUNNEL_LOCAL_PORT"
+PLUGIN_TUNNEL_REMOTE_PORT_ENV = "VB_PLUGIN_TUNNEL_REMOTE_PORT"
+PLUGIN_TUNNEL_OWNER_VALUE = "plugin"
+PLUGIN_TUNNEL_PATCH_MARKER = "plugin-tunnel-shim-v1"
+PLUGIN_TUNNEL_DEAD_MESSAGE = (
+    "the DSH plugin tunnel (pid {pid}) is no longer running; restart the runtime"
+)
+
+
+@dataclass(frozen=True)
+class PluginTunnel:
+    """The plugin-owned OpenSSH forward a Python helper must adopt.
+
+    ``local_port``/``remote_port`` may be ``None`` when the Host omitted them;
+    upstream ``SSHClient`` then keeps its own ``VB_LOCAL_PORT``/``VB_REMOTE_PORT``
+    values, which the Host sets to the same ports.
+    """
+
+    pid: int
+    local_port: int | None = None
+    remote_port: int | None = None
+
+    def as_dict(self) -> dict:
+        return {
+            "owner": PLUGIN_TUNNEL_OWNER_VALUE,
+            "pid": self.pid,
+            "localPort": self.local_port,
+            "remotePort": self.remote_port,
+        }
+
+
+def _positive_port(value) -> int | None:
+    try:
+        port = int(value)
+    except (TypeError, ValueError):
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def plugin_tunnel_config() -> PluginTunnel | None:
+    """The plugin-owned tunnel this process must adopt, or ``None``.
+
+    The switch is exactly ``VB_PLUGIN_TUNNEL_OWNER=plugin`` plus a positive
+    integer ``VB_PLUGIN_TUNNEL_PID``; a missing or malformed PID means "not
+    plugin-owned" so a helper can never mistake an empty value for a tunnel.
+    """
+    owner = os.environ.get(PLUGIN_TUNNEL_OWNER_ENV, "").strip().lower()
+    if owner != PLUGIN_TUNNEL_OWNER_VALUE:
+        return None
+    try:
+        pid = int(os.environ.get(PLUGIN_TUNNEL_PID_ENV, "").strip())
+    except (TypeError, ValueError):
+        return None
+    if pid <= 0:
+        return None
+    return PluginTunnel(
+        pid=pid,
+        local_port=_positive_port(os.environ.get(PLUGIN_TUNNEL_LOCAL_PORT_ENV, "").strip()),
+        remote_port=_positive_port(os.environ.get(PLUGIN_TUNNEL_REMOTE_PORT_ENV, "").strip()),
+    )
+
+
+def plugin_tunnel_pid() -> int | None:
+    """PID of the plugin-owned ssh process, or ``None`` when it is not in use."""
+    config = plugin_tunnel_config()
+    return config.pid if config is not None else None
+
+
+def _pid_is_alive(pid: int) -> bool:
+    """Process liveness only: never a TCP probe and never a console event.
+
+    Upstream's own probe is used when it is importable (it already handles the
+    Windows ``os.kill(pid, 0)`` trap); the stdlib fallback exists only so the
+    switch keeps working if the package layout changes.
+    """
+    try:
+        from virtuoso_bridge.transport.ssh import _pid_is_alive as upstream_pid_is_alive
+
+        return bool(upstream_pid_is_alive(pid))
+    except ImportError:
+        pass
+    try:
+        parsed = int(pid)
+        if parsed <= 0:
+            return False
+        if os.name != "nt":
+            os.kill(parsed, 0)
+            return True
+        if parsed > 0xFFFFFFFF:
+            return False
+        import ctypes
+        from ctypes import wintypes
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+        kernel32.OpenProcess.restype = wintypes.HANDLE
+        kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        kernel32.WaitForSingleObject.restype = wintypes.DWORD
+        kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+        kernel32.CloseHandle.restype = wintypes.BOOL
+        handle = kernel32.OpenProcess(0x00100000, False, parsed)  # SYNCHRONIZE
+        if not handle:
+            return ctypes.get_last_error() == 5  # Access denied: do not assume dead.
+        try:
+            return kernel32.WaitForSingleObject(handle, 0) == 0x00000102  # WAIT_TIMEOUT
+        finally:
+            kernel32.CloseHandle(handle)
+    except PermissionError:
+        return True
+    except (TypeError, ValueError, OverflowError, OSError):
+        return False
+
+
+def plugin_tunnel_alive(config: PluginTunnel | None = None) -> bool:
+    """Whether the plugin-owned ssh process still runs (PID liveness only)."""
+    config = config if config is not None else plugin_tunnel_config()
+    if config is None:
+        return False
+    return _pid_is_alive(config.pid)
+
+
+def plugin_tunnel_report() -> dict | None:
+    """Status payload for the runtime panel: the switch, its ports and liveness."""
+    config = plugin_tunnel_config()
+    if config is None:
+        return None
+    return {**config.as_dict(), "alive": plugin_tunnel_alive(config)}
+
+
+def _tunnel_runner(ssh) -> object | None:
+    """The runner that owns the daemon/tunnel endpoint.
+
+    Deliberately not :func:`_runner`, which prefers the *deployment* runner:
+    tunnel adoption must only touch the daemon-facing runner.
+    """
+    try:
+        runner = getattr(ssh, "ssh_runner", None)
+    except Exception:  # noqa: BLE001 - adoption must never fail a client
+        runner = None
+    if runner is not None:
+        return runner
+    return getattr(ssh, "_ssh_runner", None)
+
+
+def _detach_plugin_forward(ssh) -> None:
+    """Forget the adopted forward without terminating the plugin's process."""
+    runner = _tunnel_runner(ssh)
+    if runner is not None and hasattr(runner, "detach_port_forward"):
+        runner.detach_port_forward()
+    try:
+        ssh._tunnel_endpoint = None
+    except Exception:  # noqa: BLE001 - fake/partial clients in tests
+        pass
+
+
+def adopt_plugin_tunnel(ssh, config: PluginTunnel | None = None) -> dict | None:
+    """Point one ``SSHClient`` at the plugin's forward; never spawn or probe.
+
+    The client's local port becomes the plugin's port (authoritative over
+    ``VB_LOCAL_PORT``), the daemon runner records the plugin PID as an
+    *external* tunnel, and ``_tunnel_endpoint`` matches it so upstream
+    ``is_tunnel_alive`` answers from ``_pid_is_alive`` alone.  No TCP connection
+    is attempted and no state file is read.
+
+    Returns the adoption record (also stored on the client as
+    ``ssh._vb_plugin_tunnel``), or ``None`` when the switch is absent.
+    """
+    config = config if config is not None else plugin_tunnel_config()
+    if config is None:
+        return None
+    runner = _tunnel_runner(ssh)
+    info: dict = {
+        **config.as_dict(),
+        "adopted": False,
+        "alive": plugin_tunnel_alive(config),
+    }
+    if runner is None:
+        # Local mode has no SSH tunnel; leave the client exactly as upstream built it.
+        info["reason"] = "local connection: the runtime has no SSH tunnel"
+        try:
+            ssh._vb_plugin_tunnel = info
+        except Exception:  # noqa: BLE001
+            pass
+        return info
+    local_port = config.local_port
+    if local_port is None:
+        local_port = _positive_port(getattr(ssh, "_local_port", None))
+    if local_port is not None:
+        ssh._local_port = int(local_port)
+    remote_port = _positive_port(getattr(ssh, "remote_port", None))
+    if remote_port is None:
+        remote_port = _positive_port(getattr(ssh, "_port", None))
+    _detach_plugin_forward(ssh)
+    # The setter marks the forward external, so upstream never treats it as a
+    # child process it may terminate.
+    runner.tunnel_pid = config.pid
+    if local_port is not None and remote_port is not None:
+        ssh._tunnel_endpoint = (int(local_port), int(remote_port), config.pid)
+    info.update(
+        adopted=True,
+        localPort=local_port,
+        remotePort=remote_port,
+        declaredRemotePort=config.remote_port,
+        remotePortMismatch=(
+            config.remote_port is not None
+            and remote_port is not None
+            and config.remote_port != remote_port
+        ),
+    )
+    try:
+        ssh._vb_plugin_tunnel = info
+    except Exception:  # noqa: BLE001
+        pass
+    return info
+
+
+def _unbound(value):
+    """The plain function behind a classmethod/staticmethod descriptor."""
+    if isinstance(value, (classmethod, staticmethod)):
+        return value.__func__
+    return value
+
+
+def install_plugin_tunnel() -> dict | None:
+    """Monkey-patch upstream so every helper adopts the plugin-owned tunnel.
+
+    Idempotent and lazy: ``virtuoso_bridge`` is imported here, never at module
+    import time, so a helper can isolate the ``.env`` loader first.  Patching
+    the class objects (not a subclass) also covers an editable/vendored source
+    checkout.  Returns ``None`` when the environment switch is absent, which is
+    the whole contract for local environments and non-tunnel helpers.
+
+    Patches installed (all keyed on the live environment switch, so a process
+    that never sees ``VB_PLUGIN_TUNNEL_OWNER=plugin`` keeps upstream behaviour):
+
+    * ``SSHClient.from_env``         adopt PID/local port/endpoint on creation
+    * ``SSHClient.ensure_tunnel``    return if the PID is alive, raise if dead
+    * ``SSHClient._state_is_live``   answer a matching saved PID without a port poke
+    * ``SSHClient.stop``             clear state/close runners, never signal the PID
+    * ``SSHRunner.stop_port_forward`` never signal the plugin PID (defence in depth)
+    * ``SSHRunner.start_port_forward`` refuse to start a second ssh forward
+    """
+    config = plugin_tunnel_config()
+    if config is None:
+        return None
+    from virtuoso_bridge.transport.tunnel import SSHClient
+
+    if getattr(SSHClient, "_vb_plugin_tunnel_marker", None) == PLUGIN_TUNNEL_PATCH_MARKER:
+        return {**config.as_dict(), "patched": [], "alreadyInstalled": True}
+
+    required = ("from_env", "ensure_tunnel", "_state_is_live", "stop")
+    missing = [name for name in required if not hasattr(SSHClient, name)]
+    if missing:
+        raise RuntimeError(
+            "the DSH plugin tunnel shim cannot be installed: "
+            f"virtuoso_bridge.SSHClient has no {', '.join(missing)}"
+        )
+    from virtuoso_bridge.transport.ssh import SSHRunner
+
+    runner_required = ("stop_port_forward", "start_port_forward")
+    runner_missing = [name for name in runner_required if not hasattr(SSHRunner, name)]
+    if runner_missing:
+        raise RuntimeError(
+            "the DSH plugin tunnel shim cannot be installed: "
+            f"virtuoso_bridge.SSHRunner has no {', '.join(runner_missing)}"
+        )
+
+    SSHClient._vb_plugin_original_from_env = _unbound(SSHClient.__dict__["from_env"])
+    SSHClient._vb_plugin_original_ensure_tunnel = _unbound(SSHClient.__dict__["ensure_tunnel"])
+    SSHClient._vb_plugin_original_state_is_live = _unbound(SSHClient.__dict__["_state_is_live"])
+    SSHClient._vb_plugin_original_stop = _unbound(SSHClient.__dict__["stop"])
+    SSHRunner._vb_plugin_original_stop_port_forward = _unbound(
+        SSHRunner.__dict__["stop_port_forward"]
+    )
+    SSHRunner._vb_plugin_original_start_port_forward = _unbound(
+        SSHRunner.__dict__["start_port_forward"]
+    )
+
+    def _plugin_from_env(
+        cls,
+        *,
+        keep_remote_files: bool = False,
+        profile: str | None = None,
+        selected_port: int | None = None,
+        read_selection: bool = True,
+        replace_setup: bool = False,
+    ):
+        client = SSHClient._vb_plugin_original_from_env(
+            cls,
+            keep_remote_files=keep_remote_files,
+            profile=profile,
+            selected_port=selected_port,
+            read_selection=read_selection,
+            replace_setup=replace_setup,
+        )
+        adopt_plugin_tunnel(client)
+        return client
+
+    def _plugin_ensure_tunnel(self) -> None:
+        config_now = plugin_tunnel_config()
+        if config_now is None or _tunnel_runner(self) is None:
+            return SSHClient._vb_plugin_original_ensure_tunnel(self)
+        if not plugin_tunnel_alive(config_now):
+            raise RuntimeError(PLUGIN_TUNNEL_DEAD_MESSAGE.format(pid=config_now.pid))
+        # Refresh the adoption (the daemon port may have changed for automatic
+        # sessions) and return: never spawn ssh, never probe the local port.
+        adopt_plugin_tunnel(self, config_now)
+        return None
+
+    def _plugin_state_is_live(state) -> bool:
+        config_now = plugin_tunnel_config()
+        if config_now is not None and isinstance(state, dict):
+            pid = state.get("tunnel_pid")
+            if type(pid) is int and pid == config_now.pid:
+                return _plugin_endpoint_state_is_live(state, config_now)
+        return SSHClient._vb_plugin_original_state_is_live(state)
+
+    def _plugin_stop(self) -> None:
+        config_now = plugin_tunnel_config()
+        if config_now is None or _tunnel_runner(self) is None:
+            return SSHClient._vb_plugin_original_stop(self)
+        # The DSH host owns the ssh process: forget it first so upstream stop()
+        # cannot adopt the saved PID again, and the runner guard below ensures
+        # nothing signals it.  State and runners are still cleared as usual.
+        _detach_plugin_forward(self)
+        return SSHClient._vb_plugin_original_stop(self)
+
+    def _plugin_stop_port_forward(self) -> None:
+        config_now = plugin_tunnel_config()
+        if config_now is not None and getattr(self, "tunnel_pid", None) == config_now.pid:
+            self.detach_port_forward()
+            return None
+        return SSHRunner._vb_plugin_original_stop_port_forward(self)
+
+    def _plugin_start_port_forward(self, port, settle: float = 1.5, *, remote_port=None):
+        config_now = plugin_tunnel_config()
+        if config_now is not None:
+            raise RuntimeError(
+                "refusing to start a second SSH tunnel: the DSH plugin owns the "
+                f"tunnel (pid {config_now.pid}); restart the runtime"
+            )
+        return SSHRunner._vb_plugin_original_start_port_forward(
+            self, port, settle=settle, remote_port=remote_port
+        )
+
+    SSHClient.from_env = classmethod(_plugin_from_env)
+    SSHClient.ensure_tunnel = _plugin_ensure_tunnel
+    SSHClient._state_is_live = staticmethod(_plugin_state_is_live)
+    SSHClient.stop = _plugin_stop
+    SSHRunner.stop_port_forward = _plugin_stop_port_forward
+    SSHRunner.start_port_forward = _plugin_start_port_forward
+    SSHClient._vb_plugin_tunnel_marker = PLUGIN_TUNNEL_PATCH_MARKER
+    return {
+        **config.as_dict(),
+        "patched": [
+            "SSHClient.from_env",
+            "SSHClient.ensure_tunnel",
+            "SSHClient._state_is_live",
+            "SSHClient.stop",
+            "SSHRunner.stop_port_forward",
+            "SSHRunner.start_port_forward",
+        ],
+        "alreadyInstalled": False,
+    }
+
+
+def _plugin_endpoint_state_is_live(state: dict, config: PluginTunnel) -> bool:
+    """Upstream ``_state_is_live`` for the plugin PID, minus the port probe.
+
+    Upstream validates the saved endpoints and the PID liveness *before* it
+    calls ``SSHRunner.can_reach_port``; only the port poke is skipped, so a
+    dead plugin PID still reports the tunnel as not live.
+    """
+    if state.get("mode") != "remote":
+        return False
+    port = state.get("port")
+    remote_port = state.get("remote_port")
+    pid = state.get("tunnel_pid")
+    if any(type(value) is not int for value in (port, remote_port, pid)) or pid <= 0:
+        return False
+    if not 1 <= port <= 65535 or not 1 <= remote_port <= 65535:
+        return False
+    if state.get("target"):
+        from virtuoso_bridge.transport.tunnel import _state_target_matches
+
+        if not _state_target_matches(state, state["target"]):
+            return False
+    return plugin_tunnel_alive(config)
 
 
 def _runner(ssh) -> object | None:
@@ -528,13 +950,26 @@ def classify_deployment_failure(error: Exception, info: dict | None = None) -> d
 
 __all__ = [
     "EMPTY_ENV_TEXT",
+    "PLUGIN_TUNNEL_DEAD_MESSAGE",
+    "PLUGIN_TUNNEL_LOCAL_PORT_ENV",
+    "PLUGIN_TUNNEL_OWNER_ENV",
+    "PLUGIN_TUNNEL_OWNER_VALUE",
+    "PLUGIN_TUNNEL_PID_ENV",
+    "PLUGIN_TUNNEL_REMOTE_PORT_ENV",
+    "PluginTunnel",
     "ScratchRootError",
+    "adopt_plugin_tunnel",
     "classify_deployment_failure",
     "empty_env_file",
     "ensure_scratch_root",
     "inspect_path",
+    "install_plugin_tunnel",
     "isolate_runtime_env",
     "plugin_data_dir",
+    "plugin_tunnel_alive",
+    "plugin_tunnel_config",
+    "plugin_tunnel_pid",
+    "plugin_tunnel_report",
     "prepare_scratch_root",
     "remote_home",
     "resolve_scratch_root",

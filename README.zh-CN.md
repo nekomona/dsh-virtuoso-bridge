@@ -130,7 +130,9 @@ X11 关闭、保存 setup、history/job 策略），不新增引擎。
 - jump host、SSH backend、shell、Cadence 环境脚本、身份文件和角色覆盖。
 
 连接卡上直接显示 **启动/停止**、**编辑**、**测试** 和
-**部署守护进程设置**。较少使用的操作在 `⋯` 菜单中。
+**部署守护进程设置**。较少使用的操作在 `⋯` 菜单中。运行时正在运行时，**测试**
+复用其 Host 托管隧道（helper 采用同一 PID/端口），不会再启动一个 `ssh.exe`；
+运行时停止时会打开一条短命的 Host 托管探测隧道，而不再使用上游的游离转发。
 
 凭据（守护进程 token）写入 DSH credentials 服务，不写入连接配置或日志。
 
@@ -171,6 +173,30 @@ load("/path/to/virtuoso_setup.il")
 2. 守护进程未响应时，运行时进入 `waiting`；在 CIW 中加载 setup 后自动转为 `running`。
 3. 守护进程可被状态检查、对话框检查和工作目录探测。
 4. 停止时关闭 sidecar/tunnel；进程级管理器仍保留配置和活动记录。
+
+### 由 Host 插件托管的 SSH 隧道
+
+固定端口的远程连接不再由 Python sidecar 启动一个游离的 `ssh.exe`，而是由 Host
+插件自己打开转发：
+
+* `lib/tunnel.js` 以隐藏、**非 detached** 子进程方式启动 `ssh -N -L`，通过子进程事件
+  跟踪状态。就绪与否读取 OpenSSH 自己的详细日志（`Entering interactive session`），
+  隧道断开立即上报；插件不再通过连接转发端口来判断存活。
+  非 detached 是有意为之：Windows 上隐藏的非 detached 子进程会保留一个隐藏控制台，
+  `ssh -J` 隐式 `ProxyCommand` 子进程会继承它。此前 detached 正是该孙进程弹出可见
+  控制台窗口的原因。
+* 本地端口在 IPv4/IPv6 回环上先做绑定测试再使用，因此不再需要上游的“端口被占用”
+  探测；`connection.localPort` 空闲时会优先使用。
+* sidecar 与所有脚本 helper 都会收到 `VB_PLUGIN_TUNNEL_OWNER=plugin`、隧道 PID 和
+  本地/远端端口。`runtime/vb_plugin_env.py` 在 `isolate_runtime_env()` 中安装接管
+  shim：上游 `SSHClient` 直接采用该转发、用 PID 判断存活，并在需要时抛错而不是再
+  启动一个 `ssh.exe`。即使脚本正文从不调用 `connect()`，shim 也会在执行正文前安装；
+  Test/health helper 在没有 Host 隧道开关时不会自行创建转发。隧道的关闭由 Host 负责。
+* `<数据目录>/tunnels/` 下的记录让 DSH 崩溃后仍能发现 Host 托管的转发；运行面板
+  显示隧道状态、PID 与 `localhost:端口 → 远端`。
+* 自动会话连接会先执行与 `instances` 动作相同的只读实例发现，再打开隧道，因此
+  Host 转发到的实例与 sidecar 将要选择的实例一致。若发现结果不唯一（多个活动实例
+  且没有已保存的选择），启动会直接失败并列出候选，而不是转发到错误的 CIW。
 
 状态包括：`stopped`、`starting`、`connecting`、`waiting`、`running`、`error`、
 `needs-trust`。

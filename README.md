@@ -381,8 +381,41 @@ picking one.
 Runtimes are process-wide, so they survive conversation changes, forks and
 subagent sessions. They stop when the plugin is disabled/unloaded or DSH exits,
 or explicitly with action `stop`. An orphaned tunnel left by a crashed earlier
-process is detected from the virtuoso-bridge state file and can be stopped from
-the runtime panel/tool (`orphans`, `stop_orphan`).
+process is detected from the virtuoso-bridge state file and the plugin's own
+tunnel record, and can be stopped from the runtime panel/tool (`orphans`,
+`stop_orphan`).
+
+### The Host owns the SSH tunnel
+
+For fixed-port remote connections the Host plugin opens the forward itself
+instead of letting the Python sidecar start a free-running `ssh.exe`:
+
+* `lib/tunnel.js` spawns `ssh -N -L` as a hidden, **non-detached** child and
+  tracks it from child-process events. Readiness comes from OpenSSH's own
+  verbose log (`Entering interactive session`), and a dropped tunnel is reported
+  immediately — the plugin never dials the forward port to learn its state.
+  Non-detached is deliberate: on Windows a hidden non-detached child keeps a
+  hidden console that its implicit `ProxyJump`/`ProxyCommand` child inherits.
+  Detaching the tunnel was what made that grandchild open a visible console
+  window.
+* The selected local port is allocated with a local bind test on both loopback
+  families, so a busy daemon port no longer triggers upstream's "port busy"
+  probing. `connection.localPort` is honoured when it is free.
+* The sidecar and every script helper receive `VB_PLUGIN_TUNNEL_OWNER=plugin`,
+  the tunnel PID and its local/remote ports. `runtime/vb_plugin_env.py` installs
+  an adoption shim in `isolate_runtime_env()`, so upstream `SSHClient` adopts the
+  forward, answers liveness from the PID, and raises instead of starting a
+  second `ssh.exe`. The shim is installed before a script body runs even when it
+  never calls `connect()`, and the Test/health helpers refuse to create a
+  forward without the Host switch. Tunnel teardown belongs to the Host.
+* A small record under `<data dir>/tunnels/` makes a Host-owned forward
+  discoverable after a crashed DSH process; the runtime panel shows the tunnel's
+  state, PID and `localhost:port → remote` pair.
+* Automatic-session connections run the same read-only instance discovery the
+  `instances` action uses before the tunnel is opened, so the Host forwards to
+  the instance the sidecar will select. An ambiguous discovery (several live
+  instances without a stored selection) fails with the available list instead of
+  forwarding to the wrong CIW.
 
 Health polling runs every 20 seconds and deliberately does not write to the
 CIW (`log_to_ciw=False` unless `settings.logToCiw` is enabled).
@@ -423,7 +456,11 @@ performs read-only automatic-session discovery; `select_instance` stores the
 chosen port on the connection before a restart. `test_connection` uses the same
 SSH backend as the bridge — Paramiko sessions never launch `ssh.exe` — and
 returns a structured health report: `ssh`, `remotePython`, `scratchRoot` and a
-signed/unsigned `daemon` probe, even when no runtime sidecar exists. It never
+signed/unsigned `daemon` probe, even when no runtime sidecar exists. When a
+runtime is running, the probe reuses its Host-owned tunnel (adopting the same
+PID/ports) rather than opening a second `ssh.exe`; a stopped runtime gets a
+short-lived Host-owned probe tunnel, so Test never launches the old
+free-running upstream forward. It never
 deploys or creates the scratch root; the UI renders every check and marks the
 target `ready` only when SSH and a signed daemon both pass. Saving a connection
 without an `id` updates the row with the same name instead of creating a
@@ -545,11 +582,13 @@ cordis.patch.yml      Bundle patch (Host row)
 lib/store.js          settings.json, connections, validation
 lib/setup.js          python/venv/source selection, install, diagnostics, caches
 lib/sidecar.js        line-JSON sidecar process client
-lib/manager.js        runtimes, sidecars, script jobs, actions, state, orphans
+lib/tunnel.js         Host-owned hidden ssh port-forward child (readiness, status)
+lib/manager.js        runtimes, sidecars, tunnels, script jobs, actions, state, orphans
 lib/http.js           token-protected state/action/SSE transport
 lib/tools.js          four agent tools + prompt section
 lib/connection-access.js  new-connection / SSH-retarget approval gate
 runtime/vb_sidecar.py one JSON-RPC process per runtime (owns the Python client)
+runtime/vb_plugin_env.py  env isolation, scratch-root checks, plugin-tunnel adoption shim
 runtime/vb_script.py  isolated batch script runner (thin CLI over the job core)
 runtime/vb_script_exec.py  shared job core: artifacts, connect, watchdog, namespace
 runtime/vb_script_worker.py  per-runtime script worker (one process per runtime+session)

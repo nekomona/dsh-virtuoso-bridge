@@ -31,6 +31,7 @@ from vb_plugin_env import (  # noqa: E402 - path is set up above
     ScratchRootError,
     inspect_path,
     isolate_runtime_env,
+    plugin_tunnel_config,
     remote_home,
     resolve_scratch_root,
 )
@@ -149,7 +150,13 @@ def _scratch_report(ssh, profile: str, timeout: float) -> dict:
 
 
 def _daemon_report(ssh, port: int, timeout: float) -> dict:
-    """Probe an already forwarded daemon port; never deploy or select."""
+    """Probe a Host-owned forwarded daemon port; never deploy or select.
+
+    The plugin never asks this helper to create a forward.  Without the
+    plugin-tunnel switch there is no Host-owned forward to probe, so the helper
+    reports ``no-forward`` instead of falling back to upstream's detached
+    ``ssh.exe`` tunnel.
+    """
     from vb_daemon_probe import probe_tunnel_daemon
 
     if not port:
@@ -157,6 +164,14 @@ def _daemon_report(ssh, port: int, timeout: float) -> dict:
             "checked": False,
             "state": "no-port",
             "summary": "automatic sessions: no fixed daemon port; use Discover instances",
+        }
+    if plugin_tunnel_config() is None:
+        return {
+            "checked": True,
+            "state": "no-forward",
+            "port": port,
+            "remotePort": port,
+            "summary": "no Host-owned tunnel is available for this daemon probe",
         }
     token = None
     token_error = None
@@ -211,7 +226,9 @@ def main() -> int:
         isolate_runtime_env(args.env_file)
         profile = args.profile
         suffix = f"_{profile}" if profile else ""
-        if args.local_port:
+        if args.local_port and plugin_tunnel_config() is None:
+            # Standalone use may still choose a local port for the SSH helper;
+            # it must never override an adopted Host tunnel.
             os.environ[f"VB_LOCAL_PORT{suffix}"] = str(args.local_port)
             os.environ["VB_LOCAL_PORT"] = str(args.local_port)
         probe_port = args.instance_port or args.port

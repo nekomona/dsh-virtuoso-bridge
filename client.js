@@ -221,6 +221,10 @@ window.__ModuleLoader__.load({
       'conn.trustHint': 'Only trust a fingerprint you verified out of band. This appends the key to your ~/.ssh/known_hosts.',
       'conn.fingerprint': 'Fingerprint',
       'conn.details': 'Details',
+      'conn.tunnel': 'SSH tunnel',
+      'conn.tunnelUp': 'up',
+      'conn.tunnelDown': 'down',
+      'conn.tunnelLostHint': 'The plugin-owned SSH tunnel exited, so the bridge has no live forward. Restart the runtime to reopen it.',
       'conn.failureDetails': 'Failure details',
       'conn.sshPortShort': 'SSH',
       'backends.title': 'SSH backends',
@@ -505,6 +509,10 @@ window.__ModuleLoader__.load({
       'conn.trustHint': '只信任你已通过其他渠道核实的指纹。这会把密钥追加到 ~/.ssh/known_hosts。',
       'conn.fingerprint': '指纹',
       'conn.details': '详情',
+      'conn.tunnel': 'SSH 隧道',
+      'conn.tunnelUp': '已连通',
+      'conn.tunnelDown': '已断开',
+      'conn.tunnelLostHint': '插件托管的 SSH 隧道已退出，桥接没有可用的转发。请重启运行时以重新打开。',
       'conn.failureDetails': '失败详情',
       'conn.sshPortShort': 'SSH',
       'backends.title': 'SSH 后端',
@@ -683,6 +691,8 @@ window.__ModuleLoader__.load({
 .vb-chip.daemon-no-response{color:var(--dsw-alias-state-warning, #a15c00);border-color:var(--dsw-alias-state-warning, #a15c00)}
 .vb-chip.daemon-auth-failed{color:var(--dsw-alias-state-warning, #a15c00);border-color:var(--dsw-alias-state-warning, #a15c00)}
 .vb-chip.daemon-unreachable{color:var(--dsw-alias-state-error, #c62828);border-color:var(--dsw-alias-state-error, #c62828)}
+.vb-chip.tunnel-up{color:var(--dsw-alias-state-success, #2e7d32);border-color:var(--dsw-alias-state-success, #2e7d32)}
+.vb-chip.tunnel-down{color:var(--dsw-alias-state-error, #c62828);border-color:var(--dsw-alias-state-error, #c62828)}
 .vb-logline{display:flex;gap:8px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:10px;padding:2px 0;border-bottom:1px solid var(--dsw-alias-border-l1)}
 .vb-logline:last-child{border-bottom:none}
 .vb-logtime{color:var(--dsw-alias-label-secondary);flex:none}
@@ -735,6 +745,8 @@ window.__ModuleLoader__.load({
 .vb-chip.daemon-ready{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
 .vb-chip.daemon-no-response,.vb-chip.daemon-auth-failed{color:var(--dsw-alias-state-warn-primary);border-color:var(--dsw-alias-state-warn-primary)}
 .vb-chip.daemon-unreachable{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
+.vb-chip.tunnel-up{color:var(--dsw-alias-state-success-primary);border-color:var(--dsw-alias-state-success-primary)}
+.vb-chip.tunnel-down{color:var(--dsw-alias-state-error-primary);border-color:var(--dsw-alias-state-error-primary)}
 .vb-settings{height:auto;min-height:100%;max-height:none;overflow:visible}
 .vb-page-title{font-size:24px;font-weight:600;letter-spacing:-.02em}
 .vb-page-sub{max-width:620px;font-size:13px;line-height:1.55}
@@ -869,7 +881,7 @@ window.__ModuleLoader__.load({
       'connection.delete': 120_000,
       'connection.detect_shell': 120_000,
       'connection.instances': 120_000,
-      'connection.test': 90_000,
+      'connection.test': 150_000,
       'setup.install': 960_000,
       'setup.update': 960_000,
       'setup.diagnose': 300_000,
@@ -1388,7 +1400,11 @@ window.__ModuleLoader__.load({
         const stop = () => invoke('runtime.stop', { connection: connection.id, runtime: runtime?.id })
         const restart = () => invoke('runtime.restart', { connection: connection.id, subInstance: subInstanceId, waitMs: 15000 })
         const test = async () => {
-          const result = await invoke('connection.test', { connection: connection.id })
+          const result = await invoke('connection.test', {
+            connection: connection.id,
+            subInstance: subInstanceId,
+            runtime: runtime?.id,
+          })
           props.onTestResult?.(result)
         }
         if (state === 'needs-trust') {
@@ -1489,6 +1505,27 @@ window.__ModuleLoader__.load({
             { className: 'vb-mono vb-muted vb-ellipsis' },
             `${connection.user ? `${connection.user}@` : ''}${connection.host}:${connection.autoSessions ? 'auto' : connection.port}${(runtime?.remoteWorkDir || connection.remoteWorkDir) ? ` · ${runtime?.remoteWorkDir || connection.remoteWorkDir}` : ''}`,
           ),
+          runtime?.tunnel
+            ? h(
+                'div',
+                { className: 'vb-row vb-gap6 vb-wrap' },
+                h(
+                  'span',
+                  { className: `vb-chip tunnel-${runtime.tunnel.alive ? 'up' : 'down'}` },
+                  `${label('conn.tunnel')}: ${runtime.tunnel.alive ? label('conn.tunnelUp') : label('conn.tunnelDown')}`,
+                ),
+                runtime.tunnel.localPort
+                  ? h(
+                      'span',
+                      { className: 'vb-mono vb-muted' },
+                      `localhost:${runtime.tunnel.localPort} → 127.0.0.1:${runtime.tunnel.remotePort}`,
+                    )
+                  : null,
+              )
+            : null,
+          runtime?.tunnel && !runtime.tunnel.alive
+            ? h('div', { className: 'vb-hint' }, label('conn.tunnelLostHint'))
+            : null,
           h(HostKeyPrompt, { connection, pending, busy, invoke, subInstanceId }),
           testInfo && !testInfo.ok
             ? h('div', { className: 'vb-error' }, `SSH test: ${testInfo.detail || 'failed'}`)
@@ -1512,6 +1549,9 @@ window.__ModuleLoader__.load({
               ? h('div', { className: 'vb-mono vb-muted vb-wrap' }, `instance ${runtime.instance.port} · pid ${runtime.instance.pid} · ${runtime.instance.work_dir}`)
               : null,
             runtime?.stage ? h('div', { className: 'vb-muted' }, `stage: ${runtime.stage}`) : null,
+            runtime?.tunnel?.pid
+              ? h('div', { className: 'vb-mono vb-muted vb-wrap' }, `tunnel pid ${runtime.tunnel.pid}`)
+              : null,
             agents.length
               ? h('div', { className: 'vb-mono vb-muted vb-wrap' }, agents.slice(0, 4).map((agent) => shortId(agent.sessionId)).join(' · '))
               : null,
@@ -1855,7 +1895,8 @@ window.__ModuleLoader__.load({
             runtime.state === 'error' ||
             runtime.pendingHostKey ||
             runtime.state === 'waiting' ||
-            runtime.health?.ok === false,
+            runtime.health?.ok === false ||
+            (runtime.tunnel && runtime.tunnel.alive === false),
         )
         const storageBytes = caches.reduce((total, cache) => total + (Number(cache.bytes) || 0), 0)
         const openConfig = () => {

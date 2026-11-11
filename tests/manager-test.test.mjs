@@ -93,13 +93,17 @@ test('Test Connection reports SSH, Python, scratch root and daemon even with no 
     assert.equal(result.ok, true, 'SSH success stays the compatibility ok flag')
     assert.equal(result.ready, false)
     assert.equal(result.verdict, 'daemon-not-ready')
-    assert.equal(result.checks.daemon.state, 'no-listener')
+    // No runtime is up, so Test opens a short Host probe tunnel to the daemon
+    // port. `lab.example` is unreachable here; the structured checks still come
+    // back and the daemon reports the real tunnel cause instead of a fake state.
+    assert.equal(result.checks.daemon.state, 'unreachable')
+    assert.match(result.checks.daemon.summary, /Host test tunnel failed/)
     assert.equal(result.checks.scratchRoot.exists, false)
     assert.match(result.checks.scratchRoot.hint, /mkdir -p -m 700/)
     assert.match(result.detail, /SSH ok \(3405 ms\)/)
     assert.match(result.detail, /scratch root missing/)
-    assert.match(result.detail, /daemon no-listener/)
-    assert.equal(result.daemon.state, 'no-listener')
+    assert.match(result.detail, /daemon unreachable: Host test tunnel failed/)
+    assert.equal(result.daemon.state, 'unreachable')
   } finally {
     await manager.dispose()
   }

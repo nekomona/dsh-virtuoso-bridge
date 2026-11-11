@@ -19,9 +19,20 @@ for DeepSeek Harness (DSH). It manages:
 
 It is a DSH bundle with a Host half (`index.js`, `lib/`) and a Client half
 (`client.js`). A per-runtime Python sidecar (`runtime/vb_sidecar.py`) holds the
-actual virtuoso-bridge client. The plugin does not implement its own Maestro
-runner, job store, dialog manager, history manager, or scheduler; those are the
-upstream VBL/DSH facilities.
+actual virtuoso-bridge client. For fixed-port remote connections the Host also
+owns the SSH forward: `lib/tunnel.js` spawns `ssh -N -L` as a hidden,
+non-detached child, waits for OpenSSH's `Entering interactive session` log line,
+and reports tunnel state from child-process events instead of probing the
+forward port. `runtime/vb_plugin_env.py` installs an adoption shim so every
+Python helper uses that forward (PID + local/remote port) and never starts a
+second `ssh.exe`. Non-detached is required on Windows: a hidden non-detached
+child keeps a hidden console which the implicit `ProxyJump` child inherits,
+whereas a detached tunnel makes that grandchild open a visible console window.
+Automatic-session connections run the read-only instance discovery before the
+tunnel is opened, so the Host forwards to the instance the sidecar will select.
+The plugin does not
+implement its own Maestro runner, job store, dialog manager, history manager, or
+scheduler; those are the upstream VBL/DSH facilities.
 
 ## 2. Requirements
 
@@ -148,7 +159,11 @@ and authentication, the remote Python interpreter, whether the configured scratc
 root exists/is private/writable, and what answers the configured daemon port
 (`ready`, `no-listener`, `legacy`, `auth`, `timeout`). The daemon probe also runs
 when the runtime is stopped, and the card marks the target ready only when both
-SSH and a signed daemon pass. A fixed deployment result says whether it reused an
+SSH and a signed daemon pass. When that runtime is running, Test reuses its
+Host-owned tunnel (the helper adopts the same PID/ports) instead of opening a
+second `ssh.exe`; a stopped runtime gets a short-lived Host-owned probe tunnel,
+so Test no longer launches the old free-running upstream forward. A fixed
+deployment result says whether it reused an
 existing daemon; a missing root under the home is created (with a `_`/`-` typo
 warning), while a missing root elsewhere gets a specific `mkdir` hint.
 

@@ -339,6 +339,7 @@ class BridgeRuntime:
         self.scratch_root: str = ""
         self.scratch_configured: str = ""
         self.attach_info: dict[str, Any] | None = None
+        self.isolation_error: str | None = None
         self.lock = threading.RLock()
         self.started_at = time.time()
         self.last_activity = time.time()
@@ -354,14 +355,20 @@ class BridgeRuntime:
         constructing transports.  The plugin supplies the selected connection
         through ``VB_*_<profile>`` variables, so the ambient ``.env`` must not
         replace them; an empty runtime env file makes that load a no-op.
+
+        ``isolate_runtime_env`` also installs the plugin-owned tunnel shim, so
+        this must run before the first ``SSHClient.from_env``/``ensure_tunnel``.
+        A failure is reported later by :meth:`status` instead of being silent:
+        a helper that could not adopt the Host's tunnel must never quietly
+        start its own ``ssh.exe``.
         """
         try:
             from vb_plugin_env import isolate_runtime_env
 
             isolate_runtime_env()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001 - reported by status()/connect()
             # The import itself is reported later by package_info().
-            pass
+            self.isolation_error = f"{type(exc).__name__}: {exc}"
 
     def _resolve_scratch_root(self, ssh: Any) -> None:
         """Resolve the configured root without creating anything.
@@ -507,6 +514,33 @@ class BridgeRuntime:
         candidates = sorted(state_dir().glob(f"state{suffix}*.json"))
         return candidates[-1] if candidates else state_dir() / f"state{suffix}.json"
 
+    def plugin_tunnel_status(self) -> dict[str, Any] | None:
+        """Plugin-owned tunnel state for the runtime panel.
+
+        ``tunnelAlive`` on the client comes from upstream ``is_tunnel_alive``,
+        which after adoption is ``_pid_is_alive(plugin PID)`` — no TCP probe of
+        the forwarded port.  ``adopted`` says whether this sidecar's client
+        actually adopted the Host's forward.
+        """
+        try:
+            from vb_plugin_env import plugin_tunnel_report
+
+            report = plugin_tunnel_report()
+        except Exception as exc:  # noqa: BLE001 - a status read must never crash
+            return {"error": f"{type(exc).__name__}: {exc}"}
+        if report is None:
+            return None
+        adopted = getattr(self.tunnel, "_vb_plugin_tunnel", None) if self.tunnel else None
+        if isinstance(adopted, dict):
+            report["adopted"] = bool(adopted.get("adopted"))
+            report["adoptedLocalPort"] = adopted.get("localPort")
+            report["adoptedRemotePort"] = adopted.get("remotePort")
+            if adopted.get("remotePortMismatch"):
+                report["remotePortMismatch"] = True
+        if self.client is not None:
+            report["tunnelAlive"] = getattr(self.client, "is_tunnel_alive", None)
+        return report
+
     def read_state(self) -> dict[str, Any]:
         try:
             path = self._state_file()
@@ -564,6 +598,8 @@ class BridgeRuntime:
             "scratchRoot": self.scratch_root,
             "scratchConfigured": self.scratch_configured,
             "attach": self.attach_info,
+            "pluginTunnel": self.plugin_tunnel_status(),
+            "isolationError": self.isolation_error,
             "connectMs": round((self.connect_finished - self.connect_started) * 1000)
             if self.connect_finished
             else None,
@@ -715,9 +751,22 @@ class BridgeRuntime:
         self.connect_error = None
         with self.lock:
             try:
+                from vb_plugin_env import PLUGIN_TUNNEL_PATCH_MARKER, plugin_tunnel_config
                 from virtuoso_bridge import VirtuosoClient
                 from virtuoso_bridge.transport.tunnel import SSHClient
 
+                if (
+                    plugin_tunnel_config() is not None
+                    and getattr(SSHClient, "_vb_plugin_tunnel_marker", None)
+                    != PLUGIN_TUNNEL_PATCH_MARKER
+                ):
+                    # Without the shim every from_env/warm would be free to start
+                    # a second, Python-owned ssh.exe behind the Host's tunnel.
+                    raise RuntimeError(
+                        "the plugin-owned SSH tunnel shim is not installed "
+                        f"({self.isolation_error or 'isolate_runtime_env did not patch SSHClient'}); "
+                        "restart the runtime"
+                    )
                 ssh = SSHClient.from_env(
                     keep_remote_files=True,
                     profile=self.profile,

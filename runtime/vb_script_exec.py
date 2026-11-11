@@ -300,6 +300,26 @@ class JobRunner:
 
     # -- client -------------------------------------------------------------
 
+    def _install_plugin_tunnel_shim(self) -> None:
+        """Install the Host-tunnel adoption hook before any bridge client exists.
+
+        A job body can construct ``SSHClient``/``VirtuosoClient`` directly and
+        need never call ``connect()``; without this the upstream client would be
+        free to start its own detached ``ssh.exe``. When the Host owns the
+        tunnel, failing to install the shim is fatal instead of a silent
+        fallback.
+        """
+        try:
+            from vb_plugin_env import isolate_runtime_env
+
+            os.environ["VB_PLUGIN_DATA_DIR"] = str(self.context.get("dataDir") or self.job_dir)
+            isolate_runtime_env()
+        except Exception as exc:
+            if os.environ.get("VB_PLUGIN_TUNNEL_OWNER", "").strip().lower() == "plugin":
+                raise RuntimeError(
+                    f"cannot install the plugin-owned tunnel shim: {type(exc).__name__}: {exc}"
+                ) from exc
+
     def connect(self, *, timeout: int | None = None, log_to_ciw: bool | None = None):
         """Connect to the configured Virtuoso server, reusing a running tunnel."""
         if self.client is not None:
@@ -313,13 +333,7 @@ class JobRunner:
 
         from virtuoso_bridge import VirtuosoClient
 
-        try:
-            from vb_plugin_env import isolate_runtime_env
-
-            os.environ["VB_PLUGIN_DATA_DIR"] = str(self.context.get("dataDir") or self.job_dir)
-            isolate_runtime_env()
-        except Exception:
-            pass
+        self._install_plugin_tunnel_shim()
 
         profile = self.context.get("profile") or None
         local = bool(self.context.get("local"))
@@ -527,6 +541,9 @@ class JobRunner:
         os.chdir(workdir)
         self._job_thread = threading.current_thread()
         self._open_capture()
+        # Install the adoption shim before the body runs, even when this job has
+        # autoConnect=false and never calls connect().
+        self._install_plugin_tunnel_shim()
 
         self.started_epoch = time.time()
         self.status("running", startedAt=self.started_epoch)

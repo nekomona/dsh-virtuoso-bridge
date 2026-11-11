@@ -18,9 +18,17 @@
 - 左侧配置页和右侧运行时面板。
 
 插件是标准 DSH bundle，分为 Host（`index.js`、`lib/`）和 Client（`client.js`）两半。
-每个运行时由 `runtime/vb_sidecar.py` 持有真正的 virtuoso-bridge 客户端。插件不实现
-自己的 Maestro runner、job store、dialog manager、history manager 或调度器；
-这些能力使用上游 VBL/DSH 设施。
+每个运行时由 `runtime/vb_sidecar.py` 持有真正的 virtuoso-bridge 客户端。固定端口的
+远程连接中，SSH 转发也由 Host 托管：`lib/tunnel.js` 以隐藏、非 detached 子进程启动
+`ssh -N -L`，等待 OpenSSH 的 `Entering interactive session` 日志行判断就绪，并用子
+进程事件上报隧道状态，而不是探测转发端口。`runtime/vb_plugin_env.py` 安装接管 shim，
+让所有 Python helper 使用该转发（PID 与本地/远端端口），不会再启动第二个 `ssh.exe`。
+Windows 上必须使用非 detached：隐藏的非 detached 子进程会保留隐藏控制台，`ssh -J`
+的隐式子进程会继承它；detached 隧道反而会让该孙进程弹出可见控制台窗口。自动会话
+连接会先执行只读实例发现，再打开隧道，使 Host 转发到的实例与 sidecar 将要选择的
+实例一致。插件不实现自己的
+Maestro runner、job store、dialog manager、history manager 或调度器；这些能力使用
+上游 VBL/DSH 设施。
 
 ## 2. 环境要求
 
@@ -128,6 +136,12 @@ git submodule update --init virtuoso-bridge-lite
 高级字段包括 jump host、SSH backend、SSH proxy、identity file、角色覆盖
 （`daemonHost`、`deployHost`、`guiHost`、`spectreHost`）、远程暂存根目录、
 client id、备注和子实例。
+
+**测试** 是分层健康报告，而不仅是 SSH ping：显示 SSH 可达/认证、远端 Python、
+暂存根目录状态，以及配置端口上的守护进程应答（`ready`、`no-listener`、`legacy`、
+`auth`、`timeout`）。运行时正在运行时，测试复用其 Host 托管隧道（helper 采用同一
+PID/端口），不会额外启动 `ssh.exe`；运行时停止时会打开一条短命的 Host 托管探测
+隧道，不再使用上游的游离转发。
 
 创建连接、或修改现有连接的 SSH 目标，属于工作区之外的修改。连接是一项长期授权：
 启动它会在该账号上打开 SSH 会话和已签名的 bridge 守护进程，智能体因此可以运行
