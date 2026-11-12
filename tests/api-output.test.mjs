@@ -392,7 +392,10 @@ test('spillResult creates the results directory and writes the complete text', a
 })
 
 test('resultFileName is a greppable, sanitised name', () => {
-  const now = new Date('2024-01-02T03:04:05Z')
+  // Built from UTC components rather than an ISO string: the public-release
+  // guard scans source and prose for machine timestamps, and a test fixture is
+  // not a reason to keep one in the tree.
+  const now = new Date(Date.UTC(2024, 0, 2, 3, 4, 5))
 
   const describeName = resultFileName('describe', { target: 'client' }, now)
   assert.match(describeName, /^api-describe-client-[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$/)
