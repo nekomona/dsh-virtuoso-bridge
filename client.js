@@ -809,7 +809,7 @@ window.__ModuleLoader__.load({
 .vb-menu-pop .vb-btn{width:100%;justify-content:flex-start;border-color:transparent;background:transparent;text-align:left}
 .vb-menu-pop .vb-btn:hover{background:var(--dsw-alias-bg-layer-2)}
 .vb-menu-pop .vb-btn.danger{color:var(--dsw-alias-state-error-primary)}
-.vb-open{position:relative;width:30px;height:30px;border-radius:8px}
+.vb-open{position:relative;flex:none;box-sizing:border-box;width:30px;height:30px;border-radius:8px}
 .vb-open-dot{position:absolute;right:-2px;bottom:-2px;width:8px;height:8px;border-radius:50%;border:2px solid var(--dsw-alias-bg-layer-1);background:var(--dsw-alias-state-idle-primary);box-sizing:content-box}
 .vb-open-dot.ok{background:var(--dsw-alias-state-success-primary)}
 .vb-open-dot.warn{background:var(--dsw-alias-state-warn-primary)}
@@ -1227,7 +1227,21 @@ window.__ModuleLoader__.load({
 
     function apply(ctx) {
       const t = ctx.locale.bind(NS)
-      const styleElement = h('style', null, CSS)
+      // The plugin stylesheet lives in document.head, injected once. It used
+      // to travel as a <style> element inside the sidebar tab and the settings
+      // page, so the composer opener — which renders without either panel —
+      // fell back to the browser's default button styling.
+      ctx.effect(() => {
+        if (typeof document === 'undefined') return
+        const styleId = '@nekomona/dsh-virtuoso-bridge/client.css'
+        if (document.querySelector(`style[data-plugin-css="${styleId}"]`)) return
+        const style = document.createElement('style')
+        style.dataset.plugin = '@nekomona/dsh-virtuoso-bridge'
+        style.dataset.pluginCss = styleId
+        style.textContent = CSS
+        document.head.appendChild(style)
+        return () => style.remove()
+      }, 'virtuoso-bridge: styles')
 
       function label(key) {
         const value = t(key)
@@ -1959,7 +1973,6 @@ window.__ModuleLoader__.load({
           return h(
             'div',
             { className: 'vb-root' },
-            styleElement,
             h('div', { className: 'vb-muted' }, error || label('loading')),
             error ? h(Button, { onClick: reload }, label('retry')) : null,
           )
@@ -2017,7 +2030,6 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           { className: 'vb-root' },
-          styleElement,
           h(
             'div',
             { className: 'vb-top' },
@@ -2390,7 +2402,6 @@ window.__ModuleLoader__.load({
           return h(
             'div',
             { className: 'vb-root vb-settings' },
-            styleElement,
             h('div', { className: 'vb-muted' }, error || label('loading')),
             error ? h(Button, { onClick: reload }, label('retry')) : null,
           )
@@ -2664,7 +2675,6 @@ window.__ModuleLoader__.load({
         return h(
           'div',
           { className: 'vb-root vb-settings' },
-          styleElement,
           h(
             'header',
             { className: 'vb-page-header' },
