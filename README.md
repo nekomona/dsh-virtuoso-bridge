@@ -505,6 +505,11 @@ Rich arguments use explicit markers:
 1.5M characters are written to `<dataDir>/results/` and returned as a preview
 and path.
 
+A `call` may carry an optional one-line `description`, used as the tool-card
+label. Every call renders as the same expandable code card as a script run: an
+`execute_skill` call shows its SKILL source as code, another call shows its
+arguments, and the card carries the Virtuoso Bridge badge.
+
 ### `virtuoso_bridge_script`
 
 Runs a Python file or inline source in a **new venv process**, never in the
@@ -534,7 +539,8 @@ tool-call label and history title. A successful run returns only `Success` plus
 the `result`; a running job returns `Running` plus its job id; failures return
 the error and job id. Internal paths, code previews, status records and
 auto-connect fields are not exposed to the agent. The Web UI renders the call as
-an expandable code card with the Python source and result in code blocks.
+an expandable code card — the same card a bridge `execute_skill` call uses —
+with the Python source and result in code blocks and the Virtuoso Bridge badge.
 
 ### `virtuoso_bridge_setup`
 

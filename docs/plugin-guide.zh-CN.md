@@ -296,6 +296,9 @@ virtuoso_bridge_api action=call target=client.schematic method=open_window ...
 `client.symbol`、`client.maestro`、`client.sos`、`client.dialogs`、
 `client.requests` 和 `spectre`。
 
+`call` 可带一行可选 `description`。调用在 Chat 中与脚本运行共用同一张可展开代码卡：
+`execute_skill` 调用显示其 SKILL 源码，其他调用显示参数，卡片图标为 Virtuoso Bridge。
+
 ### `virtuoso_bridge_script`
 
 在插件 venv 中运行 Python，可直接使用已连接客户端：

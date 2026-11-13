@@ -24,6 +24,9 @@ window.__ModuleLoader__.load({
       'runtime.title': 'Virtuoso Bridge',
       'runtime.description': 'Live connection, daemon, agent and operation status.',
       'runtime.open': 'Toggle the Virtuoso Bridge runtime panel',
+      'api.title': 'Bridge call',
+      'api.skill': 'SKILL code',
+      'api.arguments': 'Arguments',
       'script.title': 'Script',
       'script.code': 'Code',
       'script.result': 'Result',
@@ -306,6 +309,9 @@ window.__ModuleLoader__.load({
       'runtime.title': 'Virtuoso Bridge',
       'runtime.description': '实时显示连接、守护进程、智能体和操作状态。',
       'runtime.open': '切换 Virtuoso 桥接运行时面板',
+      'api.title': '桥接调用',
+      'api.skill': 'SKILL 代码',
+      'api.arguments': '参数',
       'script.title': '脚本',
       'script.code': '代码',
       'script.result': '结果',
@@ -314,6 +320,9 @@ window.__ModuleLoader__.load({
       'script.stopped': '已停止',
       'script.noResult': '无结果',
       'script.inspect': '查看调用',
+      'api.title': '桥接调用',
+      'api.skill': 'SKILL 代码',
+      'api.arguments': '参数',
       'config.title': 'Virtuoso Bridge 配置',
       'config.sidebarTitle': 'Virtuoso Bridge 配置',
       'config.intro': '连接 Virtuoso 会话并管理桥接。',
@@ -1092,6 +1101,27 @@ window.__ModuleLoader__.load({
     }
 
     const SCRIPT_TOOL = 'virtuoso_bridge_script'
+    const API_TOOL = 'virtuoso_bridge_api'
+
+    const BRIDGE_GLYPH_PATH =
+      'M1 5.39L7.57 5.39L14.68 42.61L8.11 42.61ZM20.02 5.39L26.59 5.39L14.68 42.61L8.11 42.61ZM29.33 5.39L35.9 5.39L23.99 42.61L17.42 42.61ZM29.33 5.39L38.36 5.39C44.71 5.39 48.36 10.05 46.52 15.79C44.69 21.53 38.05 26.19 31.7 26.19L22.67 26.19ZM24.6 20.17L36.91 20.17C43.72 20.17 47.62 25.19 45.64 31.39C43.66 37.59 36.53 42.61 29.73 42.61L17.42 42.61ZM33.97 11.41L31.17 20.17L33.63 20.17C36.35 20.17 39.18 18.21 39.96 15.79C40.73 13.37 39.15 11.41 36.43 11.41ZM29.24 26.19L25.91 36.59L31.66 36.59C34.83 36.59 38.15 34.26 39.07 31.39C39.99 28.52 38.16 26.19 34.99 26.19Z'
+
+    function BridgeGlyph(props) {
+      const size = Number(props?.size) || 14
+      return h(
+        'svg',
+        {
+          className: props?.className,
+          width: size,
+          height: size,
+          viewBox: '0 0 48 48',
+          fill: 'currentColor',
+          role: 'img',
+          'aria-label': 'Virtuoso Bridge',
+        },
+        h('path', { d: BRIDGE_GLYPH_PATH }),
+      )
+    }
 
     const SCRIPT_CSS = `
 .vb-script-card{border:1px solid var(--dsw-alias-border-l1);border-radius:8px;background:var(--dsw-alias-bg-layer-1);margin:4px 0;overflow:hidden;min-width:0}
@@ -1099,6 +1129,7 @@ window.__ModuleLoader__.load({
 .vb-script-header:hover{background:var(--dsw-alias-bg-layer-2)}
 .vb-script-header:focus-visible{outline:2px solid var(--dsw-alias-brand-primary);outline-offset:-2px}
 .vb-script-glyph{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:4px;background:var(--dsw-alias-bg-layer-2);color:var(--dsw-alias-label-secondary);font:600 9px/1 ui-monospace,SFMono-Regular,Consolas,monospace;flex:none}
+.vb-script-glyph svg{display:block;width:14px;height:14px}
 .vb-script-title{flex:1 1 auto;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .vb-script-state{color:var(--dsw-alias-label-secondary);font-size:11px;white-space:nowrap;flex:none}
 .vb-script-state[data-state="error"],.vb-script-state[data-state="stopped"]{color:var(--dsw-alias-state-error-primary)}
@@ -1111,7 +1142,7 @@ window.__ModuleLoader__.load({
 .vb-script-inspect{align-self:flex-start;border:0;background:transparent;color:var(--dsw-alias-label-secondary);font-size:11px;padding:0;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 `
 
-    function scriptArgs(block) {
+    function toolCallArgs(block) {
       const raw = block?.call?.argsRaw ?? block?.argsRaw ?? ''
       let parsed = {}
       try {
@@ -1140,7 +1171,7 @@ window.__ModuleLoader__.load({
       return parts.join('\n').trim()
     }
 
-    function ScriptToolView(props) {
+    function CodeToolCard(props) {
       const { block, useDisclosure, inspect } = props
       const fallback = {
         'script.title': 'Script',
@@ -1152,8 +1183,8 @@ window.__ModuleLoader__.load({
         'script.noResult': 'No result',
         'script.inspect': 'Inspect call',
       }
-      const tr = (key) => (typeof props.t === 'function' ? props.t(key) : fallback[key] ?? key)
-      const { expanded, toggle } = useDisclosure()
+      const tr = typeof props.tr === 'function' ? props.tr : (key) => (typeof props.t === 'function' ? props.t(key) : fallback[key] ?? key)
+      const { expanded, toggle } = props.useDisclosure()
       const done = Boolean(block && 'kind' in block)
       const state = done
         ? block.error?.code === 'interrupted'
@@ -1164,12 +1195,12 @@ window.__ModuleLoader__.load({
         : block?.phase === 'preparing'
           ? 'preparing'
           : 'running'
-      const args = scriptArgs(block)
-      const code = typeof args.code === 'string' ? args.code : args.path ? `# script: ${args.path}` : ''
-      const result = done ? scriptResultText(block) : ''
+      const args = toolCallArgs(block)
+      const code = typeof props.code === 'string' ? props.code : typeof args.code === 'string' ? args.code : args.path ? `# script: ${args.path}` : ''
+      const result = typeof props.result === 'string' ? props.result : done ? scriptResultText(block) : ''
       const description = String(args.description ?? '').split(/\r?\n/)[0].trim()
       const type = tr('script.title')
-      const title = description ? `${type}: ${description}` : type
+      const title = props.title || (description ? `${type}: ${description}` : type)
       const stateLabel = state === 'error' ? tr('script.failed') : state === 'stopped' ? tr('script.stopped') : state === 'running' || state === 'preparing' ? tr('script.running') : ''
       const open = expanded
       const onKeyDown = (event) => {
@@ -1190,7 +1221,7 @@ window.__ModuleLoader__.load({
             onClick: toggle,
             onKeyDown,
           },
-          h('span', { className: 'vb-script-glyph' }, 'Py'),
+          h('span', { className: 'vb-script-glyph' }, h(BridgeGlyph, { size: 14 })),
           h('span', { className: 'vb-script-title', title }, title),
           stateLabel ? h('span', { className: 'vb-script-state', 'data-state': state }, stateLabel) : null,
           h('span', { className: 'vb-script-chevron', 'aria-hidden': true }, open ? '\u25BE' : '\u25B8'),
@@ -1203,7 +1234,7 @@ window.__ModuleLoader__.load({
                 ? h(
                     'div',
                     null,
-                    h('div', { className: 'vb-script-label' }, tr('script.code')),
+                    h('div', { className: 'vb-script-label' }, props.codeLabel),
                     h('pre', { className: 'vb-script-code' }, h('code', null, code)),
                   )
                 : null,
@@ -1211,18 +1242,135 @@ window.__ModuleLoader__.load({
                 ? h(
                     'div',
                     null,
-                    h('div', { className: 'vb-script-label' }, tr('script.result')),
+                    h('div', { className: 'vb-script-label' }, props.resultLabel),
                     result
                       ? h('pre', { className: 'vb-script-code', 'data-state': state === 'ok' ? undefined : state }, h('code', null, result))
-                      : h('div', { className: 'vb-script-empty' }, tr('script.noResult')),
+                      : h('div', { className: 'vb-script-empty' }, props.emptyLabel),
                   )
-                : h('div', { className: 'vb-script-empty' }, tr('script.running')),
+                : h('div', { className: 'vb-script-empty' }, props.runningLabel),
               inspect
-                ? h('button', { type: 'button', className: 'vb-script-inspect', onClick: inspect }, tr('script.inspect'))
+                ? h('button', { type: 'button', className: 'vb-script-inspect', onClick: inspect }, props.inspectLabel)
                 : null,
             )
           : null,
       )
+    }
+
+    function toolCallState(block) {
+      if (!block || !('kind' in block)) return block?.phase === 'preparing' ? 'preparing' : 'running'
+      if (block.error?.code === 'interrupted') return 'stopped'
+      return block.isError ? 'error' : 'ok'
+    }
+
+    function toolCallLabels(props, fallback) {
+      return (key) => (typeof props.t === 'function' ? props.t(key) : fallback[key] ?? key)
+    }
+
+    function toolCallStateLabel(state, tr) {
+      if (state === 'error') return tr('script.failed')
+      if (state === 'stopped') return tr('script.stopped')
+      if (state === 'running' || state === 'preparing') return tr('script.running')
+      return ''
+    }
+
+    function ScriptToolView(props) {
+      const { block, useDisclosure, inspect } = props
+      const tr = toolCallLabels(props, {
+        'script.title': 'Script',
+        'script.code': 'Code',
+        'script.result': 'Result',
+        'script.running': 'Running...',
+        'script.failed': 'Failed',
+        'script.stopped': 'Stopped',
+        'script.noResult': 'No result',
+        'script.inspect': 'Inspect call',
+      })
+      const done = Boolean(block && 'kind' in block)
+      const state = toolCallState(block)
+      const args = toolCallArgs(block)
+      const code = typeof args.code === 'string' ? args.code : args.path ? `# script: ${args.path}` : ''
+      const description = String(args.description ?? '').split(/\r?\n/)[0].trim()
+      const type = tr('script.title')
+      const title = description ? `${type}: ${description}` : type
+      return h(CodeToolCard, {
+        block,
+        useDisclosure,
+        inspect,
+        tr,
+        title,
+        codeLabel: tr('script.code'),
+        code,
+        resultLabel: tr('script.result'),
+        result: done ? scriptResultText(block) : '',
+        emptyLabel: tr('script.noResult'),
+        runningLabel: tr('script.running'),
+        inspectLabel: tr('script.inspect'),
+      })
+    }
+
+    /**
+     * A SKILL `execute_skill` call carries code, exactly like a script run's
+     * Python source, so both tools share one code card.
+     */
+    function apiArgsCode(args, tr) {
+      const action = String(args.action ?? '').trim()
+      const method = String(args.method ?? '').trim()
+      if (action === 'call' && method === 'execute_skill') {
+        const source = Array.isArray(args.args) ? args.args.find((item) => typeof item === 'string') : undefined
+        return { label: tr('api.skill'), code: typeof source === 'string' ? source : '' }
+      }
+      const shown = {}
+      for (const key of ['target', 'method', 'args', 'kwargs', 'depth', 'timeoutSec', 'connection', 'runtime']) {
+        const value = args[key]
+        if (value === undefined || value === null || value === '') continue
+        if (Array.isArray(value) && value.length === 0) continue
+        if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) continue
+        shown[key] = value
+      }
+      return { label: tr('api.arguments'), code: Object.keys(shown).length ? JSON.stringify(shown, null, 2) : '' }
+    }
+
+    function ApiToolView(props) {
+      const { block, useDisclosure, inspect } = props
+      const tr = toolCallLabels(props, {
+        'api.title': 'Bridge call',
+        'api.skill': 'SKILL code',
+        'api.arguments': 'Arguments',
+        'script.result': 'Result',
+        'script.running': 'Running...',
+        'script.failed': 'Failed',
+        'script.stopped': 'Stopped',
+        'script.noResult': 'No result',
+        'script.inspect': 'Inspect call',
+      })
+      const done = Boolean(block && 'kind' in block)
+      const state = toolCallState(block)
+      const args = toolCallArgs(block)
+      const action = String(args.action ?? '').trim()
+      const method = String(args.method ?? '').trim()
+      const target = String(args.target ?? '').trim()
+      const description = String(args.description ?? '').split(/\r?\n/)[0].trim()
+      const detail =
+        action === 'call'
+          ? [method, target].filter(Boolean).join(' · ')
+          : [action, method, target].filter(Boolean).join(' · ')
+      const type = tr('api.title')
+      const title = description ? `${type}: ${description}` : detail ? `${type}: ${detail}` : type
+      const code = apiArgsCode(args, tr)
+      return h(CodeToolCard, {
+        block,
+        useDisclosure,
+        inspect,
+        tr,
+        title,
+        codeLabel: code.label,
+        code: code.code,
+        resultLabel: tr('script.result'),
+        result: done ? scriptResultText(block) : '',
+        emptyLabel: tr('script.noResult'),
+        runningLabel: tr('script.running'),
+        inspectLabel: tr('script.inspect'),
+      })
     }
 
     function apply(ctx) {
@@ -3141,22 +3289,7 @@ window.__ModuleLoader__.load({
       }
 
       function BridgeMark(props) {
-        const size = Number(props?.size) || 16
-        return h(
-          'svg',
-          {
-            className: 'vb-panel-icon',
-            width: size,
-            height: size,
-            viewBox: '0 0 48 48',
-            fill: 'currentColor',
-            role: 'img',
-            'aria-label': 'Virtuoso Bridge',
-          },
-          h('path', {
-            d: 'M1 5.39L7.57 5.39L14.68 42.61L8.11 42.61ZM20.02 5.39L26.59 5.39L14.68 42.61L8.11 42.61ZM29.33 5.39L35.9 5.39L23.99 42.61L17.42 42.61ZM29.33 5.39L38.36 5.39C44.71 5.39 48.36 10.05 46.52 15.79C44.69 21.53 38.05 26.19 31.7 26.19L22.67 26.19ZM24.6 20.17L36.91 20.17C43.72 20.17 47.62 25.19 45.64 31.39C43.66 37.59 36.53 42.61 29.73 42.61L17.42 42.61ZM33.97 11.41L31.17 20.17L33.63 20.17C36.35 20.17 39.18 18.21 39.96 15.79C40.73 13.37 39.15 11.41 36.43 11.41ZM29.24 26.19L25.91 36.59L31.66 36.59C34.83 36.59 38.15 34.26 39.07 31.39C39.99 28.52 38.16 26.19 34.99 26.19Z',
-          }),
-        )
+        return h(BridgeGlyph, { size: Number(props?.size) || 16, className: 'vb-panel-icon' })
       }
 
       function PanelIcon(props) {
@@ -3248,6 +3381,13 @@ window.__ModuleLoader__.load({
             ctx.slots.register({ name: 'tool.call.toolview', key: SCRIPT_TOOL, locale: NS }, ScriptToolView),
           ),
         'virtuoso-bridge: script tool view',
+      )
+      ctx.effect(
+        () =>
+          ctx.slots.inject('tool.call.toolview', () =>
+            ctx.slots.register({ name: 'tool.call.toolview', key: API_TOOL, locale: NS }, ApiToolView),
+          ),
+        'virtuoso-bridge: bridge call tool view',
       )
       ctx.effect(
         () =>

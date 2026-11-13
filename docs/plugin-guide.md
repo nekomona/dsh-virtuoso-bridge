@@ -349,6 +349,11 @@ Targets include `client`, `client.schematic`, `client.layout`, `client.library`,
 `client.symbol`, `client.maestro`, `client.sos`, `client.dialogs`,
 `client.requests`, and `spectre`.
 
+A `call` may carry an optional one-line `description`. Calls render in the Chat
+as the same expandable code card as a script run: an `execute_skill` call shows
+its SKILL source, another call shows its arguments, and the card uses the
+Virtuoso Bridge badge.
+
 ### `virtuoso_bridge_script`
 
 Runs Python inside the plugin venv with the connected client available:
@@ -369,7 +374,8 @@ Behavior:
   the file tools can read, edit and rerun it; a relative `path` resolves against
   the Session working directory.
 - The Chat tool card shows `Script: <description>`, code, and result and is
-  always expandable.
+  always expandable. A bridge `execute_skill` call uses the same card, showing
+  its SKILL source as code; both cards carry the Virtuoso Bridge badge.
 
 ### `virtuoso_bridge_setup`
 

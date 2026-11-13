@@ -241,10 +241,14 @@ virtuoso_bridge_api action=describe target=client
 virtuoso_bridge_api action=call target=client.schematic method=open_window ...
 ```
 
+`call` 可带一行可选 `description`，用作工具卡标签。每次调用都与脚本运行共用同一张
+可展开代码卡：`execute_skill` 调用把 SKILL 源码显示为代码，其他调用显示参数，
+卡片图标为 Virtuoso Bridge。
+
 ### `virtuoso_bridge_script`
 
 在隔离 venv 中执行批量 Python，返回 job id、结果或结构化失败。工具卡显示脚本描述、
-代码和结果，且始终可展开。
+代码和结果，且始终可展开；与桥接 `execute_skill` 调用共用同一张卡片，图标为 Virtuoso Bridge。
 
 `run` 只接受一种来源：内联 `code`，或指向 Python 文件的 `path`；用哪种由调用方决定，
 每个 job 相互独立，并不绑定固定的临时脚本。脚本需要反复查看、修改或扩展时，文件方式
