@@ -311,6 +311,9 @@ result = {"windows": client.schematic.list_windows()}
 - `list` 列出近期 job；
 - `cancel` 取消任务；
 - 必须提供一行 `description`，用于工具卡和历史；
+- `run` 接受内联 `code` 或指向 Python 文件的 `path`，由调用方选择，每个 job 相互独立；
+  文件方式更利于复用：可以用文件工具读、改并重新运行；相对 `path` 以当前 Session
+  工作目录为基准；
 - Chat 工具卡显示 `Script: <description>`、代码和结果，并且始终可展开。
 
 ### `virtuoso_bridge_setup`

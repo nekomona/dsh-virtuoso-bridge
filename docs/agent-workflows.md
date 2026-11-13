@@ -94,6 +94,25 @@ upload is part of virtuoso-bridge, not a new plugin function.
   do not add a plugin scheduler.
 - Confirm the actual point count and host capacity before a large run.
 
+## Script source: inline code or a file you can edit
+
+`virtuoso_bridge_script` action `"run"` takes exactly one source, inline `code`
+or `path` to a Python file. Use whichever fits the call; jobs are independent,
+so there is no fixed scratch script. A file is the more reusable option when the
+work will be revisited or grow: a relative `path` resolves against the Session
+working directory, so it names the file the ordinary file tools just wrote.
+
+1. Write `batch.py` in the workspace with the normal file tool.
+2. Run it with `path: "batch.py"`; each run copies the current file into a fresh
+   job directory.
+3. Edit the file after a failure or a measurement, then run it again; the next
+   run reads the edited body.
+
+When the script will be revisited, this loop is usually cheaper than resending
+the body: the code stays reviewable in the workspace, and an edit does not
+resend the whole script. Inline code remains the simpler choice for a one-off
+probe.
+
 ## Connection startup: host keys, deployment and older daemons
 
 Read the runtime state instead of guessing from a single log line:

@@ -33,7 +33,7 @@ English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md)
 | 固定端口或自动实例发现 | 配置页、`instances` / `select_instance` |
 | 连接、守护进程、智能体活动、缓存 | 右侧 **Virtuoso Bridge** 运行时面板 |
 | 全部 virtuoso-bridge-lite Python API | `virtuoso_bridge_api` |
-| 隔离 venv 中执行批量 Python | `virtuoso_bridge_script` |
+| 隔离 venv 中执行批量 Python | `virtuoso_bridge_script`（内联代码或工作区文件） |
 
 ## 安装
 
@@ -245,6 +245,12 @@ virtuoso_bridge_api action=call target=client.schematic method=open_window ...
 
 在隔离 venv 中执行批量 Python，返回 job id、结果或结构化失败。工具卡显示脚本描述、
 代码和结果，且始终可展开。
+
+`run` 只接受一种来源：内联 `code`，或指向 Python 文件的 `path`；用哪种由调用方决定，
+每个 job 相互独立，并不绑定固定的临时脚本。脚本需要反复查看、修改或扩展时，文件方式
+更利于复用：智能体可以用普通文件工具读、改并重新运行它。相对 `path` 以当前 Session
+工作目录为基准。每次运行都会把文件当前内容复制到自己的 job 目录，所以编辑在下一次
+运行时生效。
 
 ### `virtuoso_bridge_setup`
 

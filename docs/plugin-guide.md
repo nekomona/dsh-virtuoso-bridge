@@ -364,6 +364,10 @@ Behavior:
 - `list` lists recent jobs.
 - `cancel` cancels a job.
 - A required one-line `description` labels the call and the Chat tool card.
+- `run` takes exactly one source, inline `code` or `path` to a Python file; the
+  caller chooses and each job is independent. A file gives more reuse because
+  the file tools can read, edit and rerun it; a relative `path` resolves against
+  the Session working directory.
 - The Chat tool card shows `Script: <description>`, code, and result and is
   always expandable.
 

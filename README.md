@@ -43,7 +43,7 @@ Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md)
 | Fixed-port or automatic-session daemon discovery and selection | Config page, `instances` / `select_instance` tool actions |
 | Connection status, daemon/instance state, attached agents, caches, ongoing actions | Right-sidebar **Bridge runtime** panel |
 | Every public virtuoso-bridge-lite function | `virtuoso_bridge_api` (`describe` / `call`) |
-| Batched Python in the venv | `virtuoso_bridge_script` (jobs, status, cancel) |
+| Batched Python in the venv | `virtuoso_bridge_script` (inline code or a workspace file, jobs, status, cancel) |
 
 ## Install
 
@@ -516,6 +516,14 @@ client = connect()          # reuse the running tunnel/daemon
 emit({"progress": 0.5})     # structured progress
 result = {"done": True}     # persisted as result.json
 ```
+
+A run takes exactly one source: inline `code`, or `path` to a Python file. Which
+one to use is the caller's choice, and every job is independent rather than
+bound to one scratch script. A file gives more reuse when the script will be
+revisited or grow, because the ordinary file tools can read, edit and rerun it;
+a relative `path` resolves against the Session working directory. Each run
+copies the current file content into its own job directory, so an edit applies
+to the next run.
 
 Jobs have ids, status, incremental stdout/stderr, a hard timeout and
 cancellation. Jobs started by one conversation can be polled from another; the
