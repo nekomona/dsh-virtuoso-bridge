@@ -44,6 +44,7 @@ Chinese guide: [`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md)
 | Connection status, daemon/instance state, attached agents, caches, ongoing actions | Right-sidebar **Bridge runtime** panel |
 | Every public virtuoso-bridge-lite function | `virtuoso_bridge_api` (`describe` / `call`) |
 | Batched Python in the venv | `virtuoso_bridge_script` (inline code or a workspace file, jobs, status, cancel) |
+| CIW warnings, `*Error*` lines and printed diagnostics | `virtuoso_bridge_api` / `virtuoso_bridge_script` results, `ciwReport` setting |
 
 ## Install
 

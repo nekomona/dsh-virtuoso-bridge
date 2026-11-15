@@ -11,6 +11,7 @@
         autoInstall: false
         autoStart: []
         logToCiw: false
+        ciwReport: true
         maxScripts: 4
         cacheDir: ''
         installSshExtra: true

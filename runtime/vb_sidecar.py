@@ -322,6 +322,64 @@ class RuntimeErrorInfo(Exception):
     pass
 
 
+def _ciw_report_enabled(params: Mapping[str, Any] | None = None) -> bool:
+    """Whether CIW capture runs for this request.
+
+    ``VB_CIW_REPORT=0`` is the plugin-wide kill switch (the ``ciwReport``
+    setting); a single request may additionally opt out with
+    ``params["ciw"] = false``.
+    """
+    flag = os.environ.get("VB_CIW_REPORT", "").strip().lower()
+    if flag in ("0", "false", "no", "off"):
+        return False
+    if params is None:
+        return True
+    value = params.get("ciw", True)
+    if isinstance(value, str):
+        return value.strip().lower() not in ("", "0", "false", "no", "off")
+    return bool(value)
+
+
+# Result text that means the SKILL lane itself failed. Capturing again would
+# wait on a blocked/poisoned CIW (up to the capture timeout) and only add
+# noise to the answer, so such calls skip the capture.
+_CIW_SKIP_MARKERS = (
+    "BusyError",
+    "poisoned",
+    "Socket timeout",
+    "SKILL execution timeout",
+    "Empty response from daemon",
+)
+
+
+# A failing call waits this long before reading the log: the CIW text of a
+# failure is what the agent needs in the same answer, and a call that failed is
+# not on a latency budget.
+_CIW_FAILURE_SETTLE = 0.6
+
+
+def _ciw_result_failed(result: Mapping[str, Any]) -> bool:
+    """True when the called method reported an error rather than a value."""
+    value = result.get("result")
+    if not isinstance(value, Mapping):
+        return False
+    status = str(value.get("status") or "").lower()
+    if status in ("error", "failure", "partial"):
+        return True
+    errors = value.get("errors")
+    return isinstance(errors, list) and bool(errors)
+
+
+def _ciw_lane_blocked(payload: Any) -> bool:
+    """True when this result shows a lane-level failure; skip capturing."""
+    try:
+        text = json.dumps(jsonable(payload), ensure_ascii=False)
+    except Exception:  # noqa: BLE001 - fall back to a plain repr
+        text = repr(payload)
+    lowered = text.lower()
+    return any(marker.lower() in lowered for marker in _CIW_SKIP_MARKERS)
+
+
 class BridgeRuntime:
     def __init__(self, *, profile: str | None, local: bool, timeout: int) -> None:
         self.profile = profile
@@ -346,6 +404,10 @@ class BridgeRuntime:
         self.shutting_down = False
         self._imported_at = None
         self._version = None
+        # One CIW capture object per connection (its discovery round trips are
+        # per client); both are dropped when the connection goes away.
+        self._ciw_capture: Any = None
+        self._ciw_capture_client: Any = None
         self._isolate_env()
 
     def _isolate_env(self) -> None:
@@ -844,6 +906,10 @@ class BridgeRuntime:
                     except Exception:
                         pass
                 self.client = client
+                # A new client may reach a different Virtuoso pid; a stale
+                # log cursor must not be inherited by it.
+                self._ciw_capture = None
+                self._ciw_capture_client = None
                 self.connect_finished = time.time()
                 self.last_activity = time.time()
                 try:
@@ -869,6 +935,8 @@ class BridgeRuntime:
                 except Exception as exc:
                     errors.append(f"client.close: {exc}")
                 self.client = None
+            self._ciw_capture = None
+            self._ciw_capture_client = None
             if stop_tunnel and self.tunnel is not None:
                 try:
                     self.tunnel.stop()
@@ -991,6 +1059,58 @@ class BridgeRuntime:
             obj = getattr(obj, part)
         return obj
 
+    # -- CIW diagnostics ----------------------------------------------------
+
+    def ciw_capture(self) -> Any:
+        """The one capture object for the current connection, or ``None``.
+
+        Discovery (pid + CIW log path + EOF) costs one-time SKILL round trips,
+        so the object is reused across calls and replaced when the client
+        changes. Creating it must never fail a call.
+        """
+        client = self.client
+        if client is None:
+            return None
+        capture = self._ciw_capture
+        if capture is not None and self._ciw_capture_client is client:
+            return capture
+        self._ciw_capture_client = client
+        try:
+            from vb_ciw import CiwCapture
+
+            capture = CiwCapture(client)
+        except Exception:  # noqa: BLE001 - capture is best effort
+            capture = None
+        self._ciw_capture = capture
+        return capture
+
+    def ciw_payload(self, settle: float | None = None) -> dict[str, Any] | None:
+        """Capture the CIW transcript delta; None when nothing to report."""
+        try:
+            capture = self.ciw_capture()
+            if capture is None:
+                return None
+            return capture.capture(settle)
+        except Exception:  # noqa: BLE001 - diagnostics must never fail a call
+            return None
+
+    def ciw(self, params: dict[str, Any]) -> dict[str, Any]:
+        """Capture the CIW transcript delta on demand (diagnostics/tests)."""
+        return {"ciw": self.ciw_payload()}
+
+    def _attach_ciw(self, result: dict[str, Any], params: Mapping[str, Any]) -> dict[str, Any]:
+        """Attach the CIW payload to a call result when capture is enabled.
+
+        A capture failure or an empty delta leaves the result untouched; the
+        payload is CIW output, never proof of what the call itself did.
+        """
+        if not _ciw_report_enabled(params) or _ciw_lane_blocked(result):
+            return result
+        payload = self.ciw_payload(_CIW_FAILURE_SETTLE if _ciw_result_failed(result) else None)
+        if payload:
+            result["ciw"] = payload
+        return result
+
     # -- calls --------------------------------------------------------------
 
     def call(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -1000,6 +1120,7 @@ class BridgeRuntime:
         kwargs = decode_arg(params.get("kwargs") or {})
         timeout = params.get("timeoutSec")
         if not method:
+            # Resolving a target runs nothing in the CIW, so no capture.
             expr = target
             obj = self.resolve(expr)
             return {"result": jsonable(obj)}
@@ -1009,13 +1130,16 @@ class BridgeRuntime:
             value = cls(*args, **kwargs)
             elapsed = time.monotonic() - started
             payload = _summarize_payload(jsonable(value))
-            return {
-                "target": target,
-                "method": "new",
-                "elapsedSeconds": round(elapsed, 3),
-                "truncated": payload["truncated"],
-                "result": payload["payload"],
-            }
+            return self._attach_ciw(
+                {
+                    "target": target,
+                    "method": "new",
+                    "elapsedSeconds": round(elapsed, 3),
+                    "truncated": payload["truncated"],
+                    "result": payload["payload"],
+                },
+                params,
+            )
         with self.lock:
             obj = self.resolve(target)
             func = getattr(obj, str(method), None)
@@ -1028,13 +1152,16 @@ class BridgeRuntime:
             value = func(*args, **kwargs)
             elapsed = time.monotonic() - started
             payload = _summarize_payload(jsonable(value))
-            return {
+            result = {
                 "target": target,
                 "method": method,
                 "elapsedSeconds": round(elapsed, 3),
                 "truncated": payload["truncated"],
                 "result": payload["payload"],
             }
+        # Capture outside ``self.lock``: the CIW read costs a couple of extra
+        # SKILL round trips and must not serialise another call behind it.
+        return self._attach_ciw(result, params)
 
 
 def _safe_parameter_names(func: Any) -> set[str]:
@@ -1109,6 +1236,8 @@ def _dispatch(runtime: BridgeRuntime, method: str, params: dict[str, Any]) -> An
         return runtime.describe(params)
     if method == "call":
         return runtime.call(params)
+    if method == "ciw":
+        return runtime.ciw(params)
     if method == "targets":
         return {
             "targets": {

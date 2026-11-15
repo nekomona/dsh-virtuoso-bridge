@@ -34,6 +34,7 @@ English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md)
 | 连接、守护进程、智能体活动、缓存 | 右侧 **Virtuoso Bridge** 运行时面板 |
 | 全部 virtuoso-bridge-lite Python API | `virtuoso_bridge_api` |
 | 隔离 venv 中执行批量 Python | `virtuoso_bridge_script`（内联代码或工作区文件） |
+| CIW 警告、`*Error*` 行和打印诊断 | `virtuoso_bridge_api` / `virtuoso_bridge_script` 结果块、`ciwReport` 设置 |
 
 ## 安装
 

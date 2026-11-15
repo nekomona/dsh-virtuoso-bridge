@@ -104,6 +104,17 @@ def write_json(path: Path, payload: Any) -> None:
     temporary.replace(path)
 
 
+def ciw_report_enabled() -> bool:
+    """False when ``VB_CIW_REPORT=0`` disables CIW capture for script jobs.
+
+    The plugin maps its ``ciwReport`` setting onto every job's environment, so
+    one kill switch covers both entry points (one process per job and the
+    long-lived worker).
+    """
+    flag = os.environ.get("VB_CIW_REPORT", "").strip().lower()
+    return flag not in ("0", "false", "no", "off")
+
+
 def _forwarded_port(client: Any) -> int | None:
     """Local port the client talks to, when a tunnel already forwards it."""
     for name in ("_port", "port"):
@@ -228,6 +239,7 @@ class JobRunner:
         self.result_path = self.job_dir / "result.json"
         self.error_path = self.job_dir / "error.json"
         self.events_path = self.job_dir / "events.jsonl"
+        self.ciw_path = self.job_dir / "ciw.json"
         self.context: dict[str, Any] = {}
         self.workdir = self.job_dir
         # A pre-connected client (the worker's reused one). ``connect()`` returns
@@ -251,6 +263,10 @@ class JobRunner:
         # and the timeout path may all race to be the one that commits them.
         self.write_lock = threading.RLock()
         self.final_state: str | None = None
+        # CIW transcript delta, captured once after the body settles. Best
+        # effort: ``None`` means nothing to report (or capture failed).
+        self.ciw: dict[str, Any] | None = None
+        self._ciw_attempted = False
 
     # -- artifacts ----------------------------------------------------------
 
@@ -399,6 +415,42 @@ class JobRunner:
         except Exception as exc:
             self.emit({"warning": "autoConnectFailed", "error": f"{type(exc).__name__}: {exc}"})
             return None
+
+    # -- CIW diagnostics ---------------------------------------------------
+
+    def capture_ciw(self) -> dict[str, Any] | None:
+        """Read the CIW transcript delta once the job body has settled.
+
+        Job output can be longer than a single API call, so the whole first
+        window (``first_window=65536``) is reported. The payload is written to
+        ``ciw.json`` next to ``status.json`` for the dashboard, and returned in
+        the outcome. Capture is best effort: a missing ``/proc`` (local
+        Windows Virtuoso), a busy lane or an import failure yields no payload,
+        and never changes ``state``/``exitCode``/``error``.
+        """
+        if self._ciw_attempted:
+            return self.ciw
+        self._ciw_attempted = True
+        if not ciw_report_enabled():
+            return None
+        client = self.client or self.connected_client
+        if client is None:
+            return None
+        try:
+            from vb_ciw import CiwCapture
+
+            # Jobs can afford a short settle: it lets the transcript writer
+            # deliver output the body produced immediately before the commit.
+            self.ciw = CiwCapture(client, first_window=65536, settle=0.6).capture()
+        except Exception:  # noqa: BLE001 - capture must never fail a job
+            self.ciw = None
+            return None
+        if self.ciw:
+            try:
+                write_json(self.ciw_path, jsonable(self.ciw))
+            except Exception:  # noqa: BLE001 - artifact is informational
+                pass
+        return self.ciw
 
     # -- streams ------------------------------------------------------------
 
@@ -682,6 +734,11 @@ class JobRunner:
             elif error and state == "cancelled":
                 self.emit({"error": "Cancelled", "message": error})
             self.final_state = state
+        # The terminal artifacts are committed: capture once so ``ciw.json``
+        # is written beside ``status.json`` and the outcome can carry the
+        # payload. Best effort (bounded by one capture timeout);
+        # state/exitCode/error stay exactly as committed.
+        self.capture_ciw()
         return self._outcome(state, elapsed, setup, exit_code=exit_code, error=error)
 
     def _outcome(
@@ -700,5 +757,7 @@ class JobRunner:
             outcome["exitCode"] = exit_code
         if error:
             outcome["error"] = error
+        if self.ciw is not None:
+            outcome["ciw"] = self.ciw
         return outcome
 

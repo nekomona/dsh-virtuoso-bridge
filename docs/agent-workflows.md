@@ -148,6 +148,48 @@ Read the runtime state instead of guessing from a single log line:
    `mkdir -p -m 700`). `test_connection` reports SSH, remote Python, scratch root
    and daemon checks even when no runtime is running.
 
+## CIW diagnostics after a call
+
+`virtuoso_bridge_api` `call` results and settled `virtuoso_bridge_script` jobs
+carry a compact CIW block when the CIW printed something while the call ran:
+
+```text
+--- CIW: 1 warning, 1 error, 1 output line (41 other lines) ---
+*WARNING* (DB-270212): dbOpenCellViewByType: ...
+CDF: An error occurred when evaluating callback.
+```
+
+Read that block before guessing why a call "succeeded but did nothing": CDF
+callback failures, `*WARNING*` lines and SKILL `*Error*` text land there, not
+in the returned value.
+
+- The block is best effort. Its absence is not proof the CIW was quiet (a local
+  Windows Virtuoso, a missing `/proc` or a busy lane all skip capture), and
+  capture never fails the call.
+- The CIW is shared with the human and with other tools, so a captured line may
+  not belong to this call. Use it to find the cause, not as evidence about the
+  result.
+- Warnings are force-flushed out of the SKILL warning port and the block is read
+  from the session `CDS.log`; the transcript writer batches text, so a line can
+  arrive one call late. A failed call and a settled script job wait briefly
+  before reading; a quiet CIW usually delivers in the same answer.
+- Unchecking **Report CIW warnings/errors with results** (`ciwReport`) turns
+  capture off for API calls and script jobs.
+
+When the block is missing or too late, read the CIW explicitly: force the
+warning port out, then tail the newest session log.
+
+```python
+client.execute_skill('warn("") getWarn()')
+log = client.run_shell_command(
+    'set log = `ls -t ~/CDS.log* | head -1` ; tail -n 40 "$log"')
+print(log.output)
+```
+
+`run_shell_command` runs csh in the Virtuoso process environment, so `.output`
+is that command's stdout and stderr. Do not use it in a loop for every call;
+the automatic block is the cheap path.
+
 ## Failure rules
 
 - A socket error / daemon drop means the outcome is **unknown**, not failed.

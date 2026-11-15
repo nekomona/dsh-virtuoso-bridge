@@ -385,6 +385,32 @@ Behavior:
 - `configure`, `set_source`
 - `caches`, `clear_cache`
 
+### CIW diagnostics in tool results
+
+A `virtuoso_bridge_api` `call` and a settled `virtuoso_bridge_script` job append a
+compact CIW block to the result when the CIW printed something while the call
+ran:
+
+```text
+--- CIW: 1 warning, 1 error, 1 output line (41 other lines) ---
+*WARNING* (DB-270212): dbOpenCellViewByType: ...
+CDF: An error occurred when evaluating callback.
+```
+
+Warnings are force-flushed out of the SKILL warning port and the block is read
+from the session `CDS.log`; Virtuoso's transcript writer batches that text, so a
+line can still arrive in the next call's block. A failed call and a settled
+script job wait briefly before reading to improve same-call delivery. The block
+is best effort and can be absent (a local Windows Virtuoso, a missing `/proc`,
+or a busy lane). The CIW is shared: a line may come from the human
+typing in Virtuoso or from another tool, so read the block as CIW output, never
+as proof about the result it is attached to. Capture never fails a call;
+uncheck **Report CIW warnings/errors with results** (`ciwReport`) on the
+configuration page to turn it off.
+
+The [agent workflow recipes](agent-workflows.md#ciw-diagnostics-after-a-call)
+show how to read the CIW explicitly when the block is missing or too late.
+
 ## 9. Activity, storage, and diagnostics
 
 - Global **Activity** is on the configuration page, folded by default.

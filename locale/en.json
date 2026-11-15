@@ -4,6 +4,7 @@
     "description": "Managed virtuoso-bridge-lite runtimes for Cadence Virtuoso: side-panel dashboard, isolated Python environment, agent tools and batched scripts."
   },
   "settings": {
-    "title": "Virtuoso Bridge"
+    "title": "Virtuoso Bridge",
+    "ciwReport": "Report CIW warnings/errors with results"
   }
 }

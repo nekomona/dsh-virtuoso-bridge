@@ -327,6 +327,28 @@ result = {"windows": client.schematic.list_windows()}
 - `configure`、`set_source`
 - `caches`、`clear_cache`
 
+### 工具结果中的 CIW 诊断
+
+调用期间 CIW 有输出时，`virtuoso_bridge_api` 的 `call` 和已结束的
+`virtuoso_bridge_script` 任务会在结果后附加一段紧凑的 CIW 块：
+
+```text
+--- CIW: 1 warning, 1 error, 1 output line (41 other lines) ---
+*WARNING* (DB-270212): dbOpenCellViewByType: ...
+CDF: An error occurred when evaluating callback.
+```
+
+警告会从 SKILL 警告端口强制刷出，CIW 块则从会话 `CDS.log` 读取；Virtuoso 的日志写入器
+会批量输出，因此某一行仍可能晚一次调用才出现。失败的调用和已结束的脚本任务在读取前会
+短暂等待，以提高同一次结果内交付的概率。该块是尽力而为的，可能缺失（例如本地 Windows
+Virtuoso、没有 `/proc` 或通道繁忙）。CIW 是共享的：某一行也可能来自用户在
+Virtuoso 中的输入或另一个工具，所以请把它当作 CIW 输出，而不是该结果的证据。
+采集失败不会让调用失败；在配置页取消勾选 **将 CIW 的警告/错误随结果一并报告**
+（`ciwReport`）即可关闭。
+
+当该块缺失或出现得太晚时，[智能体工作流配方](agent-workflows.md#ciw-diagnostics-after-a-call)
+给出了显式读取 CIW 的方法。
+
 ## 9. 活动、存储和诊断
 
 - 配置页的 **活动** 默认折叠，包含操作和日志。
