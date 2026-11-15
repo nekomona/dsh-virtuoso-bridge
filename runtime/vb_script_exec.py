@@ -267,6 +267,7 @@ class JobRunner:
         # effort: ``None`` means nothing to report (or capture failed).
         self.ciw: dict[str, Any] | None = None
         self._ciw_attempted = False
+        self._ciw_capture: Any = None
 
     # -- artifacts ----------------------------------------------------------
 
@@ -418,6 +419,28 @@ class JobRunner:
 
     # -- CIW diagnostics ---------------------------------------------------
 
+    def prepare_ciw(self) -> None:
+        """Place a capture cursor before the body runs.
+
+        A job reports the CIW text it produced, not the transcript history that
+        was already in the session log when it started. When no client exists
+        yet (autoConnect false and the body connects later) there is nothing to
+        place, and the capture falls back to a bounded tail window.
+        """
+        if not ciw_report_enabled():
+            return
+        client = self.client or self.connected_client
+        if client is None:
+            return
+        try:
+            from vb_ciw import CiwCapture
+
+            capture = CiwCapture(client, first_window=65536, settle=0.6)
+            capture.begin()
+            self._ciw_capture = capture
+        except Exception:  # noqa: BLE001 - capture must never fail a job
+            self._ciw_capture = None
+
     def capture_ciw(self) -> dict[str, Any] | None:
         """Read the CIW transcript delta once the job body has settled.
 
@@ -437,11 +460,14 @@ class JobRunner:
         if client is None:
             return None
         try:
-            from vb_ciw import CiwCapture
-
+            capture = self._ciw_capture
+            if capture is None:
+                # No client existed when the body started, so there is no
+                # beginning cursor: read the last window instead.
+                capture = CiwCapture(client, first_window=65536, settle=0.6)
             # Jobs can afford a short settle: it lets the transcript writer
             # deliver output the body produced immediately before the commit.
-            self.ciw = CiwCapture(client, first_window=65536, settle=0.6).capture()
+            self.ciw = capture.capture()
         except Exception:  # noqa: BLE001 - capture must never fail a job
             self.ciw = None
             return None
@@ -610,6 +636,8 @@ class JobRunner:
         client = self.preload_client()
         if client is not None:
             namespace["client"] = client
+        # Start the CIW cursor here so the job reports its own output.
+        self.prepare_ciw()
 
         started = time.monotonic()
         started_epoch = time.time()

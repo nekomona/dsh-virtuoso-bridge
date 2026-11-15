@@ -10,6 +10,7 @@ import json
 
 import vb_ciw
 
+WARN = chr(92) + 'w '
 out = {}
 
 FD_LISTING = (
@@ -145,7 +146,23 @@ out['garbage'] = garbage.capture()
 assert out['garbage'] is None, out['garbage']
 assert garbage.path is None, garbage.path
 
-rotating = vb_ciw.CiwCapture(FakeClient(['SZ:500\n\w first\n', 'SZ:100\n\w after rotation\n']))
+# begin() places the cursor at the current end: no transcript history.
+begin_client = FakeClient(['SZ:120\n', 'SZ:150\n' + WARN + '*WARNING* after begin\n'])
+begun = vb_ciw.CiwCapture(begin_client)
+out['begin'] = begun.begin()
+out['begin_cursor'] = begun.cursor
+assert out['begin'] is True and begun.cursor == 120, out['begin_cursor']
+after_begin = begun.capture()
+out['after_begin'] = after_begin
+assert after_begin is not None and after_begin['lines'] == ['*WARNING* after begin'], after_begin
+assert 'tail -c 0' in begin_client.commands[1], begin_client.commands[1]
+assert 'tail -c +121' in begin_client.commands[2], begin_client.commands[2]
+
+no_begin = vb_ciw.CiwCapture(FakeClient([], listing='total 0\n1 -> /dev/null\n'))
+out['begin_no_log'] = no_begin.begin()
+assert out['begin_no_log'] is False, out['begin_no_log']
+
+rotating = vb_ciw.CiwCapture(FakeClient(['SZ:500\n' + WARN + 'first\n', 'SZ:100\n' + WARN + 'after rotation\n']))
 rotating.capture()
 restarted = rotating.capture()
 out['rotated'] = restarted

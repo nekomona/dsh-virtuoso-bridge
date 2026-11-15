@@ -275,6 +275,29 @@ class CiwCapture:
         self.path = path
         return True
 
+    def begin(self) -> bool:
+        """Place the cursor at the current end of the transcript.
+
+        Used when a runtime or job starts: the first capture then reports only
+        what happens from that point on, instead of replaying up to a window of
+        older CIW text produced by the human or another tool.
+        """
+        with self._lock:
+            try:
+                if not self.path and not self._discover():
+                    return False
+                path = shlex.quote(str(self.path))
+                body = 'sz=$(wc -c < %s); printf "SZ:%%s\\n" "$sz"; tail -c 0 %s' % (path, path)
+                size, _text = parse_read_output(self._run("/bin/sh -c " + shlex.quote(body)))
+                if size is None:
+                    self.path = None
+                    return False
+                self.cursor = size
+                return True
+            except Exception:  # noqa: BLE001 - capture is best effort
+                self.path = None
+                return False
+
     def _read(self) -> tuple[int | None, str]:
         """Read the log tail: the first window, or everything since the cursor."""
         path = shlex.quote(str(self.path))

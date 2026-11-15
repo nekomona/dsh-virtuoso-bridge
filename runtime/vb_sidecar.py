@@ -1079,6 +1079,9 @@ class BridgeRuntime:
             from vb_ciw import CiwCapture
 
             capture = CiwCapture(client)
+            # Start at the current end of the transcript: a fresh runtime must
+            # not report CIW text that predates it as if this call produced it.
+            capture.begin()
         except Exception:  # noqa: BLE001 - capture is best effort
             capture = None
         self._ciw_capture = capture

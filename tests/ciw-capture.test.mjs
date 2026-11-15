@@ -59,6 +59,10 @@ test('runtime/vb_ciw.py capture contract', { skip: NO_PYTHON }, () => {
     assert.equal(payload.flush_failure.lines.length, 1, detail)
     assert.equal(payload.no_log, null, detail)
     assert.equal(payload.garbage, null, detail)
+    assert.equal(payload.begin, true, detail)
+    assert.equal(payload.begin_cursor, 120, detail)
+    assert.equal(payload.after_begin.lines[0], '*WARNING* after begin', detail)
+    assert.equal(payload.begin_no_log, false, detail)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
