@@ -135,7 +135,9 @@ git submodule update --init virtuoso-bridge-lite
 
 高级字段包括 jump host、SSH backend、SSH proxy、identity file、角色覆盖
 （`daemonHost`、`deployHost`、`guiHost`、`spectreHost`）、远程暂存根目录、
-client id、备注和子实例。
+client id、备注和子实例。远程暂存根目录建议使用绝对路径：Virtuoso 的 `load()`
+不会展开 `~`，带 `~` 的 IL 路径会加载失败；`~/` 仍可用，并会在任何部署或上传前
+于远端账号解析。
 
 **测试** 是分层健康报告，而不仅是 SSH ping：显示 SSH 可达/认证、远端 Python、
 暂存根目录状态，以及配置端口上的守护进程应答（`ready`、`no-listener`、`legacy`、

@@ -152,7 +152,10 @@ sub-instances. Editing scrolls the editor into view.
 
 Advanced connection fields include jump host, SSH backend, SSH proxy, identity
 file, role overrides (`daemonHost`, `deployHost`, `guiHost`, `spectreHost`),
-remote scratch root, client id, notes, and sub-instances.
+remote scratch root, client id, notes, and sub-instances. Prefer an absolute
+remote scratch root: Virtuoso `load()` does not expand `~`, so a `~`-prefixed IL
+path would fail, while `~/` is still accepted and resolved on the remote account
+before any deployment or upload.
 
 **Test** is a layered health report, not just an SSH ping. It shows SSH reachability
 and authentication, the remote Python interpreter, whether the configured scratch

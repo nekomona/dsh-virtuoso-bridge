@@ -327,10 +327,14 @@ class JobRunner:
         fallback.
         """
         try:
-            from vb_plugin_env import isolate_runtime_env
+            from vb_plugin_env import install_scratch_root_guard, isolate_runtime_env
 
             os.environ["VB_PLUGIN_DATA_DIR"] = str(self.context.get("dataDir") or self.job_dir)
             isolate_runtime_env()
+            # Jobs may construct SSHClient/VirtuosoClient themselves. Resolve a
+            # configured ~ scratch root here, before any client computes a remote
+            # work dir, so an IL upload never emits load("~/...").
+            install_scratch_root_guard()
         except Exception as exc:
             if os.environ.get("VB_PLUGIN_TUNNEL_OWNER", "").strip().lower() == "plugin":
                 raise RuntimeError(

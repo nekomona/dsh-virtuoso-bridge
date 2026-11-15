@@ -234,11 +234,16 @@ empty and is passed to deployment, discovery, shells and scripts as
 `VB_REMOTE_SCRATCH_ROOT`; a per-connection value overrides it. Deployment
 therefore follows the same root as the runtime rather than falling back to
 `/tmp`. A leading `~/` is expanded on the remote account and symlinks are
-resolved to the real directory. Before any deployment (fixed or automatic) the
-root is checked: a missing root under the account home is created with mode
-`0700` (with a warning if a sibling path differs only by `_` vs `-`), a
-permissive user-owned root is tightened, and a symlink, wrong owner,
-non-directory or missing path outside the home gets its own actionable error.
+resolved to the real directory. Every helper and every script/IL upload sees
+that resolved absolute path; a `~`-prefixed IL path would fail at the first
+`load()` because Virtuoso does not expand `~`. An absolute `remoteScratchRoot`
+is therefore preferred, especially on sites and packs such as IC23.1; `~/` is
+still accepted and expanded before any upload. Before any deployment (fixed or
+automatic) the root is checked: a missing root under the account home is
+created with mode `0700` (with a warning if a sibling path differs only by
+`_` vs `-`), a permissive user-owned root is tightened, and a symlink, wrong
+owner, non-directory or missing path outside the home gets its own actionable
+error.
 The deploy result reports `configuredScratchRoot`, the resolved `scratchRoot`,
 `scratchCreated`/`scratchTightened` and any warning, so the load path can never
 silently disagree with the configured value.

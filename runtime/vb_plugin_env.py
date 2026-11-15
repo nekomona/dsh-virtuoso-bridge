@@ -2,7 +2,7 @@
 """Plugin-owned runtime environment, remote scratch roots, tunnel adoption and
 health checks.
 
-Four problems this module solves for every helper that imports
+Five problems this module solves for every helper that imports
 ``virtuoso_bridge``:
 
 * The upstream client calls ``load_vb_env(override=True)``, which walks upward
@@ -31,6 +31,16 @@ Four problems this module solves for every helper that imports
   monkey-patches the upstream client once, and each ``SSHClient.from_env`` then
   adopts the plugin's PID/local port.  Tunnel liveness is answered from that
   PID, never by TCP-probing the forwarding port.
+
+* A configured scratch root that starts with `~` leaks into a client.
+  Upstream derives its remote work dir from ``VB_REMOTE_SCRATCH_ROOT`` without
+  expanding `~`, so an IL upload computes ``~/.virtuoso-bridge/...`` and
+  Virtuoso's ``load()`` rejects it.  Script jobs install
+  ``install_scratch_root_guard`` (after the tunnel hook, so the guard is the
+  outermost wrapper and tunnel adoption runs first); it wraps
+  ``SSHClient.from_env`` and rewrites a non-absolute root to the resolved
+  absolute one whenever the client has a remote runner, which covers
+  ``connect()`` and clients the job body constructs itself.
 
 Only the Python standard library is imported at module load: ``virtuoso_bridge``
 is imported lazily after :func:`isolate_runtime_env` has run.
@@ -615,6 +625,97 @@ def resolve_scratch_root(ssh=None, profile: str | None = None) -> str:
     return resolved
 
 
+# --------------------------------------------------------------------------
+# Scratch-root guard (expand a configured ~ before a client computes a path)
+# --------------------------------------------------------------------------
+#
+# Upstream builds every remote work dir from ``VB_REMOTE_SCRATCH_ROOT`` and
+# never expands ``~``: with ``~/.virtuoso-bridge`` configured, an IL upload
+# computes ``~/.virtuoso-bridge/...`` and ``load()`` in the CIW rejects it
+# because SKILL does not expand ``~`` either.  The plugin's deploy/start
+# helpers resolve the root themselves, but a script-worker or user-constructed
+# client would still see the raw tilde.  The script-job runner installs this
+# guard, which attaches to ``SSHClient.from_env`` so every client created in
+# that job resolves the root before it computes a remote path.
+
+SCRATCH_ROOT_PATCH_MARKER = "scratch-root-guard-v1"
+
+
+def configured_scratch_root() -> str:
+    """The configured remote scratch root exactly as the environment holds it."""
+    return os.environ.get("VB_REMOTE_SCRATCH_ROOT", "").strip()
+
+
+def normalize_client_scratch_root(ssh, profile: str | None = None) -> str:
+    """Rewrite a non-absolute configured scratch root into an absolute one.
+
+    Returns the configured value unchanged when it is empty (the upstream
+    default ``/tmp`` applies) or already starts with ``/``, and also when
+    the client has no remote runner (local mode has no remote home to expand
+    against).  A ``~/`` root is expanded through
+    :func:`resolve_scratch_root`, which also rewrites the environment so later
+    helpers agree.  A root that cannot be resolved reports
+    ``scratch-root-home`` instead of a bare ``RuntimeError``.
+    """
+    value = configured_scratch_root()
+    if not value or value.startswith("/"):
+        return value
+    if _runner(ssh) is None:
+        return value
+    try:
+        return resolve_scratch_root(ssh, profile)
+    except ScratchRootError:
+        raise
+    except Exception as error:  # noqa: BLE001 - one stable code for the operator
+        raise ScratchRootError(
+            "scratch-root-home",
+            f"Cannot resolve the remote scratch root {value!r}: {error}",
+            path=value,
+            hint=(
+                "Check SSH login and the remote account home, or set an absolute "
+                "remoteScratchRoot."
+            ),
+        ) from error
+
+
+def install_scratch_root_guard() -> bool:
+    """Monkey-patch ``SSHClient.from_env`` to normalise the scratch root.
+
+    Idempotent and lazy: ``virtuoso_bridge`` is imported here, never at module
+    import time.  Must be called *after* :func:`install_plugin_tunnel` when
+    both apply, so this wrapper is outermost and the tunnel adoption (which
+    reads the client the upstream factory built) happens before any path is
+    resolved.
+
+    Returns ``True`` when the guard is installed (also on a repeated call).
+    """
+    from virtuoso_bridge.transport.tunnel import SSHClient
+
+    if getattr(SSHClient, "_vb_scratch_root_marker", None) == SCRATCH_ROOT_PATCH_MARKER:
+        return True
+    if "from_env" not in SSHClient.__dict__:
+        raise RuntimeError(
+            "the scratch-root guard cannot be installed: "
+            "virtuoso_bridge.SSHClient has no from_env"
+        )
+    original = _unbound(SSHClient.__dict__["from_env"])
+
+    def _guarded_from_env(cls, *args, **kwargs):
+        client = original(cls, *args, **kwargs)
+        profile = (
+            kwargs.get("profile")
+            or getattr(client, "_profile", None)
+            or os.environ.get("VB_PROFILE", "").strip()
+            or None
+        )
+        normalize_client_scratch_root(client, profile)
+        return client
+
+    SSHClient.from_env = classmethod(_guarded_from_env)
+    SSHClient._vb_scratch_root_marker = SCRATCH_ROOT_PATCH_MARKER
+    return True
+
+
 def _parse_path_report(stdout: str) -> dict:
     values: dict[str, str] = {}
     for line in (stdout or "").splitlines():
@@ -957,14 +1058,18 @@ __all__ = [
     "PLUGIN_TUNNEL_PID_ENV",
     "PLUGIN_TUNNEL_REMOTE_PORT_ENV",
     "PluginTunnel",
+    "SCRATCH_ROOT_PATCH_MARKER",
     "ScratchRootError",
     "adopt_plugin_tunnel",
     "classify_deployment_failure",
+    "configured_scratch_root",
     "empty_env_file",
     "ensure_scratch_root",
     "inspect_path",
     "install_plugin_tunnel",
+    "install_scratch_root_guard",
     "isolate_runtime_env",
+    "normalize_client_scratch_root",
     "plugin_data_dir",
     "plugin_tunnel_alive",
     "plugin_tunnel_config",

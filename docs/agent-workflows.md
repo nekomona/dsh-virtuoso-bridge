@@ -147,6 +147,10 @@ Read the runtime state instead of guessing from a single log line:
    created automatically, while a missing path elsewhere names the required
    `mkdir -p -m 700`). `test_connection` reports SSH, remote Python, scratch root
    and daemon checks even when no runtime is running.
+- `load: can't access file - ~/...` at the first IL load means a `~`-prefixed
+  path reached Virtuoso: `load()` does not expand `~`. The remedy is an absolute
+  `remoteScratchRoot` on the remote account, or leave `~/` and let the plugin
+  resolve it; deployment and client/IL uploads never pass `~` to `load()`.
 
 ## CIW diagnostics after a call
 
