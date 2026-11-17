@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Read the runtime state before reinstalling: waiting, host-key trust, legacy daemons, deployment conflicts, CIW capture and what to include in a report.">
+    <meta name="language-current" content="en">
+  <meta name="language-alternate" content="troubleshooting.zh-CN.html">
+  <title>Troubleshooting · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <span class="language-switch" aria-label="Language">
+        <a href="troubleshooting.zh-CN.html" hreflang="zh-CN" data-language-choice="zh">中文</a>
+        <a href="troubleshooting.html" aria-current="page" data-language-choice="en">EN</a>
+      </span>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Get started</a>
+      <a href="connections.html">Connections</a>
+      <a href="agent-tools.html">Agent tools</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="runtime.html">Runtime</a>
+      <a href="troubleshooting.html" aria-current="page">Troubleshooting</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          <li><a href="#decision">Triage</a></li>
+          <li><a href="#waiting">Runtime is waiting</a></li>
+          <li><a href="#trust">Host-key trust</a></li>
+          <li><a href="#daemon">Daemon failures</a>
+            <ol>
+              <li><a href="#daemon-missing">No listener or legacy</a></li>
+              <li><a href="#daemon-auth">Auth failed</a></li>
+              <li><a href="#dialog-blocked">Blocked by a dialog</a></li>
+              <li><a href="#daemon-lost">Daemon lost</a></li>
+              <li><a href="#shared-setup">Shared setup</a></li>
+            </ol>
+          </li>
+          <li><a href="#deploy-conflict">Deployment conflict</a></li>
+          <li><a href="#browser">Browser and history</a>
+            <ol>
+              <li><a href="#failed-to-fetch">Failed to fetch</a></li>
+              <li><a href="#history-loading">History is loading</a></li>
+            </ol>
+          </li>
+          <li><a href="#ssh">SSH and backends</a></li>
+          <li><a href="#paths">Paths and scratch root</a></li>
+          <li><a href="#ciw-missing">Missing CIW block</a></li>
+          <li><a href="#security">Security</a></li>
+          <li><a href="#limits">Limits</a></li>
+          <li><a href="#report">Reporting a bug</a></li>
+          <li><a href="#next">Next</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">06 · Operations</p>
+        <h1>Troubleshooting</h1>
+        <p class="doc-lede">Most bridge problems are visible in the runtime state before you reinstall anything. That state covers the SSH (Secure Shell) login, the tunnel, and the daemon inside the Virtuoso CIW (Command Interpreter Window). Read the state, name the failing layer, then take the one action that layer needs. Each section starts from the symptom that the panel or the tool reports.</p>
+
+        <h2 id="decision">Triage</h2>
+        <p>The plugin records which layer failed, so the first move is always to read it. Reinstalling the venv is almost never that move. Redeploy the daemon only when the probe says it is missing or of the wrong generation.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Symptom</th><th>First move</th></tr></thead>
+            <tbody>
+              <tr><td>Runtime state <code>waiting</code></td><td>Run the <code>setupHint</code> load line in the idle CIW.</td></tr>
+              <tr><td>Runtime state <code>needs-trust</code></td><td>Confirm the fingerprint, then start again.</td></tr>
+              <tr><td>Daemon probe <code>no-listener</code> or <code>legacy</code></td><td>Deploy with <code>deploy_daemon</code>, then load its line.</td></tr>
+              <tr><td>Daemon status <code>auth-failed</code></td><td>Deploy the current setup and load it.</td></tr>
+              <tr><td>A dialog title in the runtime status</td><td>Answer the dialog in Virtuoso, then refresh.</td></tr>
+              <tr><td>A deployment conflict card</td><td>Read the versions, then overwrite only if stale.</td></tr>
+              <tr><td><code>Failed to fetch</code> in the browser</td><td>Retry once, then refresh the DSH page.</td></tr>
+              <tr><td>History stuck on loading</td><td>Wait for the local timeout.</td></tr>
+              <tr><td>A script job that never settles</td><td>Check <code>status</code> with the job id, then <code>cancel</code>.</td></tr>
+              <tr><td>No CIW block attached to a result</td><td>Read the CIW explicitly.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-tip"><span class="callout-title">Read the state first</span><p><code>virtuoso_bridge_runtime</code> action <code>status</code> is one call. It reports the state, the daemon condition, the dialog state, the setup hint and the error. Run it before you change anything.</p></div>
+
+        <h2 id="waiting">Runtime is waiting</h2>
+        <p><code>waiting</code> means the SSH login and the tunnel worked, and nothing answers the daemon port yet. The CIW still has to load the prepared setup. The runtime panel shows the exact command, and the status carries it as <code>setupHint</code>. The state flips to <code>running</code> once the <a href="runtime.html#health">health loop</a> sees an answer.</p>
+        <div class="code-card">
+          <header><span>Run in the intended idle CIW</span><span>SKILL</span></header>
+          <pre><code>load("/home/username/.virtuoso-bridge/daemon/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>After the load, the 20-second health poll flips the runtime to <code>running</code>. A responsive daemon then clears the load hint, so a healthy connection shows no CIW prompt at all.</p>
+        <div class="callout callout-tip"><span class="callout-title">Don't redeploy for waiting</span><p>The tunnel and the SSH session are already correct. Only the CIW side is missing, so redeploying changes nothing.</p></div>
+
+        <h2 id="trust">Host-key trust</h2>
+        <p><code>needs-trust</code> means the host offered a key you have not trusted yet, and the runtime stays stopped. Confirm the fingerprint, then start again. <a href="connections.html#host-keys">Host keys and trust</a> shows how the probe labels each key and where the trusted one is written.</p>
+        <p>A changed key of a type you already trust is different. It is a conflict, the plugin never replaces it, and you remove the stale entry with <code>ssh-keygen -R &lt;host&gt;</code> before you retry.</p>
+        <div class="callout callout-warn"><span class="callout-title">An extra key type is not a conflict</span><p>A host can offer several key types while <code>known_hosts</code> holds only some of them. A type that is simply absent is untrusted, not changed, and a host with at least one trusted type still starts.</p></div>
+
+        <h2 id="daemon">Daemon failures</h2>
+        <p>A daemon failure is not an SSH failure. <strong>Test</strong> and <code>test_connection</code> report each layer separately: SSH reachability and authentication, the remote Python interpreter, the scratch root, and whatever answers the configured daemon port. They work even when no runtime is running.</p>
+
+        <h3 id="daemon-missing">No listener or legacy</h3>
+        <p><code>no-listener</code> means nothing listens on the configured port. <code>legacy</code> means another generation of the bridge answers there, usually an old bundle on a different port. Neither is reused. <a href="connections.html#deploy">Daemon deployment</a> covers the deploy-and-load sequence.</p>
+        <div class="callout callout-warn"><span class="callout-title">A restart is not a deploy</span><p>A reconnect or a plain restart does not deploy files. Run <code>virtuoso_bridge_runtime</code> action <code>deploy_daemon</code>, then load its returned line in the intended idle CIW.</p></div>
+
+        <h3 id="daemon-auth">Auth failed</h3>
+        <p><code>auth-failed</code> means a bridge daemon is present but rejects this client token. It may predate token authentication, belong to another account, or have had its token rotated. The remedy matches a missing setup: deploy the current setup and load it in the intended CIW.</p>
+
+        <h3 id="dialog-blocked">Blocked by a dialog</h3>
+        <p>A modal dialog can block the daemon while Virtuoso is healthy. The status carries the dialog title, the panel shows a warning, and the hint tells you to click or answer the dialog, then refresh. It never asks for a daemon reinstall or a setup reload. When the probe already says <code>no-listener</code>, dialog inspection is skipped, because no dialog can be the cause.</p>
+
+        <h3 id="daemon-lost">Daemon lost</h3>
+        <p>If a daemon was healthy and then stops answering, the panel reports a daemon-lost reason instead of the initial setup hint. The setup did load once, so look at the CIW: a busy command, a crashed session, or a changed port.</p>
+
+        <h3 id="shared-setup">Shared setup</h3>
+        <p>A shared <code>daemonSetup</code> installed with <code>virtuoso-bridge install-daemon</code> is read-only to clients, and a client environment change cannot retroactively update a running CIW. <a href="connections.html#deploy">Daemon deployment</a> covers how clients share it.</p>
+
+        <h2 id="deploy-conflict">Deployment conflict</h2>
+        <p>A normal deploy never overwrites a differing remote bundle. The card reports the versions (otherwise <code>version unknown</code>) and the backend conflict details, and <a href="connections.html#deploy-conflicts">Conflicts</a> explains the comparison.</p>
+        <p>Overwrite only when the generated bundle is stale or corrupt, or when the profile changed. The old bundle is kept as a backup. After an overwrite, load the newly returned setup line, or call <code>deploy_daemon</code> with <code>replace: true</code>.</p>
+        <div class="callout callout-tip"><span class="callout-title">A timeout is not a failed deploy</span><p>Deployment runs over SSH and can outlast the dashboard's status-poll budget. The dashboard keeps the printed setup path and load line visible, so do not retry a deploy because a browser request timed out. <a href="connections.html#deploy-timeouts">Timeouts</a> has the detail.</p></div>
+
+        <h2 id="browser">Browser and history</h2>
+
+        <h3 id="failed-to-fetch">Failed to fetch</h3>
+        <p>The client retries once after clearing a stale dashboard base or token, applies request timeouts and prefers the current page origin. Refresh the DSH page if the dashboard server restarted. Reload it after upgrading the plugin so the browser uses the current bundle.</p>
+
+        <h3 id="history-loading">History is loading</h3>
+        <p>History content is fetched when you expand it. A local timeout clears the loading state, and a successful fetch shows the code and result. If the backend is unreachable, the failure is reported instead of hanging.</p>
+
+        <h2 id="ssh">SSH and backends</h2>
+        <ul>
+          <li>Verify that <code>ssh</code> is on <code>PATH</code>, or choose Paramiko explicitly. Without OpenSSH, the install stops and asks for confirmation before it continues with the Paramiko backend only.</li>
+          <li>For jump hosts and non-standard ports, check the advanced network fields in the connection editor: <code>sshPort</code>, <code>jumpHost</code>, <code>jumpUser</code>, <code>sshProxy</code> and the role-host overrides.</li>
+          <li>Host-key conflicts need an explicit trust decision. See <a href="#trust">Host-key trust</a>.</li>
+          <li><code>identityFile</code> writes a per-connection SSH config that includes your own config. Otherwise, authentication uses the system <code>ssh</code> configuration, agent and keys.</li>
+          <li>A local connection (<code>localhost</code>, <code>127.0.0.1</code>, <code>::1</code>) skips SSH and uses the local bridge token file, exactly like virtuoso-bridge local mode.</li>
+          <li>Host-key preflight and the SSH test target the primary <code>host</code>. In a split topology, trust the additional role-host keys through your own <code>ssh</code>/known_hosts first.</li>
+        </ul>
+
+        <h2 id="paths">Paths and scratch root</h2>
+        <p>If the first IL load reports <code>load: can't access file</code> for a <code>~/...</code> path, a tilde path reached Virtuoso: <code>load()</code> does not expand <code>~</code>. Use an absolute <code>remoteScratchRoot</code> on the remote account, or keep <code>~/</code> in the setting and let the plugin resolve it before any deployment or upload. Deployment and client/IL uploads never pass <code>~</code> to <code>load()</code>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Scratch-root condition</th><th>What happens before deployment</th></tr></thead>
+            <tbody>
+              <tr><td>Missing, under the account home</td><td>Created with mode <code>0700</code>. You get a warning when a sibling path differs only by <code>_</code> versus <code>-</code>.</td></tr>
+              <tr><td>Permissive but user-owned</td><td>Tightened, not rejected.</td></tr>
+              <tr><td>A symlink, wrong owner, non-directory, or missing path outside the home</td><td>Its own actionable error, with an <code>mkdir -p -m 700</code> hint where that is the remedy.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The deploy result reports <code>configuredScratchRoot</code>, the resolved <code>scratchRoot</code>, <code>scratchCreated</code>/<code>scratchTightened</code> and any warning, so the load path cannot silently disagree with the configured value. A per-connection <code>remoteScratchRoot</code> overrides the global default. The default reaches deployment, discovery, shells and scripts as <code>VB_REMOTE_SCRATCH_ROOT</code>.</p>
+
+        <h2 id="ciw-missing">Missing CIW block</h2>
+        <p>The CIW block attached to a call or a settled script job is best effort, and it can be absent. A local Windows Virtuoso, a missing <code>/proc</code> or a busy lane all skip capture, and capture never fails a call. When the block is missing or too late, read the CIW explicitly: force the warning port out, then tail the newest session log.</p>
+        <div class="code-card">
+          <header><span>Explicit CIW read</span><span>PYTHON</span></header>
+          <pre><code>client.execute_skill('warn("") getWarn()')
+log = client.run_shell_command(
+    'set log = `ls -t ~/CDS.log* | head -1` ; tail -n 40 "$log"')
+print(log.output)</code></pre>
+        </div>
+        <p><code>run_shell_command</code> runs csh in the Virtuoso process environment, so <code>.output</code> holds that command's stdout and stderr. Do not put it in a loop for every call. The automatic block is the cheap path.</p>
+        <div class="callout callout-warn"><span class="callout-title">The CIW is a shared transcript</span><p>The CIW is shared with the human and with other tools, so a captured line may not belong to this call. Use it to find the cause, never as evidence about the result it is attached to. Unchecking <strong>Report CIW warnings/errors with results</strong> (<code>ciwReport</code>) turns capture off.</p></div>
+
+        <h2 id="security">Security</h2>
+        <ul>
+          <li>Host-key trust is explicit, and a changed key is a conflict that is never silently replaced.</li>
+          <li>Creating a connection, or changing its SSH target, is an access grant outside the workspace. Starting it gives the agent shell, Python and SKILL (Cadence's scripting language) on that account. The agent tool asks for approval unless the session has <strong>Full access</strong>, and a rejected approval is final.</li>
+          <li>Daemon tokens live in DSH credentials and reach the sidecar through its environment. The token field is write-only, and the panels never return it.</li>
+          <li>The dashboard bootstraps a per-process token over a loopback-only endpoint and rejects cross-site requests.</li>
+          <li>Remote setup paths are private and ownership-checked by virtuoso-bridge-lite.</li>
+          <li>Clients cannot replace a shared <code>install-daemon</code> setup.</li>
+        </ul>
+        <div class="callout callout-warn"><span class="callout-title">Don't work around a refusal</span><p>A rejected approval is a decision, not a bug. Create the connection from the configuration page instead of retrying the tool call.</p></div>
+
+        <h2 id="limits">Limits</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Limit</th><th>Consequence</th></tr></thead>
+            <tbody>
+              <tr><td>SKILL cannot be loaded into a running CIW automatically</td><td>The printed <code>load("...")</code> line is a human step. After it, the runtime becomes <code>running</code> on its own.</td></tr>
+              <tr><td>No Cadence or Spectre license or hardware is included</td><td>Live SKILL, Maestro and simulation behaviour depend on the installed bridge, the SSH configuration and the CIW state.</td></tr>
+              <tr><td>First install downloads Python dependencies</td><td>It needs a package index. Reinstall or repair after changing the Python interpreter or the local repo.</td></tr>
+              <tr><td>UI rendering depends on the DSH version and theme</td><td>Panels are verified through client registration and source checks, not pixel by pixel.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="report">Reporting a bug</h2>
+        <p>Collect the fields the runtime already records before you open an issue. They turn a guess into a diagnosis.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Field</th><th>Where it appears</th></tr></thead>
+            <tbody>
+              <tr><td>Stage</td><td>The failure stage in the runtime details and tool error.</td></tr>
+              <tr><td>SSH backend</td><td>OpenSSH or Paramiko, plus the SSH port.</td></tr>
+              <tr><td>Daemon state</td><td>The daemon chip, <code>daemonProbe</code> verdict and dialog inspection.</td></tr>
+              <tr><td>Error code and hint</td><td><code>errorCode</code>, path and hint from a failed deploy or start.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Report at the <a href="https://github.com/nekomona/dsh-virtuoso-bridge/issues">repository issue tracker</a>. Remove tokens, real host names, account names and private home paths from anything you paste. The project's release guard rejects exactly that kind of data.</p>
+
+        <h2 id="next">Next</h2>
+        <p>That closes the guide. The overview links every chapter and the canonical Markdown sources.</p>
+        <nav class="doc-next">
+          <a href="index.html"><span>BACK TO OVERVIEW</span>Start of the guide →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      简体中文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.zh-CN.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.zh-CN.md">plugin guide</a>
+    </p>
+    <p>
+      Built on <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>.
+      Canonical documentation lives in
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/tree/main/docs">docs/</a>.
+    </p>
+  </footer>
+</body>
+</html>

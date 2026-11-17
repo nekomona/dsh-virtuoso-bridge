@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Reference for the four dsh-virtuoso-bridge agent tools: runtime actions, API describe and call, batched scripts, setup, CIW diagnostics and installed skills.">
+  <meta name="language-current" content="en">
+  <meta name="language-alternate" content="agent-tools.zh-CN.html">
+  <title>Agent tools · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <span class="language-switch" aria-label="Language">
+        <a href="agent-tools.zh-CN.html" hreflang="zh-CN" data-language-choice="zh">中文</a>
+        <a href="agent-tools.html" aria-current="page" data-language-choice="en">EN</a>
+      </span>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Get started</a>
+      <a href="connections.html">Connections</a>
+      <a href="agent-tools.html" aria-current="page">Agent tools</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="runtime.html">Runtime</a>
+      <a href="troubleshooting.html">Troubleshooting</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          <li><a href="#overview">The four tools</a></li>
+          <li><a href="#runtime">Runtime tool</a></li>
+          <li><a href="#api">API tool</a></li>
+          <li><a href="#script">Script tool</a></li>
+          <li><a href="#setup">Setup tool</a></li>
+          <li><a href="#ciw">CIW diagnostics</a></li>
+          <li><a href="#skills">Installed skills</a></li>
+          <li><a href="#batching">Batching work</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">03 · API</p>
+        <h1>Agent tools</h1>
+        <p class="doc-lede">Four tools connect an agent to the installed bridge. One manages runtimes and connections, one describes and calls the Python API, one runs batched Python, and one installs and repairs the environment.</p>
+
+        <h2 id="overview">The four tools</h2>
+        <p>All four tools are registered on the Host, so every conversation of the profile can use them. Runtimes are process-wide: a fork, a new conversation or a subagent session shares the same tunnel and daemon.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Tool</th><th>One-line purpose</th><th>Use it when</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>virtuoso_bridge_runtime</code></td><td>Manage tunnels, daemons and saved server connections.</td><td>You need state, a start/stop, a health test, instance discovery or a daemon deployment.</td></tr>
+              <tr><td><code>virtuoso_bridge_api</code></td><td>Describe and call any public virtuoso-bridge target.</td><td>You know the bridge method you need and want one structured call.</td></tr>
+              <tr><td><code>virtuoso_bridge_script</code></td><td>Run Python in a fresh virtual environment (venv) process with the client connected.</td><td>The work needs a loop, several calls, measurements or a persisted result.</td></tr>
+              <tr><td><code>virtuoso_bridge_setup</code></td><td>Install, update, diagnose and configure the isolated venv.</td><td>The environment is missing, broken or deliberately changed.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The tools add no Maestro runner, job store, dialog manager, history manager or scheduler. Each is a thin surface over the bridge and the Host's managed runtime. An upstream capability is reached through <code>describe</code> and <code>call</code>, not through a plugin wrapper.</p>
+
+        <h2 id="runtime">Runtime tool</h2>
+        <p><code>virtuoso_bridge_runtime</code> takes one required <code>action</code> and the arguments it needs. <code>connection</code> is an id or a name. Omit it to use the default connection. <code>runtime</code> (<code>rt_...</code>) selects one managed runtime when a connection has several. The tool also owns the SSH (Secure Shell) tunnel and the sidecar.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Action</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>status</code></td><td>Return a compact projection of setup, connections, runtimes, attached agents and running actions.</td></tr>
+              <tr><td><code>list</code></td><td>Return the same projection for every connection and runtime in the profile.</td></tr>
+              <tr><td><code>start</code></td><td>Create or reuse the managed SSH tunnel, connect the sidecar and attach a signed daemon when one answers.</td></tr>
+              <tr><td><code>stop</code></td><td>Tear down the tunnel and sidecar for that runtime.</td></tr>
+              <tr><td><code>restart</code></td><td>Stop and start the runtime again. It does not deploy files or reload the setup in the CIW (Virtuoso Command Interpreter Window).</td></tr>
+              <tr><td><code>ping</code></td><td>Ask the running sidecar for a fresh status snapshot.</td></tr>
+              <tr><td><code>connections</code></td><td>List saved connection profiles.</td></tr>
+              <tr><td><code>save_connection</code></td><td>Create or update a connection from <code>connectionConfig</code>, with write-only <code>secret</code> credentials.</td></tr>
+              <tr><td><code>delete_connection</code></td><td>Remove a saved connection.</td></tr>
+              <tr><td><code>test_connection</code></td><td>Return a layered health report for SSH, remote Python, the scratch root and the daemon.</td></tr>
+              <tr><td><code>instances</code></td><td>Discover automatic-session instances with an optional <code>timeoutSec</code> budget (default 20).</td></tr>
+              <tr><td><code>select_instance</code></td><td>Store a discovered daemon <code>port</code> on the connection before a restart.</td></tr>
+              <tr><td><code>deploy_daemon</code></td><td>Prepare and upload the account bootstrap, then return its <code>load("...")</code> line.</td></tr>
+              <tr><td><code>detect_shell</code></td><td>Run the Cadence environment script under csh and sh, and cache which one exposes <code>virtuoso</code>.</td></tr>
+              <tr><td><code>host_key</code></td><td>Probe the SSH host keys and report fingerprints, known and unknown entries, and conflicts.</td></tr>
+              <tr><td><code>trust_host</code></td><td>Write one user-confirmed <code>fingerprint</code> to <code>known_hosts</code>, and accept only a key the fresh probe offered.</td></tr>
+              <tr><td><code>orphans</code></td><td>List tunnels left behind by a crashed DeepSeek Harness (DSH) process.</td></tr>
+              <tr><td><code>stop_orphan</code></td><td>Stop one orphaned tunnel.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>The compact status projection</h3>
+        <p><code>status</code> and <code>list</code> return a compact projection, not the full dashboard state. It covers setup readiness and source, SSH backends, connection endpoints, runtime state and stage. It also covers the <code>daemon</code> state (<code>ready</code>, <code>no-response</code>, <code>auth-failed</code>, <code>unreachable</code>, <code>unknown</code>) and the <code>daemonProbe</code> result. The rest covers the selected <code>instance</code> (port, Virtuoso pid, work directory), <code>attach.attached</code>, <code>setupHint</code>, the error, attached agents and running actions.</p>
+        <p>Verbose install logs, source and venv debug paths, tunnel internals and full tracebacks stay in the UI, which keeps the full state. A fixed-port start that attached a live daemon reports <code>attach.attached</code>. A <code>setupHint</code> appears only before first readiness, so a healthy connection shows no CIW prompt.</p>
+        <div class="code-card">
+          <header><span>Status, then a start</span><span>JSON</span></header>
+          <pre><code>{"action": "status", "waitMs": 15000}
+{"action": "start", "connection": "lab-virtuoso"}</code></pre>
+        </div>
+        <p><code>waitMs</code> is a wait budget for <code>status</code>, <code>start</code> and <code>ping</code> (default 15000). <code>status</code> waits for an in-flight start to settle, or returns a pending snapshot when the budget expires.</p>
+
+        <h3>Instances and sub-instances</h3>
+        <p>With <code>autoSessions</code>, the daemon takes an OS-assigned port, so a connection binds to a discovered instance instead of a fixed port. <code>instances</code> performs read-only discovery. Nothing is selected until <code>select_instance</code> stores a port. A missing selection or several matching instances fails with the available list instead of silently picking one.</p>
+        <div class="code-card">
+          <header><span>Discover and select</span><span>JSON</span></header>
+          <pre><code>{"action": "instances", "connection": "lab-virtuoso", "timeoutSec": 20}
+{"action": "select_instance", "connection": "lab-virtuoso", "port": 65142}
+{"action": "restart", "connection": "lab-virtuoso"}</code></pre>
+        </div>
+        <p>Workdir sub-instances start with <code>subInstance</code> on <code>start</code> or <code>restart</code>: an id, a name or an absolute remote work directory. Each sub-instance has its own VBL (virtuoso-bridge-lite) profile and sidecar and is discovered by workdir. One connection can therefore cover several project CIWs without fixed ports. <code>workDir</code> filters discovery by an absolute remote working directory.</p>
+
+        <h3>Deploying and testing</h3>
+        <p>A fixed-port <code>start</code> probes the daemon port first and attaches a signed daemon, so you do not deploy or load setup for a live daemon. <code>deploy_daemon</code> prepares the generated account bootstrap without connecting. It starts no tunnel or daemon, and it never loads SKILL (Virtuoso's scripting language).</p>
+        <p>A differing remote bundle is not overwritten. The result reports both versions, and <code>replace: true</code> is the explicit upgrade path. A shared setup configured through <code>daemonSetup</code> or installed with <code>virtuoso-bridge install-daemon</code> is read-only to clients and is never replaced. A fixed legacy deployment carries <code>recommendedAutoSessions</code>, because such a daemon is not discoverable after a CIW restart.</p>
+        <div class="code-card">
+          <header><span>Explicit replacement</span><span>JSON</span></header>
+          <pre><code>{"action": "deploy_daemon", "connection": "lab-virtuoso", "replace": true}</code></pre>
+        </div>
+        <p><code>test_connection</code> returns a structured report with <code>ssh</code>, <code>remotePython</code>, <code>scratchRoot</code> and a signed/unsigned <code>daemon</code> probe. It also runs while the runtime is stopped. It is not an SSH ping. It never deploys or creates the scratch root, and the card marks the target ready only when both SSH and a signed daemon pass. A running runtime's Host-owned tunnel is reused. A stopped runtime gets a short-lived probe tunnel. A Paramiko session never launches <code>ssh.exe</code>.</p>
+
+        <h3>Connection writes and approval</h3>
+        <p><code>save_connection</code> creates a row when neither its <code>id</code> nor its <code>name</code> matches an existing connection. Saving without an <code>id</code> under an existing name updates that row instead of creating a duplicate, and the result says <code>created</code> or <code>updated</code>. An existing row is retargeted when <code>host</code>, <code>user</code>, <code>sshPort</code>, <code>jumpHost</code>/<code>jumpUser</code> or a role host changes.</p>
+        <p>Creating a connection, or changing an existing row's SSH target, modifies something outside the workspace. A saved connection is a standing grant that opens a shell, Python and SKILL on that account. The tool asks for approval through DSH's permission card unless the session has <strong>Full access</strong>. A rejected or unavailable approval is final. Saves that repeat the same SSH target with notes, scratch roots, sub-instances or environment need no prompt.</p>
+        <p>In fixed mode, leaving <code>port</code> blank derives the stable per-user daemon port from the SSH user name (SHA-1, range 65000&ndash;65499). In automatic mode <code>port</code> is unused and stays unset. Daemon tokens are write-only: pass them in <code>secret</code>, and they are stored through DSH credentials instead of the connection JSON.</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">Never work around a rejection</span>
+          <p>If approval is rejected or unavailable, create the row on the configuration page instead. Do not edit plugin settings by hand to bypass the permission card.</p>
+        </div>
+
+        <h2 id="api">API tool</h2>
+        <p><code>virtuoso_bridge_api</code> lets you read and call the installed bridge without guessing a signature. <code>describe</code> has three zoom levels plus a method lookup. Its answers follow the installed version, so newer layout, Maestro and dialog helpers appear without a plugin update.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Describe form</th><th>Answer</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>describe</code></td><td>Return a compact index of targets, documented classes and a hint to describe one.</td></tr>
+              <tr><td><code>describe target=client.schematic</code></td><td>List that target's methods as <code>name(signature) -&gt; return</code>, with short summaries, properties and child targets.</td></tr>
+              <tr><td><code>describe target=client.schematic method=open_window</code></td><td>Return exactly one method with its full docstring and parameter table.</td></tr>
+              <tr><td><code>describe method=open_window</code></td><td>List the targets that define that method.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="code-card">
+          <header><span>Describe, then call</span><span>TEXT</span></header>
+          <pre><code>virtuoso_bridge_api action=describe
+virtuoso_bridge_api action=describe target=client.layout
+virtuoso_bridge_api action=describe target=client.schematic method=open_window
+virtuoso_bridge_api action=describe method=open_window</code></pre>
+        </div>
+        <p>An answer that exceeds the inline budget (about 14,000 characters) is not cut off. The full payload is written as JSON under <code>&lt;cache dir&gt;/results/</code>, and the reply ends with that path. Read or grep it, then clear it with <code>virtuoso_bridge_setup action=clear_cache cache=results</code>. Large <code>call</code> results follow the same rule.</p>
+
+        <h3>Callable targets</h3>
+        <p><code>call</code> invokes one method on one of the public targets:</p>
+        <ul>
+          <li><code>client</code> &mdash; the connected client itself, including <code>execute_skill</code> and <code>run_shell_command</code>.</li>
+          <li><code>client.schematic</code>, <code>client.layout</code>, <code>client.library</code>, <code>client.symbol</code> &mdash; the design targets.</li>
+          <li><code>client.maestro</code>, <code>client.sos</code> &mdash; the Maestro and SOS targets.</li>
+          <li><code>client.dialogs</code>, <code>client.requests</code> &mdash; the dialog and request targets.</li>
+          <li><code>spectre</code> &mdash; the Spectre target.</li>
+        </ul>
+        <p>Arguments are positional in <code>args</code> and named in <code>kwargs</code>. Rich values use explicit markers: <code>{"$type":"path","value":"/projects/example/x.il"}</code> for a remote path and <code>{"$type":"bytes","data":"&lt;base64&gt;"}</code> for bytes. Dataclass results such as <code>VirtuosoResult</code> and <code>SimulationResult</code> are converted to JSON. <code>timeoutSec</code> bounds the bridge-side operation.</p>
+        <div class="code-card">
+          <header><span>SKILL through the API</span><span>JSON</span></header>
+          <pre><code>{"action": "call",
+ "target": "client",
+ "method": "execute_skill",
+ "args": ["1+1"],
+ "description": "Check the daemon answers",
+ "timeoutSec": 60}</code></pre>
+        </div>
+        <p>A <code>call</code> can carry an optional one-line <code>description</code>, used as the tool-card label. Every call renders as the same expandable code card as a script run. An <code>execute_skill</code> call shows its SKILL source as code. Another call shows its arguments. Both carry the dsh-virtuoso-bridge badge.</p>
+
+        <h2 id="script">Script tool</h2>
+        <p><code>virtuoso_bridge_script</code> runs Python in a <strong>new venv process</strong>, never in the sidecar. A bad batch therefore cannot break the connection. The script gets <code>connect()</code>, <code>emit()</code> and a <code>result</code> convention:</p>
+        <div class="code-card">
+          <header><span>Script contract</span><span>PYTHON</span></header>
+          <pre><code>import virtuoso_bridge as vb
+client = connect()          # reuse the running tunnel/daemon
+emit({"progress": 0.5})     # structured progress
+result = {"done": True}     # persisted as result.json</code></pre>
+        </div>
+        <p>A run takes exactly one source: inline <code>code</code>, or <code>path</code> to a Python file. A relative <code>path</code> resolves against the Session working directory, so it names the file the ordinary file tools just wrote. Each run copies the current file content into its own job directory, so an edit applies to the next run. Jobs are independent; there is no fixed scratch script.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Action</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>run</code></td><td>Start a job and return <code>Running</code> with its id when it is still in flight.</td></tr>
+              <tr><td><code>status</code></td><td>Return the full job snapshot, including incremental stdout and stderr.</td></tr>
+              <tr><td><code>list</code></td><td>List recent jobs.</td></tr>
+              <tr><td><code>cancel</code></td><td>Cancel a job.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Jobs have ids, status, incremental stdout and stderr, a hard timeout and cancellation. A job started in one conversation can be polled from another. The plugin indexes the last 40 job directories when it starts.</p>
+        <p>Every call needs a short one-line <code>description</code>, used as the tool-call label and history title. A successful run returns <code>Success</code> and the <code>result</code>. A running job returns <code>Running</code> and its id. A failure returns the error and the id. Internal paths, code previews, status records and auto-connect fields are not exposed.</p>
+        <div class="callout callout-tip">
+          <span class="callout-title">Fold the probes</span>
+          <p>One larger script beats several small runs. Fold the measurements and edits you need into one body, and print what you measured. When you will revisit the work, keep it in a workspace file and pass <code>path</code>. An edit then applies to the next run without resending the body. Inline code is simpler for a one-off probe.</p>
+        </div>
+        <div class="code-card">
+          <header><span>Reusable file</span><span>JSON</span></header>
+          <pre><code>{"action": "run", "path": "batch.py",
+ "description": "Measure open schematic windows",
+ "timeoutSec": 600}</code></pre>
+        </div>
+
+        <h2 id="setup">Setup tool</h2>
+        <p><code>virtuoso_bridge_setup</code> owns the isolated venv, its source and its caches. <code>status</code> and <code>preflight</code> return only the facts you need to choose the next step. The full install log, source details and storage list stay on the configuration page.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Action</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>status</code></td><td>Report installed state, source mode, venv, SSH backends and cache directory.</td></tr>
+              <tr><td><code>preflight</code></td><td>Report supported backends and the extra definition before an install.</td></tr>
+              <tr><td><code>install</code></td><td>Create or repair the venv and install the selected source.</td></tr>
+              <tr><td><code>update</code></td><td>Reinstall from the current source, and fetch a git source again.</td></tr>
+              <tr><td><code>diagnose</code></td><td>Return the explicit plugin-debugging report, including Host self-checks.</td></tr>
+              <tr><td><code>configure</code></td><td>Persist runtime defaults such as the Python executable and the cache directory.</td></tr>
+              <tr><td><code>set_source</code></td><td>Select bundled source, a local development repo or a git repository at a ref.</td></tr>
+              <tr><td><code>caches</code></td><td>List cache items with paths, sizes and file counts.</td></tr>
+              <tr><td><code>clear_cache</code></td><td>Clear one cache: <code>pip</code>, <code>sources</code>, <code>jobs</code>, <code>results</code> or <code>logs</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Install brings the SSH extra (<code>paramiko</code> plus <code>PySocks</code>) by default and verifies <code>import virtuoso_bridge</code> from the plugin venv. If OpenSSH is missing from <code>PATH</code>, <code>install</code> stops and returns a confirmation request. Retry with <code>confirm: true</code> to use the Paramiko backend only.</p>
+        <div class="code-card">
+          <header><span>Install without OpenSSH</span><span>JSON</span></header>
+          <pre><code>{"action": "install", "confirm": true}</code></pre>
+        </div>
+
+        <h2 id="ciw">CIW diagnostics</h2>
+        <p>Read the CIW block before you guess why a call did nothing. A <code>virtuoso_bridge_api</code> <code>call</code> and a settled <code>virtuoso_bridge_script</code> job append a compact CIW block when the CIW printed something during the call:</p>
+        <div class="code-card">
+          <header><span>Attached CIW block</span><span>TEXT</span></header>
+          <pre><code>--- CIW: 1 warning, 1 error, 1 output line (41 other lines) ---
+*WARNING* (DB-270212): dbOpenCellViewByType: ...
+CDF: An error occurred when evaluating callback.</code></pre>
+        </div>
+        <p>The header counts warnings, errors and output lines, and notes the rest of the shared transcript. Capture is best effort. A local Windows Virtuoso, a missing <code>/proc</code> or a busy lane can skip it, and an absent block does not mean the CIW was quiet. Warnings are flushed from the SKILL warning port, and the block is read from the session <code>CDS.log</code>. Its writer batches text, so a line can arrive one call late. A failed call and a settled script job wait briefly before reading.</p>
+        <p>A captured line can come from the human or from another tool. Treat the block as CIW output, not as proof about the result it is attached to. Capture never fails a call; uncheck <strong>Report CIW warnings/errors with results</strong> (<code>ciwReport</code>) on the configuration page to turn it off. To read the CIW explicitly when the block is missing, use the <a href="workflows.html#ciw">workflow recipe</a>.</p>
+
+        <h2 id="skills">Installed skills</h2>
+        <p>Setup installs the upstream documentation &mdash; <code>skills/</code>, <code>README.md</code> and <code>AGENTS.md</code> &mdash; into:</p>
+        <div class="code-card">
+          <header><span>Instructions directory</span><span>TEXT</span></header>
+          <pre><code>&lt;dataDir&gt;/instructions/</code></pre>
+        </div>
+        <p>The plugin registers a <code>virtuoso-bridge</code> skill in the DSH skill catalog with that directory as its resource base, and lists every installed <code>SKILL.md</code>. The system prompt gives the same absolute path and tells the agent to read the matching skill or reference before issuing bridge commands. Agents must not guess <code>virtuoso-bridge</code> CLI flags. For connections, deployment, automatic sessions and instance selection, read <code>skills/virtuoso/references/connection.md</code>.</p>
+        <p>Reinstall or update the bridge to refresh the installed documentation. Setup also installs <code>references/agent-workflows.md</code>, a short wrapper guide over the existing VBL APIs.</p>
+
+        <h2 id="batching">Batching work</h2>
+        <p>Every extra call is a round trip. Use a few large calls instead of many small ones:</p>
+        <ul>
+          <li><strong>Fold probes into one script.</strong> Put the reads, edits and checks into one body, and print what you measured.</li>
+          <li><strong>Describe once.</strong> Read the target's signatures, then call it. Do not rediscover the same method at every step.</li>
+          <li><strong>Prefer a script to repeated calls.</strong> One job that loops over the client beats ten separate <code>call</code>s.</li>
+          <li><strong>Let big answers become files.</strong> An oversized answer is written under <code>&lt;cache dir&gt;/results/</code>. Grep the path instead of asking again.</li>
+        </ul>
+        <div class="callout">
+          <span class="callout-title">Read state before acting</span>
+          <p>A runtime operation can be in flight. <code>status</code> with <code>waitMs</code> waits for the start to settle, so the next call does not race the state it is about to use.</p>
+        </div>
+
+        <nav class="doc-next">
+          <a href="workflows.html"><span>NEXT</span>Agent workflows →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      简体中文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.zh-CN.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.zh-CN.md">plugin guide</a>
+    </p>
+    <p>Built on <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>. Canonical documentation lives in <a href="https://github.com/nekomona/dsh-virtuoso-bridge/tree/main/docs">docs/</a>.</p>
+  </footer>
+</body>
+</html>

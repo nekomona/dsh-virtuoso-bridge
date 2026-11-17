@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="长时间运行的 Maestro job、对话框检查、history 冲突、job 策略、CIW 诊断与失败处理的实用配方，全部通过 dsh-virtuoso-bridge 智能体完成。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="workflows.html">
+  <title>智能体工作流 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="workflows.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="workflows.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html" aria-current="page">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#principle">工作原则</a></li>
+          <li><a href="#maestro">长时间 Maestro 运行</a></li>
+          <li><a href="#dialogs">对话框</a></li>
+          <li><a href="#history">history 冲突</a></li>
+          <li><a href="#policy">大运行与策略</a></li>
+          <li><a href="#script-source">脚本来源</a></li>
+          <li><a href="#startup">连接启动</a></li>
+          <li><a href="#ciw">CIW 诊断</a></li>
+          <li><a href="#failures">失败规则</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">04 · 实践</p>
+        <h1>智能体工作流</h1>
+        <p class="doc-lede">这些配方用的 API 都随 virtuoso-bridge-lite 一起发布。它们让 Maestro 运行全程可观察，回答对话框前先看清内容，结果不确定时也不必重跑工作。</p>
+
+        <h2 id="principle">工作原则</h2>
+        <p>插件只暴露 bridge，逻辑仍由 bridge 负责。不要新增插件侧的 Maestro runner、job store、dialog manager、history manager、点数计数器或调度器。下面的每个配方都使用现有入口：<code>MaestroJobManager</code>、<code>client.dialogs</code>、<code>x11.dismiss_window</code>、保存和 history 调用，以及 job 策略调用。</p>
+        <p>调用之前，先从已安装的包里读出准确签名。<code>virtuoso_bridge_api</code> 的 <code>describe</code> 动作由已安装的 bridge 作答，所以你能看到实际存在哪些方法。配方如果需要 bridge 不具备的能力，就把这个缺口报出来。不要在 bridge 之外再包一层原始 Cadence SKILL（Virtuoso 的脚本语言）或 shell 命令。</p>
+        <div class="callout">
+          <span class="callout-title">现有 API 优先</span>
+          <p>已安装的 bridge 是签名和行为的唯一依据。先描述目标，再调用。不要猜测标志、方法名或返回结构。</p>
+        </div>
+
+        <h2 id="maestro">长时间 Maestro 运行</h2>
+        <p>Maestro 运行可能比单次工具调用持续更久，守护进程也可能中途重启。这种情况用 <code>MaestroJobManager</code>：它只提交一次 job，之后持续观察即可。</p>
+        <div class="code-card">
+          <header><span>提交一次，持久观察</span><span>PYTHON</span></header>
+          <pre><code>from virtuoso_bridge.virtuoso.maestro.jobs import MaestroJobManager
+
+mgr = MaestroJobManager.from_client(client)
+job = mgr.submit(session="mySession", run_id="run-001", timeout=180)
+
+status = mgr.status(job)          # poll this; it is persisted locally/remotely
+print(status)
+print(mgr.log(job, lines=80))</code></pre>
+        </div>
+        <ul>
+          <li><code>submit</code> 会先预检对话框守卫，并记录未知结果，而不是提交两次。</li>
+          <li>重连或守护进程重启后，用 <code>mgr.list()</code> 或 <code>mgr.load(run_id)</code> 加 <code>mgr.reconcile(job)</code> 重新建立观察，然后再重试。</li>
+          <li>这套 API 没有 job 取消方法，不要自己造一个。</li>
+          <li>提交前保存已修改的 setup：<code>client.maestro.save_setup(lib, cell, session=session)</code>。</li>
+        </ul>
+        <div class="callout callout-warn">
+          <span class="callout-title">不要自动重新提交</span>
+          <p>连接丢失意味着结果未知。先核对现有 job，再做决定。再次提交同一运行可能重复工作。</p>
+        </div>
+
+        <h2 id="dialogs">对话框</h2>
+        <p>检查和守卫都是现成的 API。先只读检查，再为你要处理的那个窗口准备一张关闭 ticket。</p>
+        <div class="code-card">
+          <header><span>检查、守卫、准备</span><span>PYTHON</span></header>
+          <pre><code>report = client.dialogs.inspect(pid=client.remote_virtuoso_pid)
+report = client.dialogs.enable_guard(pid=client.remote_virtuoso_pid,
+                                     protect_inflight=True)
+ticket = client.dialogs.prepare_close(
+    report.dialogs[0].window_id,
+    expected_title=report.dialogs[0].title,
+)</code></pre>
+        </div>
+        <p><code>client.dialogs.close()</code> 发送的是窗口管理器的关闭动作，<strong>不能</strong>用来回答对话框的 Yes/No。</p>
+        <p>对于明确授权的 Yes/No/OK 动作，使用现有 X11 helper：</p>
+        <div class="code-card">
+          <header><span>授权回答</span><span>PYTHON</span></header>
+          <pre><code>from virtuoso_bridge.virtuoso import x11
+
+results = x11.dismiss_window(
+    client.ssh_runner,
+    "&lt;remote-user&gt;",
+    window_id,
+    action="alt-y",          # alt-y, alt-n, alt-o, enter, escape
+    display=":0",
+    pid=client.remote_virtuoso_pid,
+)
+print(results)               # closure_confirmed / still_mapped</code></pre>
+        </div>
+        <p>动作有 <code>alt-y</code>、<code>alt-n</code>、<code>alt-o</code>、<code>enter</code> 和 <code>escape</code>。结果报告 <code>closure_confirmed</code> 或 <code>still_mapped</code>。结果不确定时，不要重复输入。</p>
+        <ol>
+          <li>先只读检查。</li>
+          <li>对含义不明确的对话框，先展示预览并询问用户。</li>
+          <li>未经授权，绝不要回答仿真启动或保存对话框。</li>
+          <li>确认关闭；结果不确定时不要重复输入。</li>
+        </ol>
+        <p>远端运行时启动时，插件会先预部署并校验 X11 helper。之后如果又缺失，直接调用现成的 <code>x11.dismiss_window</code> API 即可。helper 上传本来就属于 virtuoso-bridge，不是插件新加的函数。</p>
+
+        <h2 id="history">history 与 setup 冲突</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>信号</th><th>含义</th><th>动作</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>EXPLORER-2406</code></td><td>请求的 history 名称已存在。</td><td>不要重新提交。检查现有 history，然后使用 history API 或显式 SKILL 重命名。</td></tr>
+              <tr><td><code>MaestroMonteCarloError: unsaved or unknown setup changes</code></td><td>Maestro 设置已修改但未保存，或状态未知。</td><td>调用 <code>client.maestro.save_setup(...)</code>，然后重试。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>history 相关的现有调用有 <code>get_history</code>、<code>lock_history</code>、<code>unlock_history</code> 和 <code>set_history_lock</code>。锁定的 history 可能让下一次 ADE Explorer（Analog Design Environment Explorer）运行复用它的名称。只有确认旧结果安全后，才解锁或重命名。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">解锁前先确认</span>
+          <p>锁定的 history 会影响下一次 ADE Explorer 运行。先检查现有 history，确认旧结果安全后再解锁或重命名。</p>
+        </div>
+
+        <h2 id="policy">大运行与策略</h2>
+        <p><code>warnWhenSimsExceed</code> 问题是 Cadence 策略，不是 bridge 失败。检查对话框，把问题展示给用户。只在获得授权后回答。</p>
+        <p>并行执行时，使用现有的 Maestro job 策略 API：<code>maeGetJobPolicy</code> / <code>maeSetJobPolicy</code>，或 <code>client.maestro.set_job_policy</code>。不要新增插件调度器。大运行前确认实际点数和主机容量。如果不熟悉策略签名，先描述 <code>client.maestro</code>。</p>
+
+        <h2 id="script-source">脚本来源：文件或内联代码</h2>
+        <p><code>virtuoso_bridge_script</code> 的 <code>run</code> 动作只接受一种来源：内联 <code>code</code>，或指向 Python 文件的 <code>path</code>。job 相互独立，因此不存在固定的临时脚本。按调用选择合适的方式。</p>
+        <ol>
+          <li>用普通文件工具在工作区写入 <code>batch.py</code>。</li>
+          <li>用 <code>path: "batch.py"</code> 运行它。每次运行都会把当前文件复制到新的 job 目录。</li>
+          <li>失败或测量后编辑文件，然后再次运行。下一次运行会读取编辑后的内容。</li>
+        </ol>
+        <p>如果这段脚本以后还要复用，这个循环通常比重发脚本体更省。代码留在工作区里可审查，改一处也不必重发整个脚本。一次性探测用内联代码更简单。</p>
+
+        <h2 id="startup">连接启动</h2>
+        <p>读运行时状态，别从单条日志猜。<code>virtuoso_bridge_runtime</code> 的 <code>status</code> 动作报告 <code>stage</code>、<code>daemon</code>、<code>daemonProbe</code>、<code>setupHint</code>、<code>attach</code> 和 <code>error</code>。这些状态名会指出缺失的是哪一层，因此不必盲目重新部署或重启。</p>
+        <ol>
+          <li>仅在状态为 <code>waiting</code> 时执行打印的 <code>load("...")</code> 行。此时 SSH（Secure Shell）登录和隧道已就绪，CIW（Virtuoso Command Interpreter Window）尚未加载 setup。在 setup 加载前，守护进程端口上没有应答。</li>
+          <li>启动固定端口连接，让探测挂接已签名的守护进程。<code>attach.attached</code> 会记录这次复用，不需要部署或加载 CIW。</li>
+          <li><code>daemonProbe</code> 报 <code>no-listener</code> 或 <code>legacy</code> 时，执行 <code>deploy_daemon</code>，再在目标空闲 CIW 里加载返回的那一行，然后重新启动。重连或重启不会部署文件，也不会重新加载 setup。</li>
+          <li>把超时的浏览器请求当作待定，而不是失败。部署通过 SSH 运行，可能超出较短的状态轮询预算。部署错误会带上 <code>errorCode</code>、<code>path</code> 和 <code>hint</code>。插件会创建账号主目录下缺失的暂存根目录。其他位置缺失的路径，错误信息会给出所需的 <code>mkdir -p -m 700</code>。</li>
+          <li>没有运行中的运行时也要做这些检查时，执行 <code>test_connection</code>。它报告 SSH、远端 Python、暂存根目录和守护进程。</li>
+        </ol>
+        <p>首次 IL 加载如果失败并报 <code>load: can't access file - ~/...</code>，说明带 <code>~</code> 的路径传到了 Virtuoso —— <code>load()</code> 不会展开 <code>~</code>。在远端账号上使用绝对 <code>remoteScratchRoot</code>，或保留 <code>~/</code> 让插件解析。部署和客户端/IL 上传永远不会把 <code>~</code> 传给 <code>load()</code>。</p>
+
+        <h2 id="ciw">CIW 诊断</h2>
+        <p>先读 CIW 块。CDF 回调失败、<code>*WARNING*</code> 行和 SKILL <code>*Error*</code> 文本都落在那里，而不是返回值里，所以这个块往往能解释为什么一次调用“什么都没发生”。</p>
+        <p><code>virtuoso_bridge_api</code> 的 <code>call</code> 和已结束的 <code>virtuoso_bridge_script</code> job，会在调用期间 CIW 有输出时附加这个块。<a href="agent-tools.zh-CN.html#ciw">工具参考</a>说明了块的结构、采集的局限和 <code>ciwReport</code> 开关。</p>
+        <p>块缺失或太晚时，显式读取 CIW。先强制刷出警告端口，再 tail 最新的会话日志：</p>
+        <div class="code-card">
+          <header><span>显式读取 CIW</span><span>PYTHON</span></header>
+          <pre><code>client.execute_skill('warn("") getWarn()')
+log = client.run_shell_command(
+    'set log = `ls -t ~/CDS.log* | head -1` ; tail -n 40 "$log"')
+print(log.output)</code></pre>
+        </div>
+        <p><code>run_shell_command</code> 在 Virtuoso 进程环境中运行 csh，因此 <code>.output</code> 包含这个命令的 stdout 和 stderr。不要每次调用都这样轮询。自动附加的 CIW 块更省。</p>
+
+        <h2 id="failures">失败规则</h2>
+        <ul>
+          <li>套接字错误或守护进程掉线意味着结果<strong>未知</strong>，而不是失败。用 <code>MaestroJobManager</code> 的 status 或 reconcile 检查 job，并在主机侧检查 history。绝不自动重新提交。</li>
+          <li>模态对话框可能阻塞 SKILL，而仿真仍在运行。用 X11 带外检查对话框。不要因为一次 SKILL 轮询超时就重启守护进程或重新提交。</li>
+          <li>优先使用现有的结构化 API，不要靠内省包源码或原始 shell 去猜。</li>
+        </ul>
+        <div class="callout callout-warn">
+          <span class="callout-title">未知不等于失败</span>
+          <p>连接在运行中途掉线时，真实的状态是未知。重试前先核对 job 或检查 history，并报告实际观察到的内容。</p>
+        </div>
+
+        <nav class="doc-next">
+          <a href="runtime.zh-CN.html"><span>下一章</span>运行时 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

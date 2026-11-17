@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="dsh-virtuoso-bridge 四个智能体工具的参考：运行时动作、API 描述与调用、批处理脚本、安装工具、CIW 诊断与已安装技能。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="agent-tools.html">
+  <title>智能体工具 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="agent-tools.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="agent-tools.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html" aria-current="page">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#overview">四个工具</a></li>
+          <li><a href="#runtime">运行时工具</a></li>
+          <li><a href="#api">API 工具</a></li>
+          <li><a href="#script">脚本工具</a></li>
+          <li><a href="#setup">安装工具</a></li>
+          <li><a href="#ciw">CIW 诊断</a></li>
+          <li><a href="#skills">已安装技能</a></li>
+          <li><a href="#batching">批量处理</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">03 · API</p>
+        <h1>智能体工具</h1>
+        <p class="doc-lede">四个工具把智能体接到已安装的 bridge 上。一个管理运行时和连接，一个描述并调用 Python API，一个执行批处理脚本，一个安装并修复环境。</p>
+
+        <h2 id="overview">四个工具</h2>
+        <p>四个工具都注册在 Host 上，profile 的每个会话都能使用。运行时是进程级的：fork、新会话或子智能体会话共用同一条隧道和同一个守护进程。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>工具</th><th>一句话用途</th><th>何时使用</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>virtuoso_bridge_runtime</code></td><td>管理隧道、守护进程和已保存的服务器连接。</td><td>需要状态、启动/停止、健康测试、实例发现或守护进程部署时。</td></tr>
+              <tr><td><code>virtuoso_bridge_api</code></td><td>描述并调用任意公开的 virtuoso-bridge 目标。</td><td>已知需要的 bridge 方法，希望做一次结构化调用时。</td></tr>
+              <tr><td><code>virtuoso_bridge_script</code></td><td>在全新的 Python 虚拟环境（venv）进程中运行 Python，可直接使用已连接客户端。</td><td>工作需要循环、多次调用、测量或持久化结果时。</td></tr>
+              <tr><td><code>virtuoso_bridge_setup</code></td><td>安装、更新、诊断并配置隔离的 venv。</td><td>环境缺失、损坏，或你刻意改动过环境时。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>这些工具不新增 Maestro runner、job store、dialog manager、history manager 或调度器。它们只是 bridge 和 Host 托管运行时之上的一层轻量封装。上游已有的能力通过 <code>describe</code> 和 <code>call</code> 访问，而不是通过插件包装。</p>
+
+        <h2 id="runtime">运行时工具</h2>
+        <p><code>virtuoso_bridge_runtime</code> 接受一个必填的 <code>action</code>，以及对应动作所需的参数。<code>connection</code> 传 id 或名称，省略则用默认连接。<code>runtime</code>（<code>rt_...</code>）在一条连接有多个运行时时指定其中一个。SSH（Secure Shell）隧道和 sidecar 也由这个工具管理。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>动作</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>status</code></td><td>返回环境、连接、运行时、已关联智能体和运行中动作的紧凑投影。</td></tr>
+              <tr><td><code>list</code></td><td>返回 profile 中每个连接和运行时的同样投影。</td></tr>
+              <tr><td><code>start</code></td><td>创建或复用托管的 SSH 隧道，连接 sidecar，并在有已签名守护进程应答时挂接它。</td></tr>
+              <tr><td><code>stop</code></td><td>拆除这个运行时的隧道和 sidecar。</td></tr>
+              <tr><td><code>restart</code></td><td>停止并再次启动运行时。它不会部署文件，也不会重新加载 CIW（Virtuoso Command Interpreter Window）中的 setup。</td></tr>
+              <tr><td><code>ping</code></td><td>向运行中的 sidecar 请求新的状态快照。</td></tr>
+              <tr><td><code>connections</code></td><td>列出已保存的连接配置。</td></tr>
+              <tr><td><code>save_connection</code></td><td>根据 <code>connectionConfig</code> 创建或更新连接，凭据通过只写的 <code>secret</code> 传入。</td></tr>
+              <tr><td><code>delete_connection</code></td><td>删除已保存的连接。</td></tr>
+              <tr><td><code>test_connection</code></td><td>返回 SSH、远端 Python、暂存根目录和守护进程的分层健康报告。</td></tr>
+              <tr><td><code>instances</code></td><td>发现自动会话实例，可用 <code>timeoutSec</code> 设置预算（默认 20）。</td></tr>
+              <tr><td><code>select_instance</code></td><td>在重启前把发现的守护进程 <code>port</code> 保存到连接上。</td></tr>
+              <tr><td><code>deploy_daemon</code></td><td>准备并上传账号 bootstrap，然后返回其 <code>load("...")</code> 行。</td></tr>
+              <tr><td><code>detect_shell</code></td><td>在 csh 和 sh 下运行 Cadence 环境脚本，并缓存能提供 <code>virtuoso</code> 的那种 shell。</td></tr>
+              <tr><td><code>host_key</code></td><td>探测 SSH 主机密钥，报告指纹、已知和未知条目以及冲突。</td></tr>
+              <tr><td><code>trust_host</code></td><td>把一个经用户确认的 <code>fingerprint</code> 写入 <code>known_hosts</code>，并且只接受全新探测实际提供的密钥。</td></tr>
+              <tr><td><code>orphans</code></td><td>列出更早的 DeepSeek Harness（DSH）进程崩溃后遗留的隧道。</td></tr>
+              <tr><td><code>stop_orphan</code></td><td>停止其中一条遗留隧道。</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>紧凑状态投影</h3>
+        <p><code>status</code> 和 <code>list</code> 返回的是紧凑投影，不是面板上的完整状态。投影覆盖环境就绪情况与来源、SSH 后端、连接端点、运行时状态和阶段，也覆盖 <code>daemon</code> 状态（<code>ready</code>、<code>no-response</code>、<code>auth-failed</code>、<code>unreachable</code>、<code>unknown</code>）和 <code>daemonProbe</code> 结果。其余部分包括选中的 <code>instance</code>（端口、Virtuoso pid、工作目录）、<code>attach.attached</code>、<code>setupHint</code>、错误、已关联智能体和运行中动作。</p>
+        <p>冗长的安装日志、来源与 venv 调试路径、隧道内部信息和完整 traceback 都留在 UI 里，完整状态以 UI 为准。固定端口启动挂接到存活守护进程时，会报告 <code>attach.attached</code>。<code>setupHint</code> 只在首次就绪之前出现，所以健康的连接不会显示 CIW 提示。</p>
+        <div class="code-card">
+          <header><span>状态，然后启动</span><span>JSON</span></header>
+          <pre><code>{"action": "status", "waitMs": 15000}
+{"action": "start", "connection": "lab-virtuoso"}</code></pre>
+        </div>
+        <p><code>waitMs</code> 是 <code>status</code>、<code>start</code> 和 <code>ping</code> 的等待预算（默认 15000）。<code>status</code> 会等待进行中的启动稳定下来，或在预算耗尽时返回待定快照。</p>
+
+        <h3>实例与子实例</h3>
+        <p>启用 <code>autoSessions</code> 后，守护进程的端口由操作系统分配，连接绑定到发现的实例，而不是固定端口。<code>instances</code> 只做只读发现。在 <code>select_instance</code> 保存端口之前，插件不会选中任何实例。没有选择或匹配到多个实例时，调用会失败并列出可用实例，而不是静默自选。</p>
+        <div class="code-card">
+          <header><span>发现并选择</span><span>JSON</span></header>
+          <pre><code>{"action": "instances", "connection": "lab-virtuoso", "timeoutSec": 20}
+{"action": "select_instance", "connection": "lab-virtuoso", "port": 65142}
+{"action": "restart", "connection": "lab-virtuoso"}</code></pre>
+        </div>
+        <p>工作目录子实例通过 <code>start</code> 或 <code>restart</code> 上的 <code>subInstance</code> 启动，取值可以是 id、名称或绝对远端工作目录。每个子实例有自己的 VBL（virtuoso-bridge-lite）profile 和 sidecar，插件按工作目录发现它。所以一条连接就能覆盖多个项目 CIW，不用给每个都分配固定端口。<code>workDir</code> 按绝对远端工作目录过滤发现结果。</p>
+
+        <h3>部署与测试</h3>
+        <p>固定端口的 <code>start</code> 会先探测守护进程端口，并挂接已签名的守护进程，所以守护进程还活着时，你既不用部署也不用加载 setup。<code>deploy_daemon</code> 不建立连接，只准备生成的账号 bootstrap：它不启动隧道或守护进程，也从不加载 SKILL（Virtuoso 的脚本语言）。</p>
+        <p>远端 bundle 与当前不一致时，普通部署不会覆盖它。结果会报告两个版本，<code>replace: true</code> 是明确的升级路径。通过 <code>daemonSetup</code> 配置或由 <code>virtuoso-bridge install-daemon</code> 安装的共享 setup 对客户端只读，客户端无法替换。固定端口旧版部署会带上 <code>recommendedAutoSessions</code>，因为这类守护进程在 CIW 重启后无法被发现。</p>
+        <div class="code-card">
+          <header><span>显式替换</span><span>JSON</span></header>
+          <pre><code>{"action": "deploy_daemon", "connection": "lab-virtuoso", "replace": true}</code></pre>
+        </div>
+        <p><code>test_connection</code> 返回结构化报告，包含 <code>ssh</code>、<code>remotePython</code>、<code>scratchRoot</code>，以及签名或未签名的 <code>daemon</code> 探测。运行时停止时也能执行。它不是 SSH ping，也从不部署或创建暂存根目录；只有 SSH 和已签名守护进程同时通过，卡片才把目标标为就绪。运行时已启动时，测试复用其 Host 托管隧道；运行时停止时，测试打开一条短命的探测隧道。Paramiko 会话从不启动 <code>ssh.exe</code>。</p>
+
+        <h3>连接写入与批准</h3>
+        <p><code>id</code> 和 <code>name</code> 都匹配不上现有连接时，<code>save_connection</code> 新建一行。不带 <code>id</code> 而用已有名称保存，则更新那一行，不新建重复行，结果给出 <code>created</code> 或 <code>updated</code>。<code>host</code>、<code>user</code>、<code>sshPort</code>、<code>jumpHost</code>/<code>jumpUser</code> 或角色主机一变，插件就把现有行重定向到新目标。</p>
+        <p>创建连接或修改现有行的 SSH 目标，都属于工作区之外的修改。保存的连接是一项长期授权，启动它会在对应账号上打开 shell、Python 和 SKILL。所以工具要通过 DSH 权限卡片请求批准，除非会话具备 <strong>完全权限</strong>。批准被拒绝或不可用即为终态。SSH 目标不变、只改备注、暂存根目录、子实例或环境的保存，不需要提示。</p>
+        <p>固定模式下，<code>port</code> 留空会从 SSH 用户名派生每个用户专属的稳定守护进程端口（SHA-1，范围 65000&ndash;65499）。自动模式下不使用 <code>port</code>，保持未设置。守护进程 token 只写：通过 <code>secret</code> 传入，存储在 DSH credentials 服务中，而不是连接 JSON。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">不要绕过拒绝</span>
+          <p>如果批准被拒绝或不可用，请在配置页创建连接。不要手动编辑插件设置来绕过权限卡片。</p>
+        </div>
+
+        <h2 id="api">API 工具</h2>
+        <p><code>virtuoso_bridge_api</code> 让你读 bridge、调 bridge 都不用猜签名。<code>describe</code> 分三个层级，另支持按方法名查找。返回直接来自已安装版本，所以不升级插件也能看到较新的 layout、Maestro 和对话框辅助方法。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>描述形式</th><th>返回</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>describe</code></td><td>返回紧凑索引，包含目标、有文档的类和描述提示。</td></tr>
+              <tr><td><code>describe target=client.schematic</code></td><td>把这个目标的方法列为 <code>name(signature) -&gt; return</code>，附简短摘要、属性和子目标。</td></tr>
+              <tr><td><code>describe target=client.schematic method=open_window</code></td><td>只返回一个方法，含完整 docstring 和参数表。</td></tr>
+              <tr><td><code>describe method=open_window</code></td><td>列出定义这个方法的各个目标。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="code-card">
+          <header><span>描述，然后调用</span><span>TEXT</span></header>
+          <pre><code>virtuoso_bridge_api action=describe
+virtuoso_bridge_api action=describe target=client.layout
+virtuoso_bridge_api action=describe target=client.schematic method=open_window
+virtuoso_bridge_api action=describe method=open_window</code></pre>
+        </div>
+        <p>插件不会截断超出内联预算（约 14,000 字符）的答案。完整负载以 JSON 写入 <code>&lt;cache dir&gt;/results/</code>，回复末尾给出文件路径。读取或 grep 之后，用 <code>virtuoso_bridge_setup action=clear_cache cache=results</code> 清理。较大的 <code>call</code> 结果遵循同样的规则。</p>
+
+        <h3>可调用目标</h3>
+        <p><code>call</code> 在某个公开目标上调用一个方法：</p>
+        <ul>
+          <li><code>client</code> &mdash; 已连接的客户端本身，包括 <code>execute_skill</code> 和 <code>run_shell_command</code>。</li>
+          <li><code>client.schematic</code>、<code>client.layout</code>、<code>client.library</code>、<code>client.symbol</code> &mdash; 设计类目标。</li>
+          <li><code>client.maestro</code>、<code>client.sos</code> &mdash; Maestro 与 SOS 目标。</li>
+          <li><code>client.dialogs</code>、<code>client.requests</code> &mdash; 对话框与请求目标。</li>
+          <li><code>spectre</code> &mdash; Spectre 目标。</li>
+        </ul>
+        <p>参数按位置放在 <code>args</code>，按名称放在 <code>kwargs</code>。复杂值使用显式标记：<code>{"$type":"path","value":"/projects/example/x.il"}</code> 表示远端路径，<code>{"$type":"bytes","data":"&lt;base64&gt;"}</code> 表示字节。<code>VirtuosoResult</code>、<code>SimulationResult</code> 等 dataclass 结果会转换为 JSON。<code>timeoutSec</code> 限定 bridge 侧操作的超时。</p>
+        <div class="code-card">
+          <header><span>通过 API 执行 SKILL</span><span>JSON</span></header>
+          <pre><code>{"action": "call",
+ "target": "client",
+ "method": "execute_skill",
+ "args": ["1+1"],
+ "description": "Check the daemon answers",
+ "timeoutSec": 60}</code></pre>
+        </div>
+        <p><code>call</code> 可以带一行可选的 <code>description</code>，用作工具卡标签。每次调用都会渲染成与脚本运行相同的可展开代码卡。<code>execute_skill</code> 调用把 SKILL 源码显示为代码。其他调用显示参数。两张卡都带有 dsh-virtuoso-bridge 徽标。</p>
+
+        <h2 id="script">脚本工具</h2>
+        <p><code>virtuoso_bridge_script</code> 在<strong>一个全新的 venv 进程</strong>里运行 Python，绝不在 sidecar 里运行。所以批处理脚本出错，也不会破坏连接。脚本使用 <code>connect()</code>、<code>emit()</code> 和 <code>result</code> 这套约定：</p>
+        <div class="code-card">
+          <header><span>脚本约定</span><span>PYTHON</span></header>
+          <pre><code>import virtuoso_bridge as vb
+client = connect()          # reuse the running tunnel/daemon
+emit({"progress": 0.5})     # structured progress
+result = {"done": True}     # persisted as result.json</code></pre>
+        </div>
+        <p>一次运行只接受一种来源：内联 <code>code</code>，或指向 Python 文件的 <code>path</code>。相对 <code>path</code> 以 Session 工作目录为基准，正好指向普通文件工具刚写下的文件。每次运行都把文件的当前内容复制到自己的 job 目录，所以代码修改在下一次运行时才生效。job 之间彼此独立，没有固定的临时脚本。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>动作</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>run</code></td><td>启动 job，并在它仍在运行时返回 <code>Running</code> 和它的 id。</td></tr>
+              <tr><td><code>status</code></td><td>返回完整 job 快照，包括增量 stdout 和 stderr。</td></tr>
+              <tr><td><code>list</code></td><td>列出近期 job。</td></tr>
+              <tr><td><code>cancel</code></td><td>取消 job。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>job 带 id、状态、增量 stdout 和 stderr，支持硬超时和取消。一个会话启动的 job，另一个会话也能轮询。插件启动时会索引最近 40 个 job 目录。</p>
+        <p>每次调用都需要一行简短的 <code>description</code>，用作工具调用标签和 history 标题。成功运行返回 <code>Success</code> 和 <code>result</code>。运行中的 job 返回 <code>Running</code> 和它的 id。失败返回错误和 id。插件不暴露内部路径、代码预览、状态记录和自动连接字段。</p>
+        <div class="callout callout-tip">
+          <span class="callout-title">合并探测</span>
+          <p>一个较大的脚本胜过多次小运行。把要做的读取、修改和检查都放进一个脚本体，再打印测量结果。如果这段工作以后还要复用，就存成工作区文件，用 <code>path</code> 传入；这样改一行后下一次运行即生效，不必重发整个脚本体。只探一次的工作，用内联代码更简单。</p>
+        </div>
+        <div class="code-card">
+          <header><span>可复用文件</span><span>JSON</span></header>
+          <pre><code>{"action": "run", "path": "batch.py",
+ "description": "Measure open schematic windows",
+ "timeoutSec": 600}</code></pre>
+        </div>
+
+        <h2 id="setup">安装工具</h2>
+        <p><code>virtuoso_bridge_setup</code> 管理隔离 venv、来源和缓存。<code>status</code> 和 <code>preflight</code> 只返回决定下一步所需的事实。完整安装日志、来源详情和存储列表留在配置页。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>动作</th><th>作用</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>status</code></td><td>报告安装状态、来源模式、venv、SSH 后端和缓存目录。</td></tr>
+              <tr><td><code>preflight</code></td><td>在安装前报告支持的 SSH 后端和 extra 定义。</td></tr>
+              <tr><td><code>install</code></td><td>创建或修复 venv，并安装选中的来源。</td></tr>
+              <tr><td><code>update</code></td><td>从当前来源重新安装，并再次拉取 git 来源。</td></tr>
+              <tr><td><code>diagnose</code></td><td>返回显式的插件调试报告，包含 Host 自检。</td></tr>
+              <tr><td><code>configure</code></td><td>持久化运行时默认设置，例如 Python 可执行文件和缓存目录。</td></tr>
+              <tr><td><code>set_source</code></td><td>选择内置来源、本地开发仓库或指定 ref 的 git 仓库。</td></tr>
+              <tr><td><code>caches</code></td><td>列出缓存项及其路径、大小和文件数。</td></tr>
+              <tr><td><code>clear_cache</code></td><td>清理一个缓存：<code>pip</code>、<code>sources</code>、<code>jobs</code>、<code>results</code> 或 <code>logs</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>安装默认包含 SSH extra（<code>paramiko</code> 加 <code>PySocks</code>），并从插件 venv 验证 <code>import virtuoso_bridge</code>。如果 <code>PATH</code> 中没有 OpenSSH，<code>install</code> 会停止并返回确认请求。用 <code>confirm: true</code> 重试，即可只用 Paramiko 后端继续。</p>
+        <div class="code-card">
+          <header><span>无 OpenSSH 时安装</span><span>JSON</span></header>
+          <pre><code>{"action": "install", "confirm": true}</code></pre>
+        </div>
+
+        <h2 id="ciw">CIW 诊断</h2>
+        <p>先读 CIW 块，别急着猜调用为什么没生效。<code>virtuoso_bridge_api</code> 的 <code>call</code> 和已结束的 <code>virtuoso_bridge_script</code> job，会在调用期间 CIW 有输出时附加一段紧凑的 CIW 块：</p>
+        <div class="code-card">
+          <header><span>附加的 CIW 块</span><span>TEXT</span></header>
+          <pre><code>--- CIW: 1 warning, 1 error, 1 output line (41 other lines) ---
+*WARNING* (DB-270212): dbOpenCellViewByType: ...
+CDF: An error occurred when evaluating callback.</code></pre>
+        </div>
+        <p>块头统计警告数、错误数和输出行数，并标出共享 CIW 日志里其余的部分。采集只是尽力而为：本地 Windows Virtuoso、缺少 <code>/proc</code> 或通道繁忙，都可能跳过采集，所以块缺失并不等于 CIW 没有输出。警告从 SKILL 警告端口刷出，块则读自会话的 <code>CDS.log</code>。Virtuoso 的日志写入器会批量输出文本，因此某一行可能要晚一次调用才出现；失败的调用和已结束的脚本 job 都会先短暂等待再读取。</p>
+        <p>捕获到的一行可能来自用户，也可能来自别的工具。把它当 CIW 输出看，不要当作所属结果的证据。采集绝不会让调用失败；在配置页取消勾选 <strong>将 CIW 的警告/错误随结果一并报告</strong>（<code>ciwReport</code>）即可关闭。块缺失时，显式读取 CIW 的方法见 <a href="workflows.zh-CN.html#ciw">工作流配方</a>。</p>
+
+        <h2 id="skills">已安装技能</h2>
+        <p>安装会把上游文档 &mdash; <code>skills/</code>、<code>README.md</code> 和 <code>AGENTS.md</code> &mdash; 放到：</p>
+        <div class="code-card">
+          <header><span>指令目录</span><span>TEXT</span></header>
+          <pre><code>&lt;dataDir&gt;/instructions/</code></pre>
+        </div>
+        <p>插件在 DSH 技能目录里注册 <code>virtuoso-bridge</code> 技能，把这个目录作为 resource base，并列出每个已安装的 <code>SKILL.md</code>。系统提示给出同一个绝对路径，并要求智能体在发出 bridge 命令前先读匹配的技能或参考。智能体不要凭猜测编写 <code>virtuoso-bridge</code> CLI 标志。连接、部署、自动会话和实例选择这类操作，读 <code>skills/virtuoso/references/connection.md</code>。</p>
+        <p>重新安装或更新 bridge 即可刷新已安装文档。安装还会放入 <code>references/agent-workflows.md</code>，这是现有 VBL API 之上的简短封装指南。</p>
+
+        <h2 id="batching">批量处理</h2>
+        <p>每次额外调用都是一次往返。用少数几次大调用代替很多次小调用：</p>
+        <ul>
+          <li><strong>把探测合并到一个脚本。</strong>把需要的读取、编辑和检查放进一个脚本体，并打印测量结果。</li>
+          <li><strong>只描述一次。</strong>读取目标的签名，然后调用。不要每一步都重新发现同一个方法。</li>
+          <li><strong>用脚本代替重复调用。</strong>一个在客户端上循环的 job 胜过十次独立的 <code>call</code>。</li>
+          <li><strong>让大答案变成文件。</strong>过大的答案会写入 <code>&lt;cache dir&gt;/results/</code>。直接 grep 文件，而不是再次询问。</li>
+        </ul>
+        <div class="callout">
+          <span class="callout-title">先读状态再行动</span>
+          <p>运行时操作可能还在进行。带 <code>waitMs</code> 的 <code>status</code> 会一直等到启动落定，这样下一步就不会抢在状态稳定之前。</p>
+        </div>
+
+        <nav class="doc-next">
+          <a href="workflows.zh-CN.html"><span>下一章</span>智能体工作流 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

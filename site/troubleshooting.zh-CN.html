@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="先读运行时状态，再决定是否重装：等待、主机密钥信任、旧版守护进程、部署冲突、CIW 采集与报告要点。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="troubleshooting.html">
+  <title>故障排查 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="troubleshooting.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="troubleshooting.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html" aria-current="page">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#decision">分诊</a></li>
+          <li><a href="#waiting">运行时处于等待</a></li>
+          <li><a href="#trust">主机密钥信任</a></li>
+          <li><a href="#daemon">守护进程故障</a>
+            <ol>
+              <li><a href="#daemon-missing">无监听或旧版</a></li>
+              <li><a href="#daemon-auth">认证失败</a></li>
+              <li><a href="#dialog-blocked">被弹窗阻塞</a></li>
+              <li><a href="#daemon-lost">守护进程丢失</a></li>
+              <li><a href="#shared-setup">共享 setup</a></li>
+            </ol>
+          </li>
+          <li><a href="#deploy-conflict">部署冲突</a></li>
+          <li><a href="#browser">浏览器与 history</a>
+            <ol>
+              <li><a href="#failed-to-fetch">Failed to fetch</a></li>
+              <li><a href="#history-loading">history 一直加载</a></li>
+            </ol>
+          </li>
+          <li><a href="#ssh">SSH 与后端</a></li>
+          <li><a href="#paths">路径与暂存根目录</a></li>
+          <li><a href="#ciw-missing">缺少 CIW 块</a></li>
+          <li><a href="#security">安全</a></li>
+          <li><a href="#limits">限制</a></li>
+          <li><a href="#report">报告问题</a></li>
+          <li><a href="#next">下一章</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">06 · 运维</p>
+        <h1>故障排查</h1>
+        <p class="doc-lede">大多数 bridge 问题不用重装就能定位。运行时状态覆盖 SSH（Secure Shell）登录、隧道，以及 Virtuoso CIW（Command Interpreter Window）里的守护进程。先读状态，锁定失败的是哪一层，然后只做那一层需要的动作。每一节都从面板或工具实际报出的症状讲起。</p>
+
+        <h2 id="decision">分诊</h2>
+        <p>插件会记下失败的是哪一层，所以第一步永远是把它读出来。重装 venv 几乎从来不是第一步。只有探测说守护进程缺失或代际不对时，才重新部署。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>症状</th><th>第一步</th></tr></thead>
+            <tbody>
+              <tr><td>运行时状态为 <code>waiting</code></td><td>在空闲 CIW 里执行 <code>setupHint</code> 的加载行。</td></tr>
+              <tr><td>运行时状态为 <code>needs-trust</code></td><td>确认指纹，然后重新启动。</td></tr>
+              <tr><td>守护进程探测为 <code>no-listener</code> 或 <code>legacy</code></td><td>用 <code>deploy_daemon</code> 部署，再加载它返回的行。</td></tr>
+              <tr><td>守护进程状态为 <code>auth-failed</code></td><td>部署当前 setup 并加载。</td></tr>
+              <tr><td>运行时状态里出现弹窗标题</td><td>在 Virtuoso 里回答弹窗，然后刷新。</td></tr>
+              <tr><td>出现部署冲突卡</td><td>先看版本，只有确认过期时才覆盖。</td></tr>
+              <tr><td>浏览器出现 <code>Failed to fetch</code></td><td>重试一次，然后刷新 DSH 页面。</td></tr>
+              <tr><td>history 卡在加载</td><td>等本地超时。</td></tr>
+              <tr><td>脚本 job 一直不结束</td><td>用 job id 查 <code>status</code>，再 <code>cancel</code>。</td></tr>
+              <tr><td>结果没有附带 CIW 块</td><td>显式读取 CIW。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-tip"><span class="callout-title">先读状态</span><p><code>virtuoso_bridge_runtime</code> 的 <code>status</code> 动作只需一次调用。它给出状态、守护进程状况、弹窗状态、setup 提示和错误。改动任何东西之前先执行它。</p></div>
+
+        <h2 id="waiting">运行时处于等待</h2>
+        <p><code>waiting</code> 表示 SSH 登录和隧道都通了，只是守护进程端口上还没有应答，CIW 尚未加载准备好的 setup。运行时面板会显示确切的命令，状态里则通过 <code>setupHint</code> 给出。状态何时转为 <code>running</code>，见 <a href="runtime.zh-CN.html#health">健康检查循环</a>。</p>
+        <div class="code-card">
+          <header><span>在目标空闲 CIW 中执行</span><span>SKILL</span></header>
+          <pre><code>load("/home/username/.virtuoso-bridge/daemon/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>加载后，每 20 秒一次的健康检查会把运行时转为 <code>running</code>。守护进程恢复应答，加载提示随之清除，健康的连接不会再显示任何 CIW 提示。</p>
+        <div class="callout callout-tip"><span class="callout-title">不要为等待重新部署</span><p>隧道和 SSH 会话都已经正确，缺的只有 CIW 那一侧，重新部署不会改变什么。</p></div>
+
+        <h2 id="trust">主机密钥信任</h2>
+        <p><code>needs-trust</code> 表示主机提供了你还没信任的密钥，运行时会保持停止。先确认指纹，再重新启动。<a href="connections.zh-CN.html#host-keys">主机密钥与信任</a> 说明了探测如何标注每个密钥，以及信任的密钥写到哪里。</p>
+        <p>已信任的类型上出现不同的密钥，是另一回事。那是冲突，插件从不替换它。你要先用 <code>ssh-keygen -R &lt;host&gt;</code> 删除过期条目，再重试。</p>
+        <div class="callout callout-warn"><span class="callout-title">多出的密钥类型不是冲突</span><p>一台主机可以同时提供多种密钥类型，而 <code>known_hosts</code> 里往往只存了一部分。缺失的类型只算未信任，不算变更；只要有一个受信任类型，主机也能正常启动。</p></div>
+
+        <h2 id="daemon">守护进程故障</h2>
+        <p>守护进程故障不是 SSH 故障。<strong>测试</strong> 与 <code>test_connection</code> 分层报告：SSH 可达性与认证、远端 Python 解释器、暂存根目录，以及配置的守护进程端口上是什么在应答。运行时没启动时，它们也能执行。</p>
+
+        <h3 id="daemon-missing">无监听或旧版</h3>
+        <p><code>no-listener</code> 表示配置的端口上没有任何监听。<code>legacy</code> 表示那里应答的是另一代 bridge，通常是监听别的端口的旧 bundle。插件不会复用这两种守护进程。部署再加载的完整流程见 <a href="connections.zh-CN.html#deploy">守护进程部署</a>。</p>
+        <div class="callout callout-warn"><span class="callout-title">重启不是部署</span><p>重连或普通重启不会部署文件。执行 <code>virtuoso_bridge_runtime</code> 的 <code>deploy_daemon</code> 动作，再在目标空闲 CIW 里加载它返回的行。</p></div>
+
+        <h3 id="daemon-auth">认证失败</h3>
+        <p><code>auth-failed</code> 表示 bridge 守护进程在，但它拒绝本客户端的 token。原因可能是守护进程早于 token 认证、属于另一个账号，或 token 已轮换。补救方式和 setup 缺失时一样：部署当前 setup，再在目标 CIW 里加载。</p>
+
+        <h3 id="dialog-blocked">被弹窗阻塞</h3>
+        <p>模态弹窗能在 Virtuoso 本身健康时阻塞守护进程。状态里带弹窗标题，面板显示警告，提示你点击或回答弹窗后刷新。提示从不要求重装守护进程或重新加载 setup。探测已经报告 <code>no-listener</code> 时，插件会跳过弹窗检查，因为那里不可能有弹窗。</p>
+
+        <h3 id="daemon-lost">守护进程丢失</h3>
+        <p>守护进程原本健康、后来才停止应答时，面板报的是守护进程丢失的原因，而不是首次安装的提示。setup 确实已经加载过一次，所以该看 CIW：长命令占用、会话崩溃，或端口变化。</p>
+
+        <h3 id="shared-setup">共享 setup</h3>
+        <p>用 <code>virtuoso-bridge install-daemon</code> 安装的共享 <code>daemonSetup</code> 对客户端只读；修改客户端环境，也无法改变正在运行的 CIW。<a href="connections.zh-CN.html#deploy">守护进程部署</a> 说明客户端如何共用它。</p>
+
+        <h2 id="deploy-conflict">部署冲突</h2>
+        <p>普通部署从不覆盖不一致的远端 bundle。冲突卡会给出两边的版本（未知时显示 <code>version unknown</code>）和后端的冲突详情；具体的比较规则见 <a href="connections.zh-CN.html#deploy-conflicts">冲突</a>。</p>
+        <p>只在生成的 bundle 过期、损坏或 profile 变化时才覆盖。旧 bundle 会留作备份。覆盖之后，把新返回的 setup 行加载到目标空闲 CIW，或者带上 <code>replace: true</code> 调用 <code>deploy_daemon</code>。</p>
+        <div class="callout callout-tip"><span class="callout-title">超时不是部署失败</span><p>部署走 SSH，可能超过 dashboard 的轮询预算。dashboard 会让打印出的 setup 路径和加载行保持可见，所以不要因为浏览器请求超时就重试部署。细节见 <a href="connections.zh-CN.html#deploy-timeouts">超时</a>。</p></div>
+
+        <h2 id="browser">浏览器与 history</h2>
+
+        <h3 id="failed-to-fetch">Failed to fetch</h3>
+        <p>客户端会先清除过期的 dashboard base 或 token，再重试一次。请求都带超时，并且优先用当前页面的 origin。dashboard 服务重启后，请刷新 DSH 页面；升级插件后也刷新一次，让浏览器用上当前 bundle。</p>
+
+        <h3 id="history-loading">history 一直加载</h3>
+        <p>history 内容在你展开时才获取。本地超时会清除加载状态；取到就显示代码和结果，后端不可达时客户端会报出失败，而不是一直挂着。</p>
+
+        <h2 id="ssh">SSH 与后端</h2>
+        <ul>
+          <li>确认 <code>ssh</code> 在 <code>PATH</code> 里，或者显式选 Paramiko。没有 OpenSSH 时，安装会先停下来征求确认，之后只用 Paramiko 后端继续。</li>
+          <li>jump host 和非标准端口，检查连接编辑器里的高级网络字段：<code>sshPort</code>、<code>jumpHost</code>、<code>jumpUser</code>、<code>sshProxy</code> 以及角色主机覆盖。</li>
+          <li>主机密钥冲突需要明确的信任决定。见 <a href="#trust">主机密钥信任</a>。</li>
+          <li><code>identityFile</code> 会为每条连接生成一份 SSH 配置，其中也包含你自己的配置。其余情况，认证走系统的 <code>ssh</code> 配置、agent 和密钥。</li>
+          <li>本地连接（<code>localhost</code>、<code>127.0.0.1</code>、<code>::1</code>）跳过 SSH，直接用本地 bridge token 文件，与 virtuoso-bridge 本地模式一致。</li>
+          <li>主机密钥预检和 SSH 测试针对主 <code>host</code>。拆分拓扑里，先用你自己的 <code>ssh</code>/known_hosts 信任额外的角色主机密钥。</li>
+        </ul>
+
+        <h2 id="paths">路径与暂存根目录</h2>
+        <p>首次 IL 加载如果对 <code>~/...</code> 路径报 <code>load: can't access file</code>，说明带 <code>~</code> 的路径传到了 Virtuoso —— <code>load()</code> 不展开 <code>~</code>。请在远端账号上使用绝对的 <code>remoteScratchRoot</code>，或者保留 <code>~/</code>，让插件在任何部署或上传之前先解析它。部署、客户端上传和 IL 上传都不会把 <code>~</code> 传给 <code>load()</code>。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>暂存根目录状况</th><th>部署前会发生什么</th></tr></thead>
+            <tbody>
+              <tr><td>缺失，位于账号主目录下</td><td>以 <code>0700</code> 创建。同级路径只差 <code>_</code> 与 <code>-</code> 时，你会收到警告。</td></tr>
+              <tr><td>权限宽松但属于用户</td><td>收紧权限，不拒绝。</td></tr>
+              <tr><td>符号链接、所有者错误、非目录，或主目录之外的缺失路径</td><td>各自给出可操作的错误信息；补救方式是创建目录时，提示 <code>mkdir -p -m 700</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>部署结果会报告 <code>configuredScratchRoot</code>、解析后的 <code>scratchRoot</code>、<code>scratchCreated</code>/<code>scratchTightened</code> 以及任何警告，所以加载路径不会悄悄偏离配置值。每条连接的 <code>remoteScratchRoot</code> 覆盖全局默认值；这个默认值以 <code>VB_REMOTE_SCRATCH_ROOT</code> 传给部署、发现、shell 和脚本。</p>
+
+        <h2 id="ciw-missing">缺少 CIW 块</h2>
+        <p>附加在调用或已结束脚本 job 上的 CIW 块只是尽力而为，也可能整块缺失。本地 Windows Virtuoso、缺少 <code>/proc</code> 或通道繁忙，都可能跳过采集；采集本身也绝不会让调用失败。块缺失或来得太晚时，就显式读一次 CIW：先刷出警告端口，再 tail 最新的会话日志。</p>
+        <div class="code-card">
+          <header><span>显式读取 CIW</span><span>PYTHON</span></header>
+          <pre><code>client.execute_skill('warn("") getWarn()')
+log = client.run_shell_command(
+    'set log = `ls -t ~/CDS.log* | head -1` ; tail -n 40 "$log"')
+print(log.output)</code></pre>
+        </div>
+        <p><code>run_shell_command</code> 在 Virtuoso 进程环境里运行 csh，所以 <code>.output</code> 里就是这个命令的 stdout 和 stderr。不要每次调用都这样轮询；自动附加的 CIW 块更省。</p>
+        <div class="callout callout-warn"><span class="callout-title">CIW 是共享的记录</span><p>CIW 与用户以及其他工具共用，所以捕获到的某一行未必属于这次调用。用它定位原因，绝不要当作所属结果的证据。取消勾选 <strong>将 CIW 的警告/错误随结果一并报告</strong>（<code>ciwReport</code>）即可关闭采集。</p></div>
+
+        <h2 id="security">安全</h2>
+        <ul>
+          <li>主机密钥信任必须显式；变更的密钥是冲突，插件永远不会静默替换。</li>
+          <li>创建连接或修改它的 SSH 目标，是工作区之外的访问授权。启动它会让智能体在对应账号上拿到 shell、Python 和 SKILL（Cadence 的脚本语言）。除非会话具备 <strong>完全权限</strong>，智能体工具会请求批准；批准被拒绝即为终态。</li>
+          <li>守护进程 token 存在 DSH credentials 里，经 sidecar 环境传给守护进程。token 输入框只写，面板从不返回它。</li>
+          <li>Dashboard 通过仅回环端点引导每进程 token，并拒绝跨站请求。</li>
+          <li>远程 setup 路径是私有的，所有权由 virtuoso-bridge-lite 校验。</li>
+          <li>客户端不能替换共享的 <code>install-daemon</code> setup。</li>
+        </ul>
+        <div class="callout callout-warn"><span class="callout-title">不要绕过拒绝</span><p>被拒绝的批准是一个决定，不是 bug。请从配置页创建连接，而不是重试工具调用。</p></div>
+
+        <h2 id="limits">限制</h2>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>限制</th><th>后果</th></tr></thead>
+            <tbody>
+              <tr><td>无法自动向运行中的 CIW 加载 SKILL</td><td>打印的 <code>load("...")</code> 行要由人执行。执行之后，运行时会自动转为 <code>running</code>。</td></tr>
+              <tr><td>不包含 Cadence 或 Spectre 许可/硬件</td><td>实际 SKILL、Maestro 和仿真行为取决于已安装的 bridge、SSH 配置和 CIW 状态。</td></tr>
+              <tr><td>首次安装要下载 Python 依赖</td><td>需要包索引。更换 Python 解释器或本地仓库后，要重装或修复。</td></tr>
+              <tr><td>UI 渲染依赖 DSH 版本和主题</td><td>面板通过客户端注册和源码检查验证，而不是逐像素验证。</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="report">报告问题</h2>
+        <p>提交 issue 之前，先收集运行时已经记录下来的字段。它们能把猜测变成诊断。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>字段</th><th>出现位置</th></tr></thead>
+            <tbody>
+              <tr><td>阶段</td><td>运行时详情和工具错误中的失败阶段。</td></tr>
+              <tr><td>SSH 后端</td><td>OpenSSH 或 Paramiko，以及 SSH 端口。</td></tr>
+              <tr><td>守护进程状态</td><td>守护进程标签、<code>daemonProbe</code> 结论和弹窗检查。</td></tr>
+              <tr><td>错误码与提示</td><td>失败部署或启动给出的 <code>errorCode</code>、路径和提示。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>请到 <a href="https://github.com/nekomona/dsh-virtuoso-bridge/issues">仓库 issue 跟踪页</a>报告。贴出的内容一律先去掉 token、真实主机名、账号名和私有主目录路径；项目的发布检查正是为了拦截这类数据。</p>
+
+        <h2 id="next">下一章</h2>
+        <p>指南到此结束。总览页链接每一章和 Markdown 正本。</p>
+        <nav class="doc-next">
+          <a href="index.zh-CN.html"><span>返回总览</span>回到指南开头 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

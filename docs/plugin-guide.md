@@ -5,6 +5,10 @@
 This guide covers installation, the DSH surfaces, runtime behavior, agent tools,
 troubleshooting, and development for the `dsh-virtuoso-bridge` plugin.
 
+A browsable version of this material, with dedicated agent-tool and workflow
+chapters, is published at <https://nekomona.github.io/dsh-virtuoso-bridge/> in
+English and 简体中文.
+
 ## 1. What the plugin is
 
 The plugin wraps [virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite)

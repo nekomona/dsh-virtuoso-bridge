@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Install the dsh-virtuoso-bridge bundle, create the isolated venv, save a connection and load the daemon setup in an idle CIW to reach a running bridge.">
+    <meta name="language-current" content="en">
+  <meta name="language-alternate" content="getting-started.zh-CN.html">
+  <title>Get started · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <span class="language-switch" aria-label="Language">
+        <a href="getting-started.zh-CN.html" hreflang="zh-CN" data-language-choice="zh">中文</a>
+        <a href="getting-started.html" aria-current="page" data-language-choice="en">EN</a>
+      </span>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html" aria-current="page">Get started</a>
+      <a href="connections.html">Connections</a>
+      <a href="agent-tools.html">Agent tools</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="runtime.html">Runtime</a>
+      <a href="troubleshooting.html">Troubleshooting</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          <li><a href="#requirements">Requirements</a></li>
+          <li><a href="#install">Install the bundle</a>
+            <ol>
+              <li><a href="#install-npm">From npm</a></li>
+              <li><a href="#install-git">From a git checkout</a></li>
+              <li><a href="#data-dir">Data directory</a></li>
+            </ol>
+          </li>
+          <li><a href="#environment">Create the environment</a></li>
+          <li><a href="#source-modes">Choose a source mode</a></li>
+          <li><a href="#first-connection">Save a connection and start it</a></li>
+          <li><a href="#verify">Verify the first run</a></li>
+          <li><a href="#next-steps">Next steps</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">01 · Setup</p>
+        <h1>Get started</h1>
+        <p class="doc-lede">This chapter takes you from an empty DeepSeek Harness (DSH) profile to a running bridge. You install the bundle, create the isolated Python environment, save a connection and load the daemon setup in an idle CIW (the Virtuoso Command Interpreter Window). Do this once per profile. Later conversations reuse the managed runtime.</p>
+
+        <h2 id="requirements">Requirements</h2>
+        <p>The plugin installs into one DSH profile. It reaches Virtuoso over SSH (Secure Shell) and runs SKILL (Cadence's scripting language) inside that CIW. Check these requirements once per profile, not per conversation. No Cadence or Spectre license or simulation hardware is included.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Requirement</th><th>Why it is needed</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>DeepSeek Harness 0.2.2-class with Cordis 4.x</td>
+                <td>The Host half, the client panels and the tool registrations target that API surface. The plugin is verified against DSH 0.2.2-rc.1 / Cordis 4.1.</td>
+              </tr>
+              <tr>
+                <td>Node.js</td>
+                <td>The Host half runs on the Node.js runtime that DSH already provides. Nothing is installed separately.</td>
+              </tr>
+              <tr>
+                <td>Python 3.9+</td>
+                <td>Creates the isolated venv that holds <code>virtuoso-bridge-lite</code>. The executable is configurable as <code>source.pythonPath</code> / <code>settings.pythonPath</code>.</td>
+              </tr>
+              <tr>
+                <td>Package index access</td>
+                <td>The first install downloads the bridge source and its dependencies with pip. Later starts reuse the venv.</td>
+              </tr>
+              <tr>
+                <td><code>git</code> on <code>PATH</code></td>
+                <td>Needed for the git-checkout and git-repository source modes. An npm install needs neither <code>git</code> nor the submodule.</td>
+              </tr>
+              <tr>
+                <td>OpenSSH <code>ssh</code> on <code>PATH</code> <span class="badge badge-amber">optional</span></td>
+                <td>Recommended. Without it, installation stops and asks you to confirm before it continues with the bundled Paramiko backend only.</td>
+              </tr>
+              <tr>
+                <td>Reachable SSH host and a running Virtuoso CIW</td>
+                <td>Required for actual SKILL work: the runtime talks to a daemon inside that CIW.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-tip">
+          <span class="callout-title">Pick the SSH backend early</span>
+          <p>OpenSSH is the default backend. Paramiko exists for hosts without <code>ssh</code>, and the install continues with it only after you confirm. Test uses the same backend as the runtime, so changing the backend is a connection decision, not a per-call one.</p>
+        </div>
+
+        <h2 id="install">Install the bundle</h2>
+        <p>The plugin is a DSH bundle package, published as the public scoped package <code>@nekomona/dsh-virtuoso-bridge</code>.</p>
+
+        <h3 id="install-npm">From npm <span class="badge badge-green">recommended</span></h3>
+        <p>Ask the agent to install that bundle, or run the plugin manager's <code>install_bundle</code> with the package name:</p>
+        <div class="code-card">
+          <header><span>Prompt to the agent</span><span>TEXT</span></header>
+          <pre><code>Install the DSH bundle @nekomona/dsh-virtuoso-bridge.</code></pre>
+        </div>
+        <p>The tarball carries the packaged subset of <code>virtuoso-bridge-lite/</code> that the plugin installs &mdash; <code>pyproject.toml</code>, <code>README.md</code>, <code>AGENTS.md</code>, <code>LICENSE</code>, <code>mcp_server.py</code>, <code>src/**</code>, <code>skills/**</code> &mdash; plus <code>virtuoso-bridge-lite.pin.json</code>. The plugin therefore only creates its venv and pip-installs that source. No submodule and no Python checkout is required.</p>
+
+        <h3 id="install-git">From a git checkout</h3>
+        <p>Use a checkout when developing the plugin itself. Clone with the submodule, initialise it if the clone was made without <code>--recurse-submodules</code>, then install the local bundle through DSH:</p>
+        <div class="code-card">
+          <header><span>Terminal</span><span>SHELL</span></header>
+          <pre><code>git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git &lt;plugin-directory&gt;
+git submodule update --init virtuoso-bridge-lite</code></pre>
+        </div>
+        <p>Install the plugin bundle at <code>&lt;plugin-directory&gt;</code>, for example by asking the agent. Reload the DSH page once so the browser bundle is current. A page loaded before installation can still recover through the loopback panel-token bootstrap, but only a reload picks up the newest client bundle.</p>
+
+        <h3 id="data-dir">Data directory</h3>
+        <p>Runtimes, settings, the venv and plugin logs live under the profile's data directory. The cache directory in <strong>Runtime defaults</strong> holds pip wheels, git checkouts, script jobs and large results.</p>
+        <div class="code-card">
+          <header><span>Layout</span><span>TEXT</span></header>
+          <pre><code>%USERPROFILE%\.dsh\virtuoso-bridge\&lt;profile&gt;\
+  settings.json
+  venv\
+  instructions\    installed upstream skills, README.md and AGENTS.md
+  tunnels\         Host-owned tunnel records</code></pre>
+        </div>
+        <p><code>&lt;profile&gt;</code> defaults to <code>default</code>. Override it with <code>$DSH_PROFILE</code> when the Host process exports it, with <code>config.dataDir</code>, or with <code>VB_PLUGIN_DATA_DIR</code>.</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">The pin is a commit, not a branch</span>
+          <p>Bundled source installs the pinned <code>virtuoso-bridge-lite/</code> git submodule at an exact commit (<code>1f186abfbb3d658211743cd707f3156ed2f59a87</code>, recorded with its date and license in <code>virtuoso-bridge-lite.pin.json</code>). <code>.gitmodules</code> declares no branch, so upstream <code>main</code> moving cannot change the installed source. Never run <code>git submodule update --remote</code>. It is the only command that follows a moving branch.</p>
+        </div>
+
+        <h2 id="environment">Create the environment</h2>
+        <p>Open the <strong>dsh-virtuoso-bridge</strong> entry in the left sidebar's global panel list (the waveform mark, beside Plugins and Automation tasks). The full-page configuration panel opens on <strong>Server connections</strong>. Environment, defaults, storage and activity stay folded until you need them.</p>
+        <ul>
+          <li>Use <strong>Install</strong> when the venv is missing. Use <strong>Diagnose</strong> once it exists.</li>
+          <li>The <code>⋯</code> menu holds <strong>Repair</strong> and <strong>Update</strong>.</li>
+          <li><strong>Source and install log</strong> (collapsed) holds the source mode, Python executable, repo path or git URL/ref, pin JSON, install log and backend details.</li>
+        </ul>
+        <p>Install creates a private venv and sets it up:</p>
+        <ul>
+          <li>installs the tool and its dependencies;</li>
+          <li>installs the <strong>SSH extra</strong> (<code>paramiko</code> + <code>PySocks</code>) by default;</li>
+          <li>verifies <code>import virtuoso_bridge</code> with <code>runtime/vb_probe.py</code>.</li>
+        </ul>
+        <p>You can also run <code>virtuoso_bridge_setup</code> action <code>install</code> or <code>update</code>. Pass <code>confirm: true</code> for the Paramiko-only case. Action <code>preflight</code> reports the supported backends and the extra definition.</p>
+        <p>The Python executable is configurable as <code>source.pythonPath</code> / <code>settings.pythonPath</code>. Source selection and <code>pythonPath</code> are saved together. Install and update first persist the visible source draft, so the chosen source is actually used.</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">Confirm the backend when OpenSSH is missing</span>
+          <p>If <code>ssh</code> is not on <code>PATH</code>, installation stops and asks you to confirm before it continues with the Paramiko backend only. The same confirmation is required for <code>virtuoso_bridge_setup</code> action <code>install</code>. Nothing silently falls back.</p>
+        </div>
+        <div class="callout callout-tip">
+          <span class="callout-title">The venv is isolated on purpose</span>
+          <p>Helpers start from the plugin venv with <code>-E -s</code>. They inherit no <code>PYTHONPATH</code>/<code>PYTHONHOME</code>/<code>VIRTUAL_ENV</code> and no ambient <code>VB_*</code> values. The probe refuses to report ready when the imported <code>virtuoso_bridge</code> comes from outside the plugin venv, except an explicitly configured editable local checkout. The plugin never copies the user's <code>~/.virtuoso-bridge/.env</code>.</p>
+        </div>
+
+        <h2 id="source-modes">Choose a source mode</h2>
+        <p>Three modes live on the same environment card. The mode and <code>pythonPath</code> are saved together. <strong>Update</strong> reuses the selected mode.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Mode</th><th>Source</th><th>Refresh behavior</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Bundled source <span class="badge badge-accent">default</span></td>
+                <td>The pinned <code>virtuoso-bridge-lite/</code> git submodule from this plugin; no network access to the tool repository.</td>
+                <td>Uses the pinned commit. A missing or uninitialised submodule fails with an actionable error naming <code>git submodule update --init virtuoso-bridge-lite</code> (and the pinned commit). npm users never hit that state.</td>
+              </tr>
+              <tr>
+                <td>Local development repo</td>
+                <td>Editable install from <code>source.localRepoPath</code>.</td>
+                <td>Code edits are picked up on the next runtime start. Reinstall with <strong>Repair</strong> when packaging metadata changes.</td>
+              </tr>
+              <tr>
+                <td>Git repository</td>
+                <td>Clones <code>source.repoUrl</code> at <code>source.gitRef</code> into the profile data directory, then installs it.</td>
+                <td><strong>Update</strong> fetches the ref again.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>In every mode, pip needs the normal package index on the first install. Only the tool-repository access differs.</p>
+
+        <h2 id="first-connection">Save a connection and start it</h2>
+        <p>A connection is the address and the permission the runtime starts from. Fixed-port and automatic-session daemons find the endpoint in different ways. <a href="connections.html">Connections and credentials</a> covers that choice.</p>
+        <ol>
+          <li>On <strong>Server connections</strong>, add a row, or let the agent call <code>virtuoso_bridge_runtime</code> action <code>save_connection</code>. Creating a row or changing its SSH target asks for approval unless the session has Full access.</li>
+          <li>Press <strong>Start</strong>, or call action <code>start</code>. A fixed-port start probes the configured daemon port first. If a signed daemon answers, the runtime attaches to it and skips deployment.</li>
+          <li>Read the runtime state, not a single log line.</li>
+          <li>When the state is <code>waiting</code>, run the printed <code>load("...")</code> line in the intended idle CIW. The health poll then moves the runtime to <code>running</code>, and a responsive daemon clears the load hint.</li>
+        </ol>
+        <p>The runtime reports <code>starting</code>, <code>connecting</code>, <code>waiting</code> and <code>running</code>. In <code>waiting</code>, the network side worked and the CIW still has to load the printed setup. In <code>running</code>, the daemon answered. <a href="runtime.html#states">Runtime</a> lists every state, including <code>needs-trust</code> and <code>error</code>.</p>
+        <div class="code-card">
+          <header><span>Virtuoso CIW</span><span>SKILL</span></header>
+          <pre><code>load("/path/to/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>Use the path the deployment printed. Copy that line rather than retyping a path. The Host health loop checks status every 20 seconds, and it inspects X11 dialogs while the daemon does not answer.</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">The plugin cannot load SKILL into a running CIW</span>
+          <p>Deployment prepares and uploads the bootstrap and prints the <code>load("...")</code> line. Loading it is a human action in an idle CIW. A reconnect or a plain restart does not deploy files or reload the setup. The runtime stays in <code>waiting</code> until you load the setup.</p>
+        </div>
+
+        <h2 id="verify">Verify the first run</h2>
+        <p><code>virtuoso_bridge_runtime</code> action <code>status</code> returns a compact projection. It covers setup readiness, connection endpoints, runtime state, daemon and instance state, attached agents and running actions. Verbose install logs, source and venv debug paths, tunnel internals and full tracebacks stay in the UI. The UI keeps the full state.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Read it when</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>setup.installed</code>, <code>setup.venvReady</code></td><td>Confirming environment readiness. A false value means install or diagnose first, before blaming the host.</td></tr>
+              <tr><td><code>state</code>, <code>connectionStatus</code></td><td>Reading the runtime phase and the connection verdict: <code>ready</code>, <code>no-response</code>, <code>auth-failed</code>, <code>unreachable</code> or <code>unknown</code>.</td></tr>
+              <tr><td><code>daemon</code>, <code>daemonProbe</code></td><td>Seeing what answers the configured port: probe states <code>ready</code>, <code>no-listener</code>, <code>legacy</code>, <code>auth</code>, <code>timeout</code>.</td></tr>
+              <tr><td><code>setupHint</code></td><td>Finding the <code>load("...")</code> line. It is present only before first readiness and disappears once a daemon responds.</td></tr>
+              <tr><td><code>instance</code></td><td>Automatic sessions: the selected port, Virtuoso <code>pid</code>, <code>work_dir</code> and user.</td></tr>
+              <tr><td><code>attach</code></td><td>Fixed mode: <code>attached</code>, <code>port</code> and <code>setupPath</code> when a signed daemon was attached and deployment was skipped.</td></tr>
+              <tr><td><code>health</code>, <code>dialog</code>, <code>errorSummary</code></td><td>Responsiveness, a blocking dialog title, and the stage, message and hint of a failure.</td></tr>
+              <tr><td><code>agents</code>, <code>activeActions</code></td><td>Which sessions are attached and which operations are still running.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Then prove the daemon answers with the smallest possible call:</p>
+        <div class="code-card">
+          <header><span>Agent tool call</span><span>TEXT</span></header>
+          <pre><code>virtuoso_bridge_api({
+  action: "call",
+  target: "client",
+  method: "execute_skill",
+  args: ["1+1"],
+  description: "Check the daemon answers"
+})</code></pre>
+        </div>
+        <p><code>running</code> means <code>execute_skill("1+1")</code> answered through the daemon. If the call returns a value but the CIW printed warnings, read the CIW block attached to the result before you decide the call did nothing.</p>
+
+        <p><strong>Test</strong> reports on four layers: SSH, the remote Python, the scratch root and the daemon port. It runs even when the runtime is stopped. <strong>Start</strong> owns the tunnel and sidecar. <a href="connections.html#fields">Connections and credentials</a> covers the connection checks.</p>
+        <p>The complete state is in the right sidebar's <strong>dsh-virtuoso-bridge</strong> tab. It shows connection state, daemon and health summary, remote project working directory, dialog warnings and agent activity. The composer dot is green when connected, yellow when waiting or blocked, and red on error. It breathes green while an operation for that session runs, and it is absent when the session has no active runtime.</p>
+        <div class="callout callout-tip">
+          <span class="callout-title">Do not read a start mid-flight</span>
+          <p><code>status</code> with <code>waitMs</code> waits for an in-flight start to settle, or until the budget expires. The next step after a start is usually this waiting status, not a sleep.</p>
+        </div>
+
+        <h2 id="next-steps">Next steps</h2>
+        <p>Continue with <a href="connections.html">Connections and credentials</a> for fields and host-key trust, and <a href="agent-tools.html">Agent tools</a> for the tool surface. <a href="runtime.html">Runtime</a> covers states and architecture.</p>
+        <p class="doc-footnote">Canonical source for this chapter: <code>docs/plugin-guide.md</code> sections 3&ndash;7; the root <code>README.md</code> is only an introduction.</p>
+
+        <nav class="doc-next">
+          <a href="connections.html"><span>NEXT</span>Connections and credentials →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      简体中文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.zh-CN.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.zh-CN.md">plugin guide</a>
+    </p>
+    <p>
+      Built on <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>.
+      Canonical documentation lives in
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/tree/main/docs">docs/</a>.
+    </p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="已保存的连接是一项长期授权：字段、固定端口与自动会话、主机密钥信任、凭据、守护进程部署及远程暂存根目录。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="connections.html">
+  <title>连接与凭据 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="connections.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="connections.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html" aria-current="page">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#model">连接是什么</a></li>
+          <li><a href="#fields">字段</a></li>
+          <li><a href="#fixed-vs-auto">固定端口与自动会话</a>
+            <ol>
+              <li><a href="#fixed-port">固定端口</a></li>
+              <li><a href="#auto-sessions">自动会话</a></li>
+              <li><a href="#attach">部署前挂接</a></li>
+              <li><a href="#sub-instances">工作目录子实例</a></li>
+            </ol>
+          </li>
+          <li><a href="#host-keys">主机密钥与信任</a></li>
+          <li><a href="#credentials">凭据与认证</a></li>
+          <li><a href="#deploy">守护进程部署</a>
+            <ol>
+              <li><a href="#deploy-conflicts">冲突</a></li>
+              <li><a href="#deploy-timeouts">超时</a></li>
+            </ol>
+          </li>
+          <li><a href="#scratch">远程暂存根目录</a></li>
+          <li><a href="#multi-host">拆分主机角色</a></li>
+          <li><a href="#next">下一章</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">02 · 网络</p>
+        <h1>连接与凭据</h1>
+        <p class="doc-lede">连接是 bridge 启动时使用的地址与权限。本章介绍保存的字段、两种守护进程模式、主机密钥信任、凭据、部署步骤，以及所有上传的落脚点：远程暂存根目录。</p>
+
+        <h2 id="model">连接是什么</h2>
+        <p>在 DeepSeek Harness（DSH）中，保存的连接不是一张表单，而是一项长期授权。启动它会在对应账号上打开 SSH（Secure Shell）会话和已签名的 bridge 守护进程，智能体随后可以运行 shell 命令、Python 和 SKILL（Cadence 的脚本语言）。因此，新增一行或修改现有行的 SSH 目标，都属于工作区之外的修改。</p>
+        <ul>
+          <li><code>virtuoso_bridge_runtime</code> 会通过 DSH 权限卡片请求批准，除非会话具备 <strong>完全权限</strong>（<code>danger-full-access</code>）。</li>
+          <li>批准被拒绝或不可用即为终态。请改用配置页创建这一行，不要绕过。</li>
+          <li>SSH 目标不变、只改备注、暂存根目录、子实例或环境的保存，不需要批准。配置页自身的 <strong>保存</strong> 按钮由用户操作。</li>
+          <li>不带 <code>id</code> 的保存会更新同名那一行，结果给出 <code>updated</code> 或 <code>created</code>。<code>host</code>、<code>user</code>、<code>sshPort</code>、<code>jumpHost</code>/<code>jumpUser</code> 或角色主机一变，插件就把现有行重定向到新目标。</li>
+        </ul>
+        <p>两种模式共用其余所有字段。<strong>固定端口</strong> 连接指向一个稳定的守护进程端点并探测它；<strong>自动会话</strong> 连接发现已注册的守护进程，端口由操作系统分配。选哪个取决于 CIW（Virtuoso Command Interpreter Window）的 bootstrap 方式，与传输方式无关。</p>
+
+        <h2 id="fields">字段</h2>
+        <p>配置页保持主要字段可见，并折叠高级网络设置、主机角色、shell 与 Cadence 环境、凭据以及工作目录子实例。<code>save_connection</code> 接受同样的字段名。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>字段</th><th>默认值</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>name</code></td><td><code>host</code>，否则 <code>connection</code></td><td>显示名称，也是不带 <code>id</code> 保存时的键。</td></tr>
+              <tr><td><code>host</code></td><td>必填</td><td>SSH 目标。填回环主机即为本地连接。</td></tr>
+              <tr><td><code>user</code></td><td>&mdash;</td><td>SSH 账号；也是派生固定端口的输入。</td></tr>
+              <tr><td><code>sshPort</code></td><td><code>22</code></td><td>SSH 端点端口，与守护进程端口不同。</td></tr>
+              <tr><td><code>port</code></td><td>由 <code>user</code> 派生</td><td>固定模式的守护进程端口；<code>autoSessions</code> 为 true 时不使用。</td></tr>
+              <tr><td><code>autoSessions</code></td><td><code>false</code></td><td>自动发现守护进程，端口由操作系统分配。</td></tr>
+              <tr><td><code>instancePort</code></td><td>未设置</td><td><code>select_instance</code> 记下的已发现端口；重启之前先选定一个实例。</td></tr>
+              <tr><td><code>jumpHost</code>、<code>jumpUser</code></td><td>空</td><td>堡垒主机和可选账号。信任时 jump 主机的密钥会单独列出。</td></tr>
+              <tr><td><code>remoteWorkDir</code></td><td>空</td><td>绝对远端工作目录；在自动会话下它也是发现过滤器。</td></tr>
+              <tr><td><code>daemonSetup</code></td><td>空</td><td>由 <code>virtuoso-bridge install-daemon</code> 安装的共享 <code>virtuoso_setup.il</code>；对客户端只读。</td></tr>
+              <tr><td><code>sshBackend</code></td><td><code>openssh</code></td><td><code>openssh</code> 或 <code>paramiko</code>。</td></tr>
+              <tr><td><code>sshProxy</code></td><td>空</td><td>Paramiko SOCKS5 代理，<code>socks5://host:port</code>。</td></tr>
+              <tr><td><code>identityFile</code></td><td>空</td><td>为这条连接生成 SSH config，其中也包含用户自己的配置。</td></tr>
+              <tr><td><code>sshMaxSessions</code></td><td>未设置</td><td>高级 SSH 设置；映射到上游 SSH 会话上限。</td></tr>
+              <tr><td><code>localPort</code></td><td>自动</td><td>Host 托管隧道的本地端口；端口空闲时优先使用。</td></tr>
+              <tr><td><code>envShell</code></td><td><code>auto</code></td><td><code>auto</code>、<code>csh</code> 或 <code>sh</code>。<code>auto</code> 会在两种 shell 下运行 Cadence 脚本，并保留能暴露 <code>virtuoso</code> 的那个。</td></tr>
+              <tr><td><code>cadenceEnvScript</code></td><td>空</td><td>为远端工作加载的 Cadence 环境脚本。</td></tr>
+              <tr><td><code>remoteScratchRoot</code></td><td>全局默认</td><td>建议使用绝对根目录；上传前会展开 <code>~/</code> 并解析符号链接。</td></tr>
+              <tr><td><code>clientId</code></td><td>空</td><td>随连接记录的可选客户端标识。</td></tr>
+              <tr><td><code>daemonHost</code>、<code>deployHost</code>、<code>guiHost</code>、<code>spectreHost</code></td><td>空</td><td>拆分主机拓扑的角色覆盖；见 <a href="#multi-host">拆分主机角色</a>。</td></tr>
+              <tr><td><code>subInstances</code></td><td>无</td><td>带名称的绝对工作目录；见 <a href="#sub-instances">工作目录子实例</a>。</td></tr>
+              <tr><td><code>notes</code></td><td>空</td><td>随连接行保存的自由文本。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>下面是一条完整的自动会话连接，<code>save_connection</code> 可直接接受：</p>
+        <div class="code-card">
+          <header><span>connectionConfig</span><span>JSON</span></header>
+          <pre><code>{
+  "name": "lab-virtuoso-auto",
+  "host": "virtuoso01.example.com",
+  "user": "designer",
+  "autoSessions": true,
+  "instancePort": null,
+  "remoteWorkDir": "/projects/example",
+  "daemonSetup": "/opt/virtuoso-bridge/v1/virtuoso_setup.il",
+  "sshPort": 22,
+  "jumpHost": "",
+  "sshBackend": "openssh",
+  "spectreHost": "",
+  "envShell": "auto",
+  "cadenceEnvScript": "/site/cadence/setup.csh",
+  "identityFile": "C:\\Users\\me\\.ssh\\id_ed25519"
+}</code></pre>
+        </div>
+        <p><strong>测试</strong> 报告四个层面：SSH、远端 Python、暂存根目录和守护进程端口。运行时停止时也会执行。<strong>启动</strong> 负责隧道和 sidecar。</p>
+
+        <h2 id="fixed-vs-auto">固定端口与自动会话</h2>
+        <h3 id="fixed-port">固定端口</h3>
+        <p>把 <code>port</code> 留空，插件就用 SSH 用户名派生出每个用户专属的稳定守护进程端口（SHA-1，范围 65000&ndash;65499），与 <code>virtuoso_bridge.basic.bridge._default_remote_port</code> 一致。CIW 侧的 setup 在这个端点上启动守护进程。固定端口的旧版部署在 CIW 重启后无法被发现，所以部署结果会带上 <code>recommendedAutoSessions</code> 和一行指引。</p>
+        <h3 id="auto-sessions">自动会话</h3>
+        <p>启用 <code>autoSessions</code> 后，守护进程的端口由操作系统分配，<code>port</code> 不再起作用。插件发现已注册的守护进程，再按端口或工作目录选定一个。</p>
+        <p>在你保存选择之前，发现过程只读。没有选择或匹配到多个实例时，插件会列出候选并报错，而不是自己挑一个。<code>select_instance</code> 在重启之前把选中的端口记到连接上。发现在建立隧道之前执行，所以 Host 转发到的正是 sidecar 将要选定的实例。</p>
+        <p>这是部署层面的选择：固定端口为一个 CIW 提供稳定端点，自动会话则跟随已注册且被选中的实例。</p>
+        <h3 id="attach">部署前挂接</h3>
+        <p>固定端口启动会先探测配置的端口。如果这个账号的守护进程以已签名的 capability 握手应答，运行时直接挂接，<strong>完全跳过部署</strong>，并在状态里报告 <code>attach.attached</code> 和复用的 setup 路径。找不到可挂接的守护进程时，运行时才准备暂存根目录、部署 setup。</p>
+        <p>所以暂存根目录损坏或缺失，都挡不住正在运行的实例 —— 别的客户端或机器部署的实例也一样。<a href="runtime.zh-CN.html#attach">运行时</a> 一章讲挂接的细节。</p>
+        <h3 id="sub-instances">工作目录子实例</h3>
+        <p>一条连接可以带一组工作目录子实例，每个都有名称和绝对远端工作目录。每个子实例都用自动会话启动，端口由操作系统分配，并且有自己的 VBL（virtuoso-bridge-lite）profile 和 sidecar。插件按工作目录发现它，而不是按固定端口。</p>
+        <ul>
+          <li>运行时面板为每个子实例显示一张卡片。运行时 id 为 <code>rt_&lt;connection&gt;__&lt;sub-instance&gt;</code>。</li>
+          <li>工具调用通过 <code>subInstance: "&lt;id|name|/absolute/workdir&gt;"</code> 选定。</li>
+          <li>于是一条连接就能覆盖多个项目 CIW，不用给每个都分配固定端口。</li>
+        </ul>
+
+        <h2 id="host-keys">主机密钥与信任</h2>
+        <p>首次连接时，插件读出对方提供的主机密钥，把它们的 SHA-256 指纹列出来，然后停在 <code>needs-trust</code> 状态。此时运行时有意不启动。</p>
+        <ul>
+          <li>探测的是 SSH 真正连到的端点。它会从 <code>~/.ssh/config</code> 解析 <code>HostName</code>、<code>Port</code> 和 <code>HostKeyAlias</code>，所以即使保存了别名或非默认端口，也不会报出另一台服务器的指纹。</li>
+          <li>每个指纹都标明所属主机，jump 主机的密钥单独标记。</li>
+          <li>用户确认之前，插件不会信任或写入任何密钥。确认途径有两个：运行时面板上的按钮，或你确认指纹后调用 <code>trust_host</code>。一次信任调用只能选择刚刚那次探测实际提供的密钥；参数不决定写入内容。</li>
+          <li>确认信任后，插件把这一个密钥写进 <code>~/.ssh/known_hosts</code>，两个可能的查询名都会写上。OpenSSH 用保存的别名，Paramiko 用解析出来的主机名。</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>结果</th><th>含义</th><th>如何处理</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>某种密钥类型缺失</td>
+                <td>主机通常会提供多种类型（ed25519、ecdsa、rsa），而 <code>known_hosts</code> 通常只包含其中一部分。</td>
+                <td>这是未信任，不是密钥变更。只要有一种类型已信任，主机就能正常启动。生成的 config 会把 SSH 固定到已信任的类型。</td>
+              </tr>
+              <tr>
+                <td>同一类型出现了不同密钥</td>
+                <td>这台主机已信任的密钥发生了变化。</td>
+                <td>这是冲突。插件绝不会自动替换它。请复核并用 <code>ssh-keygen -R &lt;host&gt;</code> 删除过期条目，然后重新启动。</td>
+              </tr>
+              <tr>
+                <td>首次连接</td>
+                <td>尚未信任任何密钥。</td>
+                <td><code>needs-trust</code>。确认指纹后重新启动。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="code-card">
+          <header><span>删除变更的密钥</span><span>SHELL</span></header>
+          <pre><code>ssh-keygen -R virtuoso01.example.com</code></pre>
+        </div>
+        <div class="callout callout-warn">
+          <span class="callout-title">信任是显式决定，不是默认行为</span>
+          <p>只要有活跃的智能体会话，同样的确认会以问题形式出现在会话里，不必打开右侧边栏。启动失败时，运行时面板和工具错误会报告阶段、SSH 与守护进程输出、traceback 以及主机密钥探测结果。</p>
+        </div>
+
+        <h2 id="credentials">凭据与认证</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>层</th><th>存放位置</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>守护进程 token</td>
+                <td>DSH credentials 服务，作为 grant 记录</td>
+                <td>可选。在 UI 中只写，面板、工具和日志绝不会返回它。通过 sidecar 环境传入。</td>
+              </tr>
+              <tr>
+                <td>SSH 认证</td>
+                <td>系统 SSH 配置（agent、密钥、<code>~/.ssh/config</code>）或 Paramiko</td>
+                <td><code>identityFile</code> 会为每条连接生成 SSH config，其中包含用户自己的配置。</td>
+              </tr>
+              <tr>
+                <td>远端环境</td>
+                <td><code>cadenceEnvScript</code> 加上缓存的 shell 检测</td>
+                <td><code>envShell: "auto"</code> 会尝试 csh 和 sh，并保留能暴露 <code>virtuoso</code> 的那个。结果按连接缓存，可用 <code>detect_shell</code> 刷新。</td>
+              </tr>
+              <tr>
+                <td>本地连接</td>
+                <td>本地 bridge token 文件</td>
+                <td><code>localhost</code>、<code>127.0.0.1</code> 和 <code>::1</code> 会跳过 SSH，并像 <code>virtuoso-bridge</code> 本地模式一样使用这个文件。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>已保存的 token 只显示为“已保存”，可以清除。插件绝不会读回它的值。面板、工具和日志都遵循同一条规则。</p>
+        <p>凭据隔离是有意设计。插件绝不复制用户的 <code>~/.virtuoso-bridge/.env</code>；导入 <code>virtuoso_bridge</code> 之前，插件用一个空的运行时 env 文件把每个 Python helper 与这个文件隔开。helper 以 <code>-E -s</code> 从插件 venv 启动，不继承 <code>PYTHONPATH</code>、<code>PYTHONHOME</code>、<code>VIRTUAL_ENV</code>，也拿不到环境里已有的 <code>VB_*</code> 值。只要 <code>virtuoso_bridge</code> 不是来自插件 venv，venv 探测会拒绝报告就绪，唯一例外是显式配置的 editable 本地 checkout。</p>
+
+        <h2 id="deploy">守护进程部署</h2>
+        <p><strong>部署守护进程设置</strong> 只准备并上传生成的 account bootstrap。它不启动隧道，不启动或连接守护进程，也不加载 SKILL。部署成功后，复制返回的那一行，到目标空闲 CIW 里加载：</p>
+        <div class="code-card">
+          <header><span>Virtuoso CIW</span><span>SKILL</span></header>
+          <pre><code>load("/path/to/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>每个连接行都有这个控件；同样的动作也可以直接调用 <code>virtuoso_bridge_runtime</code> 的 <code>deploy_daemon</code>，<code>replace: true</code> 是覆盖生成文件的显式升级路径。要做站点级 bootstrap，就在 Linux Cadence 主机上用 <code>virtuoso-bridge install-daemon &lt;versioned-directory&gt;</code> 安装上游共享 bundle，再把 <code>daemonSetup</code> 指向打印出的 <code>virtuoso_setup.il</code>。所有自动会话客户端共用这一份 setup。修改客户端环境，无法追溯更新已在运行的 CIW。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>结果</th><th>含义</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>返回的加载行</td><td>要在空闲 CIW 中加载的确切行。覆盖后，加载新返回的行。</td></tr>
+              <tr><td><code>recommendedAutoSessions</code></td><td>在固定端口的旧版部署上设置，并附带指引。这种部署在 CIW 重启后无法被发现，所以长期使用时建议选择自动会话或共享的 install-daemon setup。</td></tr>
+              <tr><td><code>errorCode</code>、<code>path</code>、<code>hint</code></td><td>部署失败会带上路径与补救方法，例如根目录在主目录之外且缺失时，需要执行的 <code>mkdir -p -m 700</code>。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 id="deploy-conflicts">冲突</h3>
+        <p>如果远端生成的 bundle 与当前 bundle 不一致，普通部署 <strong>不会</strong> 覆盖它。面板会给出新包版本和插件现用的包版本（已知时），以及现有守护进程版本（已知时）；未知则显示 <code>version unknown</code>，并附上后端的冲突详情。</p>
+        <p>只有用户明确点击红色的 <strong>覆盖</strong> 按钮，才允许替换，旧 bundle 会留作备份。用 <code>daemonSetup</code> 或 install-daemon 配好的共享 setup 对客户端只读，客户端无法替换。</p>
+        <h3 id="deploy-timeouts">超时</h3>
+        <p>部署走 SSH，耗时可能超过 dashboard 较短的状态轮询预算。dashboard 为长时间操作单独设置了 timeout，并让打印出的 setup 路径和加载行一直可见。不要仅因为浏览器请求超时就重试部署。</p>
+        <p>插件不会复用监听在其他端口上的旧版守护进程：守护进程探测会报 <code>no-listener</code> 或 <code>legacy</code>。按提示操作：先部署，再到目标空闲 CIW 中加载返回的那一行，然后重新启动。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">重启不是部署</span>
+          <p>重连或普通重启不会部署文件，也不会重新加载 setup。若 setup 从未加载，先执行打印出的 <code>load("...")</code> 行。只有确认问题出在环境而不是 CIW 时，才需要重装。<a href="runtime.zh-CN.html#lifecycle">运行时</a> 介绍了生命周期。</p>
+        </div>
+
+        <h2 id="scratch">远程暂存根目录</h2>
+        <p>远端暂存根目录是部署、发现、shell 和脚本的写入位置。<strong>默认设置</strong> 里存着全局默认值，连接自己的 <code>remoteScratchRoot</code> 可以覆盖它。这个值会作为 <code>VB_REMOTE_SCRATCH_ROOT</code> 传给 helper，所以部署和运行时用的是同一个根目录，不会退回 <code>/tmp</code>。</p>
+        <ul>
+          <li>开头的 <code>~/</code> 会在远端账号上展开，符号链接会解析成真实目录。每个 helper 以及每一次脚本或 IL 上传，拿到的都是解析后的绝对路径。</li>
+          <li>建议直接写绝对根目录。Virtuoso 的 <code>load()</code> 不展开 <code>~</code>，所以带 <code>~</code> 的 IL 路径在第一次 <code>load()</code> 就会失败。IC23.1 这类站点和 pack 正是需要固定绝对站点路径的常见场景。<code>~/</code> 依然可用，并会在任何上传之前展开。</li>
+          <li>不管固定端口还是自动会话，部署之前插件都会先检查根目录。账号主目录下缺失的根目录，插件会按 <code>0700</code> 创建；存在只差 <code>_</code> 和 <code>-</code> 的兄弟路径时给出警告；权限过宽但属主正确的根目录，插件会收紧权限；符号链接、属主错误、非目录，以及主目录之外的缺失路径，各自给出明确的错误信息。</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>部署结果字段</th><th>说明</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>configuredScratchRoot</code></td><td>连接上配置的值，或全局默认值。</td></tr>
+              <tr><td><code>scratchRoot</code></td><td>解析后的绝对根目录，实际用于上传和加载路径。</td></tr>
+              <tr><td><code>scratchCreated</code>、<code>scratchTightened</code></td><td>根目录是否以 <code>0700</code> 创建，插件是否收紧了权限。</td></tr>
+              <tr><td><code>warning</code></td><td>非致命提示，例如仅 <code>_</code> 与 <code>-</code> 不同的兄弟路径。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>主目录之外的缺失根目录，插件不会创建；错误信息会写明路径和补救办法，例如：</p>
+        <div class="code-card">
+          <header><span>可操作的提示</span><span>SHELL</span></header>
+          <pre><code>mkdir -p -m 700 /projects/example/.virtuoso-bridge</code></pre>
+        </div>
+        <div class="callout callout-warn">
+          <span class="callout-title">"load: can't access file - ~/..."</span>
+          <p>首次 IL 加载报出这条消息，说明带 <code>~</code> 的路径传到了 Virtuoso —— <code>load()</code> 不展开 <code>~</code>。在远端账号上配置绝对的 <code>remoteScratchRoot</code>，或保留 <code>~/</code> 让插件解析。部署、客户端上传和 IL 上传都不会把 <code>~</code> 传给 <code>load()</code>。</p>
+        </div>
+
+        <h2 id="multi-host">拆分主机角色</h2>
+        <p>高级连接可以把角色拆分到多台主机上。主机密钥预检和 SSH 测试只针对主 <code>host</code>；要用拆分拓扑，先用 <code>ssh</code> 和 <code>known_hosts</code> 信任各角色主机的密钥。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>角色</th><th>字段</th><th>路由</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>守护进程主机</td><td><code>daemonHost</code></td><td>运行 bridge 守护进程的 CIW 侧。</td></tr>
+              <tr><td>部署主机</td><td><code>deployHost</code></td><td>部署与上传。</td></tr>
+              <tr><td>GUI 主机</td><td><code>guiHost</code></td><td>显示与 X11 侧。</td></tr>
+              <tr><td>Spectre 主机</td><td><code>spectreHost</code></td><td>Spectre 仿真侧。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>高级字段的其余部分映射到上游的拆分主机、私有暂存和代理设置：<code>remoteScratchRoot</code>、<code>clientId</code>、<code>sshMaxSessions</code>，以及 Paramiko 的 <code>sshProxy</code>（<code>socks5://host:port</code>）。</p>
+
+        <nav class="doc-next" id="next">
+          <a href="agent-tools.zh-CN.html"><span>下一章</span>智能体工具 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

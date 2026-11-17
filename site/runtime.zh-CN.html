@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="托管运行时是什么：状态表、Host 托管的 SSH 隧道、接管 shim、面板与端点，以及文件的存放位置。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="runtime.html">
+  <title>运行时生命周期与内部机制 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="runtime.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="runtime.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html" aria-current="page">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#states">状态与对象</a>
+            <ol>
+              <li><a href="#daemon-object">守护进程与连接状态</a></li>
+              <li><a href="#attach">挂接到已签名的守护进程</a></li>
+            </ol>
+          </li>
+          <li><a href="#lifecycle">生命周期</a>
+            <ol>
+              <li><a href="#health">健康检查循环</a></li>
+              <li><a href="#dialogs">弹窗检查</a></li>
+              <li><a href="#process-wide">进程级运行时</a></li>
+            </ol>
+          </li>
+          <li><a href="#tunnel">Host 托管的隧道</a>
+            <ol>
+              <li><a href="#tunnel-child">ssh 子进程</a></li>
+              <li><a href="#tunnel-port">本地端口分配</a></li>
+              <li><a href="#tunnel-adoption">接管 shim</a></li>
+              <li><a href="#tunnel-discovery">先发现，再转发</a></li>
+            </ol>
+          </li>
+          <li><a href="#surfaces">面板与端点</a>
+            <ol>
+              <li><a href="#left-page">配置页</a></li>
+              <li><a href="#right-panel">运行时面板</a></li>
+              <li><a href="#composer">Composer 控件</a></li>
+              <li><a href="#endpoint">Dashboard 端点</a></li>
+            </ol>
+          </li>
+          <li><a href="#isolation">隔离</a>
+            <ol>
+              <li><a href="#env-isolation">运行时环境</a></li>
+              <li><a href="#python-guard">venv 校验</a></li>
+              <li><a href="#ssh-config">生成的 SSH 配置</a></li>
+            </ol>
+          </li>
+          <li><a href="#cache">数据、缓存与存储</a></li>
+          <li><a href="#next">下一章</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">05 · 架构</p>
+        <h1>运行时生命周期与内部机制</h1>
+        <p class="doc-lede">一个托管运行时把三样东西绑在同一个运行时 id 下：一条 SSH（Secure Shell）转发、一个 Python sidecar（每个运行时一个 helper 进程），以及 Virtuoso CIW（Command Interpreter Window）里的一个守护进程。这一整套由 Host —— 插件的 Node.js 侧 —— 持有，而不是某个会话。运行时活在插件进程里，存活时间比启动它的会话更长，并显示在右侧边栏面板中。本章说明每个状态的含义、隧道由谁管理、helper 继承什么环境，以及文件存放在哪里。</p>
+
+        <h2 id="states">状态与对象</h2>
+        <p>运行时的 <code>state</code> 只回答一个问题：这个连接现在能用吗？<code>status</code> 动作以紧凑投影给出答案。启动返回同一份快照，面板只是把它渲染出来。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>状态</th><th>含义</th></tr></thead>
+            <tbody>
+              <tr><td><code>stopped</code></td><td>没有运行时：既没有转发，也没有 sidecar 进程。</td></tr>
+              <tr><td><code>starting</code></td><td>隧道与 sidecar 正在启动。</td></tr>
+              <tr><td><code>connecting</code></td><td>sidecar 正在连接守护进程，或正在为它部署。</td></tr>
+              <tr><td><code>waiting</code></td><td>隧道已建立，但守护进程还没有应答。</td></tr>
+              <tr><td><code>running</code></td><td>守护进程有应答，<code>execute_skill("1+1")</code> 经由它返回。</td></tr>
+              <tr><td><code>error</code></td><td>启动、健康检查或运行时操作失败。</td></tr>
+              <tr><td><code>needs-trust</code></td><td>主机提供了未知 SSH 密钥。在你确认指纹之前，运行时保持停止。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="doc-footnote">停止是一个短暂过渡。运行时拆除自己的 worker、sidecar 和转发期间，快照状态是 <code>stopping</code>。它不是常驻状态。</p>
+
+        <h3 id="daemon-object">守护进程与连接状态</h3>
+        <p>状态只告诉你连接断了，不告诉你断在哪一层。所以每份快照都另外带一个 <code>daemon</code> 对象，面板把它作为一个独立标签显示在连接状态旁边。这个值在启动时来自 connect 握手；即便运行时已经停止，<strong>测试</strong> 也会探测它。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>守护进程状态</th><th>证明什么</th></tr></thead>
+            <tbody>
+              <tr><td><code>ready</code></td><td>已签名的 bridge 守护进程应答了能力握手。</td></tr>
+              <tr><td><code>no-response</code></td><td>守护进程端口在 TCP 层可达，但后面的 bridge 不应答。</td></tr>
+              <tr><td><code>auth-failed</code></td><td>存在 bridge 守护进程，但它拒绝本客户端的 token。</td></tr>
+              <tr><td><code>unreachable</code></td><td>配置的守护进程端口上没有任何应答。</td></tr>
+              <tr><td><code>unknown</code></td><td>探测尚未得出结论。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>同一组取值也会以 <code>connectionStatus</code> 出现在运行时快照里：<code>ready</code>、<code>no-response</code>、<code>auth-failed</code>、<code>unreachable</code> 或 <code>unknown</code>。另一个字段 <code>daemonProbe</code> 给出部署侧的结论：<code>no-listener</code>、<code>legacy</code>，以及守护进程是否已签名。要不要重新部署，就看这个结论。</p>
+
+        <h3 id="attach">挂接到已签名的守护进程</h3>
+        <p>固定端口启动先探测守护进程端口，之后才部署。如果这个账号的守护进程以已签名的能力握手应答，运行时就挂接它并跳过部署，在快照里报告 <code>attach.attached</code> 和复用的 setup 路径。这种情况下插件不准备暂存根目录，所以坏掉的暂存根目录挡不住正在运行的实例。连接侧的说明见 <a href="connections.zh-CN.html#attach">部署前挂接</a>。</p>
+
+        <h2 id="lifecycle">生命周期</h2>
+        <p><code>start</code> 打开托管转发并连接 sidecar；<code>restart</code> 重新执行这一流程，<code>subInstance</code> 指定一个已配置的工作目录子实例。带 <code>waitMs</code> 的 <code>status</code> 会等启动落定，不会只返回一个 <code>starting</code> 快照。固定端口启动停在 <code>waiting</code> 也可能是有意为之：网络侧已经通了，只是 CIW 还没加载准备好的 setup。</p>
+        <div class="callout callout-warn"><span class="callout-title">重启不会部署</span><p>重连或普通重启不会部署文件，也不会在 CIW 里重新加载 setup。只有 <code>deploy_daemon</code> 会准备 bootstrap。加载仍要由人在目标空闲 CIW 里完成。</p></div>
+
+        <h3 id="health">健康检查循环</h3>
+        <p>Host 的健康循环每 20 秒向每个处于 running、waiting 或 error 的运行时的 sidecar 请求一次状态。这个循环不向 CIW 写入任何内容：除非打开 <code>settings.logToCiw</code>，否则一直是 <code>log_to_ciw=False</code>。它还能捕获漏掉的子进程事件，所以转发退出时即使没有通知，插件也能发现。</p>
+        <p>守护进程一恢复应答，<code>waiting</code> 就转为 <code>running</code>。循环同时记下远端项目工作目录，并清除 setup 提示。原本 <code>running</code> 的运行时一旦不再应答，就退回 <code>waiting</code>，由弹窗检查接手。</p>
+
+        <h3 id="dialogs">弹窗检查</h3>
+        <p>守护进程不应答时，Host 会检查 X11 弹窗，并把结果写进快照：状态里带弹窗标题，面板显示警告，提示你到 Virtuoso 里点击或回答弹窗后刷新。提示不会建议你重装守护进程或重新加载 setup。守护进程探测已经报 <code>no-listener</code> 时，插件会跳过这项检查，因为那种情况不可能是弹窗造成的。</p>
+        <p>守护进程原本健康、后来才停止应答时，面板报的是守护进程丢失的原因，而不是首次安装的提示。setup 毕竟已经加载过一次，这时候该看的是 CIW 本身。</p>
+
+        <h3 id="process-wide">进程级运行时</h3>
+        <p>运行时是进程级的。它们跨会话切换、fork 和子智能体会话存活，profile 里每个会话都连到同一个活动 bridge。禁用或卸载插件、DSH 退出，或者执行 <code>stop</code> 动作时，它们才会停止。</p>
+        <p>进程崩溃可能留下一条孤儿转发。插件从 virtuoso-bridge 的状态文件和自己的隧道记录里找出它：<code>orphans</code> 列出这些转发，<code>stop_orphan</code> 停止其中一条，运行时面板也给出同样的控件。</p>
+
+        <h2 id="tunnel">Host 托管的隧道</h2>
+        <p>固定端口的远程连接，SSH 转发由 Host 自己打开，不交给 Python sidecar —— 交给 sidecar 就多出一个不受管的 <code>ssh.exe</code>。只有自己持有子进程，插件才能拿到就绪信号、选定本地端口，并让所有 helper 共用同一条转发。本节讲的就是这个设计。</p>
+
+        <h3 id="tunnel-child">ssh 子进程</h3>
+        <p><code>lib/tunnel.js</code> 把 <code>ssh -N -L</code> 当成一个隐藏、非 detached 的子进程启动，再用子进程事件跟踪它。</p>
+        <div class="code-card">
+          <header><span>转发命令形态（示意）</span><span>SHELL</span></header>
+          <pre><code>ssh -v -N -L 65123:127.0.0.1:65123 -l designer virtuoso01.example.com</code></pre>
+        </div>
+        <p class="doc-footnote">真实命令还会传 <code>-o BatchMode=yes</code>、连接超时、<code>ControlMaster=no</code> / <code>ControlPath=none</code> / <code>ControlPersist=no</code>、<code>ExitOnForwardFailure=yes</code>，以及 <code>ServerAliveInterval=30</code> 与 <code>ServerAliveCountMax=3</code>。另外还带 <code>-F</code>（生成的配置）、<code>-i</code>（identity file）和 <code>-J</code>（jump host）。</p>
+        <p>非 detached 是有意为之。Windows 上，隐藏的非 detached 子进程会保留一个隐藏控制台，而它隐式的 <code>ProxyJump</code> 或 <code>ProxyCommand</code> 子进程会继承这个控制台。把隧道设成 detached，恰恰会让这个孙进程弹出可见的控制台窗口。</p>
+        <p>就绪判定来自 OpenSSH 自己的详细日志行 <code>Entering interactive session</code>。插件不会靠探测转发端口来判断就绪。隧道断开时，子进程一退出就立刻上报。</p>
+
+        <h3 id="tunnel-port">本地端口分配</h3>
+        <p>插件先在两个回环协议族上都做一次绑定测试，再确定本地端口。OpenSSH 会为 <code>-L</code> 同时绑定 IPv4 和 IPv6 回环，所以即使端口只在 <code>::1</code> 上被占用，也不能用。<code>connection.localPort</code> 空闲时优先采用；OpenSSH 仍绑定失败时，启动会换个端口重试，而不是让运行时失败。</p>
+
+        <h3 id="tunnel-adoption">接管 shim</h3>
+        <p>sidecar 和每个脚本 helper 都会拿到 <code>VB_PLUGIN_TUNNEL_OWNER=plugin</code>、隧道 PID，以及本地与远端端口。<code>runtime/vb_plugin_env.py</code> 在 <code>isolate_runtime_env()</code> 里安装接管 shim。此后上游 <code>SSHClient</code> 直接采用这条转发，用 PID 判断存活，需要时就抛出错误，而不是再启动一个 <code>ssh.exe</code>。shim 在脚本正文执行之前就安装好，即使脚本从不调用 <code>connect()</code>。没有 Host 开关时，测试与健康检查 helper 拒绝自建转发；Host 负责关闭隧道。</p>
+        <div class="callout callout-tip"><span class="callout-title">所有 helper 共用一条转发</span><p><code>ssh.exe</code> 不会随脚本、健康检查或连接测试增多。脚本也无法拆除 sidecar 正在用的那条转发。</p></div>
+
+        <h3 id="tunnel-discovery">先发现，再转发</h3>
+        <p>数据目录的 <code>tunnels/</code> 下存着一条小记录，DSH 进程崩溃之后，Host 仍能靠它发现自己托管的转发。面板会显示隧道状态、PID，以及 <code>localhost:port → remote</code> 这一对。</p>
+        <p>自动会话连接在打开隧道之前，先执行一遍和 <code>instances</code> 动作相同的只读实例发现。这样 Host 转发到的实例，就是 sidecar 将要选定的那个。发现结果不唯一时（多个活动实例又没有已保存的选择），启动会失败并列出候选，而不是转发到错误的 CIW。</p>
+
+        <h2 id="surfaces">面板与端点</h2>
+        <p>两个面板，一个同源端点。两个界面读同一份状态，谁也不留第二份副本。</p>
+
+        <h3 id="left-page">配置页</h3>
+        <p>左侧边栏入口打开整页配置视图，默认显示 <strong>服务器连接</strong>。环境、默认设置、存储和活动默认折叠，需要时再展开。环境设置连同来源与安装日志，只在展开或环境不健康时才显示。这一页管理长期配置：安装与修复、连接卡、凭据、工作目录子实例，以及缓存目录。</p>
+
+        <h3 id="right-panel">运行时面板</h3>
+        <p>右侧标签固定为 <strong>dsh-virtuoso-bridge</strong>。内容包括：</p>
+        <ul>
+          <li><strong>环境</strong>：仅在环境未就绪时显示，并提供 <strong>打开设置</strong> 提示。</li>
+          <li><strong>服务器连接</strong>：每项带启动/停止、状态和详情折叠。</li>
+          <li><strong>智能体活动</strong>：当前会话的智能体置顶并高亮。每个智能体的 history 独立折叠，运行中的工具始终可见，不活跃的智能体仍以灰色列出。</li>
+          <li><strong>连接 pill</strong>：与 <strong>最近使用</strong> 同一行，这个智能体连接过的每个服务器各一个。不活跃超过 10 分钟就变灰。超过 30 分钟只从 pill 里移除，智能体行仍然保留。</li>
+          <li><strong>存储</strong>：一行显示大小与剩余空间摘要。完整路径、大小和清理列表在配置页。</li>
+        </ul>
+        <p>单击展开或折叠智能体 history。双击在主视图里打开对应的 DSH 会话。</p>
+
+        <h3 id="composer">Composer 控件</h3>
+        <p>Composer 控件是 VB 图标加一个状态点，没有文字。已连接时是绿色，等待或阻塞时是黄色，出错时是红色。会话有调用正在执行时，状态点呼吸绿色。Session 没有活动运行时（running、waiting、starting 或 connecting）时，这个控件不显示，没有 bridge 的 Session 输入框保持简洁。</p>
+
+        <h3 id="endpoint">Dashboard 端点</h3>
+        <p>两个界面都读同源端点 <code>/__dsh/virtuoso-bridge</code>，走 SSE 流。Host 通过 <code>ctx.inject(['webServer'])</code> 注册这条路由，所以即使冷启动时 webserver 晚于功能插件激活，路由依然存在。</p>
+        <p>浏览器端从仅回环可读的 <code>/bootstrap</code> 取到 <code>{ token, origin, basePath }</code>。它先试注入的 origin，再试页面自己的 origin，并在 404 或 token 过期后重试。端点要求每进程 token，或本机同源请求。跨站请求即使来自 <code>127.0.0.1</code>，端点也会拒绝。</p>
+        <div class="callout callout-warn"><span class="callout-title">保持回环绑定</span><p>把 Web server 绑到非回环地址，暴露的不只是这个端点，而是整个 DSH 界面。保持默认的回环绑定。升级插件后刷新页面，让浏览器用上当前 bundle。</p></div>
+
+        <h2 id="isolation">隔离</h2>
+        <p>运行时不能继承你或另一套 bridge 安装早先保存的内容。插件在进程边界上强制这一点。连接侧的规则见 <a href="connections.zh-CN.html#credentials">凭据与认证</a>。</p>
+
+        <h3 id="env-isolation">运行时环境</h3>
+        <p>插件从不复制你的 <code>~/.virtuoso-bridge/.env</code>；导入 <code>virtuoso_bridge</code> 之前，插件用一个空的运行时 env 文件把每个 Python helper 与这个文件隔开。范围覆盖部署、发现、SSH 测试、sidecar、shell 探测和脚本，所以对这个运行时来说，保存的连接才是准绳。helper 以 <code>-E -s</code> 从插件 venv 启动，不继承 <code>PYTHONPATH</code>、<code>PYTHONHOME</code>、<code>VIRTUAL_ENV</code>，也拿不到环境里已有的 <code>VB_*</code> 值。第二套本地 virtuoso-bridge 安装无法改变插件调用的行为。</p>
+
+        <h3 id="python-guard">venv 校验</h3>
+        <p>只要导入的 <code>virtuoso_bridge</code> 不是来自插件 venv，venv 探测会拒绝报告就绪。唯一例外是显式配置的 editable 本地 checkout：那种情况下 venv 就是有意指向这个来源的。</p>
+
+        <h3 id="ssh-config">生成的 SSH 配置</h3>
+        <p>生成的每个运行时 SSH 配置，按 profile 和连接 SSH 相关字段的摘要做内容寻址。因此工具调用无法删除或修改正在运行的隧道所用的配置文件。编辑连接会生成新文件，活动转发继续用自己的那一份。</p>
+        <p>守护进程 token 存在 DSH credentials 服务里，是一条 grant 记录。它在 UI 里只写，经 sidecar 的环境传入；连接 JSON 和日志里都不会出现，面板也从不返回。</p>
+
+        <h2 id="cache">数据、缓存与存储</h2>
+        <p>插件把持久状态和可丢弃产物分开存放。数据目录放运行时再启动所需的内容，缓存目录放可以重建或清理的内容。两个路径及各自的覆盖方式见 <a href="getting-started.zh-CN.html#data-dir">数据目录</a>。</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>项目</th><th>位置</th></tr></thead>
+            <tbody>
+              <tr><td>Python venv</td><td>数据目录</td></tr>
+              <tr><td><code>settings.json</code> 与插件日志</td><td>数据目录</td></tr>
+              <tr><td>已安装的 bridge 文档：<code>skills/</code>、<code>README.md</code>、<code>AGENTS.md</code></td><td>数据目录，<code>instructions/</code></td></tr>
+              <tr><td>Host 托管转发的隧道记录</td><td>数据目录，<code>tunnels/</code></td></tr>
+              <tr><td>pip wheel、git checkout、脚本 job、大型结果</td><td>缓存目录</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>缓存路径留空就使用数据目录。修改路径不会移动已有文件，运行时面板会立即显示新路径。</p>
+        <p>配置页的 <strong>存储</strong> 列出每项缓存的名称、路径、字节数、文件数、剩余空间，以及逐项清理按钮。右侧面板只保留一行大小和剩余空间摘要。</p>
+
+        <h2 id="next">下一章</h2>
+        <p>运维一章把这些内部机制变成决策：相信哪个状态、什么时候部署，以及问题走完检查清单仍未解决时该提交什么。</p>
+        <nav class="doc-next">
+          <a href="troubleshooting.zh-CN.html"><span>下一章</span>故障排查 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

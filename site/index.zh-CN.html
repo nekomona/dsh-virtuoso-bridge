@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="dsh-virtuoso-bridge 是面向 Cadence Virtuoso 的 DeepSeek Harness 插件，为智能体提供托管 SSH 隧道、CIW 守护进程、完整的 virtuoso-bridge Python API、批处理脚本和 CIW 诊断。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="index.html">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="dsh-virtuoso-bridge · DeepSeek Harness 插件">
+  <meta property="og:description" content="为在 Cadence Virtuoso 中工作的智能体提供托管 SSH 隧道、CIW 守护进程和完整的 virtuoso-bridge Python API。">
+  <meta property="og:image" content="assets/banner.zh-CN.svg">
+  <meta property="og:locale" content="zh_CN">
+  <meta name="twitter:card" content="summary_large_image">
+  <title>dsh-virtuoso-bridge · 让智能手操 Virtuoso</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="index.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="index.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html" aria-current="page">总览</a>
+      <a href="getting-started.zh-CN.html">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+
+  <main id="content">
+    <section class="hero">
+      <div>
+        <p class="kicker"><span class="signal-dot"></span>DEEPSEEK HARNESS · CADENCE VIRTUOSO</p>
+        <h1><em>dsh-virtuoso-bridge</em></h1>
+        <p class="hero-tagline">让智能体亲手操作 Virtuoso。</p>
+        <p class="lede">
+          围绕上游
+          <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite"><b>Virtuoso Bridge</b></a>
+          的 DeepSeek Harness 插件：上游负责把智能体接入 Cadence Virtuoso CIW，
+          本插件负责一键部署 —— 隔离 venv、固定版本源码、CIW 守护进程 setup ——
+          并让它在多个会话之间长期存活：对话、fork 和子智能体共用同一套托管隧道与
+          守护进程，自动会话发现负责选中正确的实例或工作目录。
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="getting-started.zh-CN.html">从安装开始 →</a>
+          <a class="button" href="agent-tools.zh-CN.html">查看智能体工具</a>
+        </div>
+        <p class="hero-meta">
+          <span><b>一键</b>部署</span>
+          <span><b>多会话</b>互通运行时</span>
+          <span><b>4</b> 个工具</span>
+          <span><b>MIT</b> 许可</span>
+        </p>
+      </div>
+      <div class="hero-art" aria-label="示意图：DeepSeek Harness 封装 virtuoso-bridge-lite，把智能体与 Virtuoso CIW 集成在一起">
+        <svg viewBox="0 0 1000 520" role="img" aria-labelledby="hero-art-title">
+          <title id="hero-art-title">DeepSeek Harness 封装 virtuoso-bridge-lite，连接智能体与 Virtuoso CIW</title>
+          <desc id="hero-art-desc">DeepSeek Harness 以固定版本 submodule 封装 virtuoso-bridge-lite，把智能体与 Virtuoso CIW 集成在一起。</desc>
+          <defs>
+            <linearGradient id="vb-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#ffffff"/>
+              <stop offset="1" stop-color="#ece7f9"/>
+            </linearGradient>
+            <pattern id="vb-dots" width="24" height="24" patternUnits="userSpaceOnUse">
+              <circle cx="1.5" cy="1.5" r="1.2" fill="#d8d5cb" opacity="0.55"/>
+            </pattern>
+            <filter id="vb-soft" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#5a3fb0" flood-opacity="0.10"/>
+            </filter>
+            <marker id="vb-arr" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+              <path d="M0 0L10 5L0 10Z" fill="#5a3fb0"/>
+            </marker>
+          </defs>
+          <!-- bright background -->
+          <rect width="1000" height="520" fill="url(#vb-bg)"/>
+          <rect width="1000" height="520" fill="url(#vb-dots)"/>
+          <circle cx="960" cy="64" r="90" fill="#ece7f9" opacity="0.55"/>
+          <circle cx="40" cy="470" r="70" fill="#f3e8d3" opacity="0.6"/>
+
+          <!-- left: the agent, marked with the DeepSeek Harness icon -->
+          <rect x="40" y="180" width="160" height="150" rx="16" fill="#fdfcf8" stroke="#5a3fb0" stroke-width="2" filter="url(#vb-soft)"/>
+          <g transform="translate(92 202.2) scale(1.12)">
+            <path d="M48.8354 10.0479C48.3232 9.79199 48.1025 10.2798 47.8032 10.5278C47.7007 10.6079 47.6143 10.7119 47.5273 10.8076C46.7793 11.624 45.9048 12.1597 44.7622 12.0957C43.0923 12 41.666 12.5356 40.4058 13.8398C40.1377 12.2319 39.2476 11.272 37.8926 10.6558C37.1836 10.3359 36.4668 10.0156 35.9702 9.31982C35.6235 8.82373 35.5293 8.27197 35.356 7.72754C35.2456 7.3999 35.1353 7.06396 34.7651 7.00781C34.3633 6.94385 34.2056 7.2876 34.0479 7.57568C33.418 8.75195 33.1733 10.0479 33.1973 11.3599C33.2524 14.312 34.4736 16.6641 36.8999 18.3359C37.1758 18.5278 37.2466 18.7197 37.1597 19C36.9946 19.5757 36.7974 20.1357 36.624 20.7119C36.5137 21.0801 36.3486 21.1597 35.9624 21C34.6309 20.4321 33.481 19.5918 32.4644 18.5757C30.7393 16.8721 29.1792 14.9917 27.2334 13.52C26.7764 13.1758 26.3193 12.856 25.8467 12.5518C23.8618 10.584 26.1069 8.96777 26.627 8.77588C27.1704 8.57568 26.8159 7.8877 25.0591 7.896C23.3022 7.90381 21.6953 8.50391 19.647 9.30371C19.3477 9.42383 19.0322 9.51172 18.7095 9.58398C16.8501 9.22363 14.9199 9.14355 12.9033 9.37598C9.10596 9.80762 6.07275 11.6396 3.84326 14.7681C1.16455 18.5278 0.53418 22.7998 1.30664 27.2559C2.11768 31.9521 4.46582 35.8398 8.07373 38.8799C11.8159 42.0322 16.1255 43.5762 21.041 43.2803C24.0269 43.104 27.3516 42.6963 31.1016 39.4561C32.0469 39.936 33.0396 40.1279 34.686 40.272C35.9546 40.3921 37.1758 40.208 38.1211 40.0078C39.6021 39.688 39.4995 38.2881 38.9639 38.0322C34.623 35.9678 35.5762 36.8081 34.71 36.1279C36.9155 33.4639 40.2402 30.6958 41.54 21.728C41.6426 21.0161 41.5557 20.5679 41.54 19.9917C41.5322 19.6396 41.6108 19.5039 42.0049 19.4639C43.0923 19.3359 44.1479 19.0317 45.1167 18.4878C47.9292 16.9199 49.064 14.3438 49.3315 11.2559C49.3711 10.7837 49.3237 10.2959 48.8354 10.0479ZM24.3262 37.8398C20.1196 34.4639 18.0791 33.3521 17.2358 33.3999C16.4482 33.4482 16.5898 34.3682 16.7632 34.9678C16.9443 35.5601 17.1812 35.9683 17.5117 36.4878C17.7402 36.832 17.8979 37.3442 17.2832 37.728C15.9282 38.584 13.5728 37.4399 13.4624 37.3838C10.7207 35.7358 8.42822 33.5601 6.81348 30.584C5.25342 27.7197 4.34766 24.6479 4.19775 21.3677C4.1582 20.5757 4.38672 20.2959 5.15869 20.1519C6.17529 19.96 7.22314 19.9199 8.23926 20.0718C12.5327 20.7119 16.1885 22.6719 19.2529 25.7759C21.002 27.5439 22.3252 29.6558 23.6885 31.7202C25.1377 33.9121 26.6978 36 28.6831 37.7119C29.3843 38.312 29.9434 38.7681 30.479 39.104C28.8643 39.2881 26.1699 39.3281 24.3262 37.8398ZM26.3433 24.6001C26.3433 24.248 26.6191 23.9678 26.9658 23.9678C27.0444 23.9678 27.1152 23.9839 27.1782 24.0078C27.2651 24.04 27.3438 24.0879 27.4067 24.1602C27.5171 24.272 27.5801 24.4321 27.5801 24.6001C27.5801 24.9521 27.3042 25.2319 26.9575 25.2319C26.6108 25.2319 26.3433 24.9521 26.3433 24.6001ZM32.6064 27.8799C32.2046 28.0479 31.8027 28.1919 31.4165 28.208C30.8179 28.2397 30.1641 27.9922 29.8096 27.688C29.2583 27.2158 28.8643 26.9521 28.6987 26.1279C28.6279 25.7759 28.6675 25.2319 28.7305 24.9199C28.8721 24.248 28.7144 23.8159 28.2495 23.4238C27.8716 23.104 27.3911 23.0161 26.8633 23.0161C26.666 23.0161 26.4849 22.9277 26.3511 22.856C26.1304 22.7441 25.9492 22.4639 26.1226 22.1201C26.1777 22.0078 26.4458 21.7358 26.5088 21.688C27.2256 21.272 28.0527 21.4077 28.8169 21.7197C29.5259 22.0161 30.0615 22.5601 30.834 23.3281C31.6216 24.2559 31.7632 24.5117 32.2124 25.208C32.5669 25.752 32.8901 26.312 33.1104 26.9521C33.2446 27.3521 33.0713 27.6802 32.6064 27.8799Z" fill="#1e2228" fill-rule="nonzero"/>
+          </g>
+          <text x="120" y="277" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#1e2228">智能体</text>
+          <text x="120" y="295" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="11.5" fill="#5d6469">DSH 会话</text>
+
+          <!-- right: the Virtuoso CIW -->
+          <rect x="800" y="180" width="160" height="150" rx="16" fill="#fdfcf8" stroke="#d9a441" stroke-width="2" filter="url(#vb-soft)"/>
+          <rect x="856" y="215" width="44" height="30" rx="5" fill="none" stroke="#d9a441" stroke-width="2"/>
+          <path d="M864 223l7 7-7 7" fill="none" stroke="#d9a441" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M877 237h12" stroke="#d9a441" stroke-width="2" stroke-linecap="round"/>
+          <text x="880" y="277" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="17" font-weight="700" fill="#1e2228">Virtuoso CIW</text>
+          <text x="880" y="295" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="11.5" fill="#5d6469">Cadence Virtuoso</text>
+
+          <!-- integration links -->
+          <path d="M204 255H250" stroke="#5a3fb0" stroke-width="2.5" marker-start="url(#vb-arr)" marker-end="url(#vb-arr)"/>
+          <path d="M750 255H800" stroke="#5a3fb0" stroke-width="2.5" marker-start="url(#vb-arr)" marker-end="url(#vb-arr)"/>
+
+          <!-- the DSH wrapper -->
+          <rect x="250" y="76" width="500" height="368" rx="22" fill="#fdfcf8" stroke="#5a3fb0" stroke-width="2.5" filter="url(#vb-soft)"/>
+                    <!-- the DSH window mark: the upstream glyph inside a DSH window -->
+          <rect x="274" y="92" width="54" height="40" rx="6" fill="#ffffff"/>
+          <path d="M280 92H322A6 6 0 0 1 328 98V104H274V98A6 6 0 0 1 280 92Z" fill="#5a3fb0"/>
+          <text x="301" y="101" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace" font-size="7.5" font-weight="700" fill="#ffffff">DSH</text>
+          <g transform="translate(292.8 109.6) scale(0.34)"><path d="M1 5.39L7.57 5.39L14.68 42.61L8.11 42.61ZM20.02 5.39L26.59 5.39L14.68 42.61L8.11 42.61ZM29.33 5.39L35.9 5.39L23.99 42.61L17.42 42.61ZM29.33 5.39L38.36 5.39C44.71 5.39 48.36 10.05 46.52 15.79C44.69 21.53 38.05 26.19 31.7 26.19L22.67 26.19ZM24.6 20.17L36.91 20.17C43.72 20.17 47.62 25.19 45.64 31.39C43.66 37.59 36.53 42.61 29.73 42.61L17.42 42.61ZM33.97 11.41L31.17 20.17L33.63 20.17C36.35 20.17 39.18 18.21 39.96 15.79C40.73 13.37 39.15 11.41 36.43 11.41ZM29.24 26.19L25.91 36.59L31.66 36.59C34.83 36.59 38.15 34.26 39.07 31.39C39.99 28.52 38.16 26.19 34.99 26.19Z" fill="#5a3fb0"/></g>
+          <rect x="274" y="92" width="54" height="40" rx="6" fill="none" stroke="#5a3fb0" stroke-width="1.6"/>
+          <text x="338" y="118" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="22" font-weight="700" fill="#1e2228">dsh-virtuoso-bridge</text>
+          <text x="726" y="114" text-anchor="end" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" fill="#5d6469">DeepSeek Harness 插件</text>
+          <path d="M274 137H726" stroke="#e5e2d8" stroke-width="1.5"/>
+
+          <!-- wrapping layer around the upstream core -->
+          <rect x="286" y="158" width="428" height="196" rx="16" fill="#ece7f9" fill-opacity="0.45" stroke="#5a3fb0" stroke-width="1.6" stroke-dasharray="7 5"/>
+          <rect x="312" y="184" width="376" height="144" rx="12" fill="#ffffff" stroke="#452c8c" stroke-width="2"/>
+          <text x="500" y="238" text-anchor="middle" font-family="'Cascadia Code', Consolas, monospace" font-size="23" font-weight="700" fill="#452c8c">virtuoso-bridge-lite</text>
+          <rect x="395" y="258" width="210" height="28" rx="14" fill="#ece7f9"/>
+          <text x="500" y="277" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="12" fill="#452c8c">固定版本 git submodule</text>
+          <text x="500" y="392" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="10.5" letter-spacing="2.2" fill="#5d6469">封装 &#183; 固定 &#183; 集成</text>
+
+          <text x="500" y="486" text-anchor="middle" font-family="Inter, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif" font-size="14" fill="#5d6469">上游 bridge 外加一层 DSH 封装，智能体与 Virtuoso 集成一体。</text>
+        </svg>
+      </div>
+    </section>
+
+    <section class="section" id="what">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">插件负责什么</p>
+          <h2>会话会结束，<br>bridge 不会。</h2>
+        </div>
+        <p>
+          运行时、隧道、守护进程和隔离 Python 环境都由插件的 Host 端管理。同一 profile 里的每个会话、
+          分叉和子智能体，用的都是同一个在线 bridge。
+        </p>
+      </div>
+      <div class="card-grid four">
+        <article class="card">
+          <span class="card-num">01</span>
+          <h3>托管运行时</h3>
+          <p>启动、停止、重启与测试连接。状态跨会话保留，并投影到右侧运行时面板。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">02</span>
+          <h3>完整 Python API</h3>
+          <p>描述并调用任意公开的 virtuoso-bridge 目标 —— 原理图、版图、库、Maestro、弹窗、Spectre —— 中间没有插件包装层。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">03</span>
+          <h3>批处理脚本</h3>
+          <p>在新的 venv 进程里运行 Python，可直接使用已连接客户端，支持 job、进度与取消。批处理出错不会破坏连接。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">04</span>
+          <h3>CIW 感知</h3>
+          <p>调用期间 CIW 打印的警告与 <code>*Error*</code> 行会随结果一起返回，静默失败也有迹可循。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="tools-band" id="tools">
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <p class="section-kicker">四个工具，一个 bridge</p>
+            <h2>智能体需要的都有，<br>无需猜测。</h2>
+          </div>
+          <p>
+            工具注册在 Host 端，profile 内每个会话都能用。长任务变成 job；过大的答案写成文件，
+            智能体可以自己读或 grep。
+          </p>
+        </div>
+        <div class="card-grid two">
+          <article class="card">
+            <span class="card-num">RUNTIME</span>
+            <h3>连接与观测</h3>
+            <p>查状态、启动、停止、重启、ping、发现实例、部署守护进程、信任主机密钥、编辑连接。</p>
+            <pre class="mini-code">virtuoso_bridge_runtime action=status
+virtuoso_bridge_runtime action=start connection=lab</pre>
+          </article>
+          <article class="card">
+            <span class="card-num">API</span>
+            <h3>先描述，再调用</h3>
+            <p>对已安装 bridge 的 describe 分三级：目标索引、单目标的方法列表、单方法的完整文档。然后直接调用。</p>
+            <pre class="mini-code">virtuoso_bridge_api action=describe target=client.layout
+virtuoso_bridge_api action=call target=client method=execute_skill</pre>
+          </article>
+          <article class="card">
+            <span class="card-num">SCRIPT</span>
+            <h3>批量执行 Python</h3>
+            <p>内联代码或工作区文件，每次运行一个独立 job，带 <code>connect()</code>、<code>emit()</code>，结果持久保存。</p>
+            <pre class="mini-code">client = connect()
+result = {"windows": client.schematic.list_windows()}</pre>
+          </article>
+          <article class="card">
+            <span class="card-num">SETUP</span>
+            <h3>修复 venv</h3>
+            <p>安装、更新、诊断、切换来源模式与清理缓存，安装日志保存在配置页。</p>
+            <pre class="mini-code">virtuoso_bridge_setup action=status
+virtuoso_bridge_setup action=diagnose</pre>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="loop">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">智能体工作循环</p>
+          <h2>先读状态，<br>再动手。</h2>
+        </div>
+        <p>
+          插件刻意不做第二个 runner、job store、dialog manager 或调度器，只把 bridge 暴露出来，逻辑都在 bridge 里。
+        </p>
+      </div>
+      <div class="card-grid four">
+        <article class="card">
+          <span class="card-num">步骤 01</span>
+          <h3>读取运行时</h3>
+          <p>一次 <code>status</code> 调用即给出环境、隧道、守护进程、实例、已关联智能体与进行中的操作。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">步骤 02</span>
+          <h3>描述 API</h3>
+          <p>以已安装的 bridge 为准；调用前先描述，不要猜签名。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">步骤 03</span>
+          <h3>批量处理工作</h3>
+          <p>一个较大的脚本胜过许多次往返。用 <code>path</code> 指向可编辑、可重跑的文件。</p>
+        </article>
+        <article class="card">
+          <span class="card-num">步骤 04</span>
+          <h3>读回 CIW</h3>
+          <p>返回块带着共享 CIW 日志里的警告与错误 —— 先读它，别急着猜为什么没生效。</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section quick-grid" id="install">
+      <div class="quick-copy">
+        <p class="section-kicker">首次运行</p>
+        <h2>安装 bundle。<br>创建 venv。<br>选定守护进程。</h2>
+        <p>
+          npm 包自带固定版本的 bridge 源码，安装既不需要 git 也不需要 submodule 检出。
+          本地只需先确认 Python 3.9+ 与 OpenSSH。
+        </p>
+        <ol class="steps">
+          <li><b>01</b><span>通过插件管理器安装 bundle <code>@nekomona/dsh-virtuoso-bridge</code>。</span></li>
+          <li><b>02</b><span>在左侧面板列表打开 <strong>dsh-virtuoso-bridge</strong>，点击 <strong>安装</strong> 创建隔离 venv。</span></li>
+          <li><b>03</b><span>新增连接并启动，或在 CIW 空闲时先部署守护进程 setup。</span></li>
+          <li><b>04</b><span>在 CIW 中运行打印出的 <code>load("...")</code> 行；健康轮询会把运行时转为 <strong>running</strong>。</span></li>
+        </ol>
+        <a class="button" href="getting-started.zh-CN.html#install">完整安装步骤 →</a>
+      </div>
+      <div class="code-card">
+        <header><span>Virtuoso CIW</span><span>SKILL</span></header>
+        <pre><code>load("/home/username/.virtuoso-bridge/daemon/virtuoso_setup.il")</code></pre>
+        <header><span>智能体工具调用</span><span>DSH</span></header>
+        <pre><code>virtuoso_bridge_runtime({ action: "status" })
+virtuoso_bridge_api({
+  action: "call", target: "client", method: "execute_skill",
+  args: ["1+1"], description: "Check the daemon answers"
+})</code></pre>
+      </div>
+    </section>
+
+    <section class="section" id="docs">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">文档</p>
+          <h2>挑一章开始读。</h2>
+        </div>
+        <p>每章都能单独读，也都有链接回到仓库里的 Markdown 正本。</p>
+      </div>
+      <div class="card-grid">
+        <a class="card" href="getting-started.zh-CN.html">
+          <span class="card-num">01 · 安装</span>
+          <h3>开始使用</h3>
+          <p>环境要求、npm 或源码安装、venv，以及第一个运行起来的守护进程。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+        <a class="card" href="connections.zh-CN.html">
+          <span class="card-num">02 · 网络</span>
+          <h3>连接</h3>
+          <p>固定端口与自动会话、主机密钥、工作目录子实例、凭据与守护进程部署。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+        <a class="card" href="agent-tools.zh-CN.html">
+          <span class="card-num">03 · API</span>
+          <h3>智能体工具</h3>
+          <p>四个工具的全部动作与参数，以及智能体拿到的返回结构。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+        <a class="card" href="workflows.zh-CN.html">
+          <span class="card-num">04 · 实践</span>
+          <h3>工作流</h3>
+          <p>长时间运行的 Maestro job、弹窗检查、history 冲突、CIW 诊断与失败处理规则。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+        <a class="card" href="runtime.zh-CN.html">
+          <span class="card-num">05 · 架构</span>
+          <h3>运行时</h3>
+          <p>状态、Host 托管的 SSH 隧道、健康轮询、环境隔离与缓存布局。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+        <a class="card" href="troubleshooting.zh-CN.html">
+          <span class="card-num">06 · 运维</span>
+          <h3>故障排查</h3>
+          <p>等待、信任、被弹窗阻塞、旧版守护进程、部署冲突与安全说明。</p>
+          <span class="card-link">阅读 →</span>
+        </a>
+      </div>
+    </section>
+
+    <section class="closing">
+      <p>让智能体安装 bundle，再让它读 bridge，而不是猜 bridge。</p>
+      <a class="button primary" href="getting-started.zh-CN.html">打开指南 →</a>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>

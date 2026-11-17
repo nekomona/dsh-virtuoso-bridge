@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="What a managed dsh-virtuoso-bridge runtime is: the state table, the Host-owned SSH tunnel, the adoption shim, panel surfaces and where files land.">
+    <meta name="language-current" content="en">
+  <meta name="language-alternate" content="runtime.zh-CN.html">
+  <title>Runtime lifecycle and internals · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <span class="language-switch" aria-label="Language">
+        <a href="runtime.zh-CN.html" hreflang="zh-CN" data-language-choice="zh">中文</a>
+        <a href="runtime.html" aria-current="page" data-language-choice="en">EN</a>
+      </span>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Get started</a>
+      <a href="connections.html">Connections</a>
+      <a href="agent-tools.html">Agent tools</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="runtime.html" aria-current="page">Runtime</a>
+      <a href="troubleshooting.html">Troubleshooting</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          <li><a href="#states">States and objects</a>
+            <ol>
+              <li><a href="#daemon-object">Daemon and connection status</a></li>
+              <li><a href="#attach">Attaching to a signed daemon</a></li>
+            </ol>
+          </li>
+          <li><a href="#lifecycle">Lifecycle</a>
+            <ol>
+              <li><a href="#health">The health loop</a></li>
+              <li><a href="#dialogs">Dialog inspection</a></li>
+              <li><a href="#process-wide">Process-wide runtimes</a></li>
+            </ol>
+          </li>
+          <li><a href="#tunnel">The Host-owned tunnel</a>
+            <ol>
+              <li><a href="#tunnel-child">The ssh child</a></li>
+              <li><a href="#tunnel-port">Local port allocation</a></li>
+              <li><a href="#tunnel-adoption">The adoption shim</a></li>
+              <li><a href="#tunnel-discovery">Discovery before the forward</a></li>
+            </ol>
+          </li>
+          <li><a href="#surfaces">Panels and endpoint</a>
+            <ol>
+              <li><a href="#left-page">Configuration page</a></li>
+              <li><a href="#right-panel">Runtime panel</a></li>
+              <li><a href="#composer">Composer control</a></li>
+              <li><a href="#endpoint">Dashboard endpoint</a></li>
+            </ol>
+          </li>
+          <li><a href="#isolation">Isolation</a>
+            <ol>
+              <li><a href="#env-isolation">Runtime environment</a></li>
+              <li><a href="#python-guard">Venv guard</a></li>
+              <li><a href="#ssh-config">Generated SSH config</a></li>
+            </ol>
+          </li>
+          <li><a href="#cache">Data, cache and storage</a></li>
+          <li><a href="#next">Next</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">05 · Architecture</p>
+        <h1>Runtime lifecycle and internals</h1>
+        <p class="doc-lede">A managed runtime binds one SSH (Secure Shell) forward, one Python sidecar (a helper process per runtime) and one daemon inside the Virtuoso CIW (Command Interpreter Window) under a single runtime id. The Host &mdash; the plugin's Node.js half &mdash; owns that bundle, not the conversation. Runtimes live in the plugin process, outlive the session that started them, and appear in the right-sidebar panel. This chapter shows what each state means, who owns the tunnel, what the helpers inherit, and where files land.</p>
+
+        <h2 id="states">States and objects</h2>
+        <p>The runtime <code>state</code> answers one question: can this connection be used right now? Action <code>status</code> reports it in a compact projection. A start returns the same snapshot, and the panel renders that value.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+            <tbody>
+              <tr><td><code>stopped</code></td><td>No runtime exists: there is no forward and no sidecar process.</td></tr>
+              <tr><td><code>starting</code></td><td>The tunnel and the sidecar are starting.</td></tr>
+              <tr><td><code>connecting</code></td><td>The sidecar is connecting to the daemon, or deploying for it.</td></tr>
+              <tr><td><code>waiting</code></td><td>The tunnel is up, but the daemon does not answer yet.</td></tr>
+              <tr><td><code>running</code></td><td>The daemon answers. <code>execute_skill("1+1")</code> returned through it.</td></tr>
+              <tr><td><code>error</code></td><td>A start, a health check or a runtime operation failed.</td></tr>
+              <tr><td><code>needs-trust</code></td><td>The host offered an unknown SSH key. The runtime stays stopped until you confirm the fingerprint.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="doc-footnote">A stop is a brief transition. While the runtime tears down its workers, sidecar and forward, its snapshot state is <code>stopping</code>. It is not a resting state.</p>
+
+        <h3 id="daemon-object">Daemon and connection status</h3>
+        <p>A state tells you that a connection broke, not where. Every snapshot therefore carries a separate <code>daemon</code> object, and the panel shows it as its own chip next to the connection state. Startup records it from the connect handshake. <strong>Test</strong> probes it even when the runtime is stopped.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Daemon status</th><th>What it proves</th></tr></thead>
+            <tbody>
+              <tr><td><code>ready</code></td><td>A signed bridge daemon answered the capability handshake.</td></tr>
+              <tr><td><code>no-response</code></td><td>The daemon port is reachable over TCP, but the bridge behind it does not answer.</td></tr>
+              <tr><td><code>auth-failed</code></td><td>A bridge daemon is present and refuses this client's token.</td></tr>
+              <tr><td><code>unreachable</code></td><td>Nothing answers on the configured daemon port.</td></tr>
+              <tr><td><code>unknown</code></td><td>No probe has produced a verdict yet.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The same values appear as <code>connectionStatus</code> in the runtime snapshot: <code>ready</code>, <code>no-response</code>, <code>auth-failed</code>, <code>unreachable</code> or <code>unknown</code>. A separate <code>daemonProbe</code> reports the deployment-side verdict: <code>no-listener</code>, <code>legacy</code>, and whether the daemon is signed. That verdict decides whether the remedy is a deployment.</p>
+
+        <h3 id="attach">Attaching to a signed daemon</h3>
+        <p>A fixed-port start probes the daemon port before it deploys anything. If this account's daemon answers with a signed capability handshake, the runtime attaches to it and skips deployment, reporting <code>attach.attached</code> and the reused setup path. The scratch root is not prepared in that case, so a broken root cannot block a live instance. See <a href="connections.html#attach">Attach before deploy</a> for the connection-side view.</p>
+
+        <h2 id="lifecycle">Lifecycle</h2>
+        <p><code>start</code> opens the managed forward and connects the sidecar. <code>restart</code> repeats that sequence, and <code>subInstance</code> selects a configured workdir sub-instance. <code>status</code> with <code>waitMs</code> waits for an in-flight start to settle, so you do not get a bare <code>starting</code> snapshot. A fixed-port start may end in <code>waiting</code> on purpose. The network side worked, and the CIW has not loaded the prepared setup yet.</p>
+        <div class="callout callout-warn"><span class="callout-title">A restart does not deploy</span><p>A reconnect or a plain restart does not deploy files, and it does not reload the setup in the CIW. Only <code>deploy_daemon</code> prepares the bootstrap. Loading it stays a human act in the intended idle CIW.</p></div>
+
+        <h3 id="health">The health loop</h3>
+        <p>Every 20 seconds, the Host health loop requests a status from the sidecar of each running, waiting or error runtime. The loop writes nothing to the CIW: <code>log_to_ciw=False</code> unless <code>settings.logToCiw</code> is enabled. It also catches a missed child-process event, so a forward that exited without a notification is still noticed.</p>
+        <p>A responsive daemon moves a <code>waiting</code> runtime to <code>running</code>. It also records the remote project working directory and clears the setup hint. A <code>running</code> runtime that stops answering falls back to <code>waiting</code>, where dialog inspection picks it up.</p>
+
+        <h3 id="dialogs">Dialog inspection</h3>
+        <p>When the daemon does not answer, the Host inspects X11 dialogs and records the report in the snapshot. The status carries the dialog title, the panel shows a warning, and the hint tells you to click or answer the dialog in Virtuoso, then refresh. The hint never asks for a daemon reinstall or a setup reload. Inspection is skipped when the daemon probe already reports <code>no-listener</code>, where no dialog can be the cause.</p>
+        <p>If a daemon was healthy and then stops answering, the panel reports a daemon-lost reason instead of the initial setup hint. The setup did load once, so look at the CIW itself.</p>
+
+        <h3 id="process-wide">Process-wide runtimes</h3>
+        <p>Runtimes are process-wide. They survive conversation changes, forks and subagent sessions, and every conversation in the profile talks to the same live bridge. They stop when you disable or unload the plugin, when DSH exits, or when you run action <code>stop</code>.</p>
+        <p>A crashed process can leave an orphaned forward behind. The plugin finds it from the virtuoso-bridge state file and its own tunnel record. <code>orphans</code> lists them, <code>stop_orphan</code> stops one, and the runtime panel exposes the same control.</p>
+
+        <h2 id="tunnel">The Host-owned tunnel</h2>
+        <p>The Host opens the SSH forward for fixed-port remote connections. It does not leave that job to the Python sidecar, which would start a free-running <code>ssh.exe</code>. Owning the child gives the plugin its readiness signal, its port choice and a single forward that every helper adopts. The rest of this section describes that design.</p>
+
+        <h3 id="tunnel-child">The ssh child</h3>
+        <p><code>lib/tunnel.js</code> spawns <code>ssh -N -L</code> as a hidden, non-detached child and tracks it from child-process events.</p>
+        <div class="code-card">
+          <header><span>Forward shape (illustrative)</span><span>SHELL</span></header>
+          <pre><code>ssh -v -N -L 65123:127.0.0.1:65123 -l designer virtuoso01.example.com</code></pre>
+        </div>
+        <p class="doc-footnote">The real command also passes <code>-o BatchMode=yes</code>, a connect timeout, <code>ControlMaster=no</code> / <code>ControlPath=none</code> / <code>ControlPersist=no</code>, <code>ExitOnForwardFailure=yes</code> and <code>ServerAliveInterval=30</code> with <code>ServerAliveCountMax=3</code>. It adds <code>-F</code> for the generated config, <code>-i</code> for an identity file and <code>-J</code> for a jump host.</p>
+        <p>Non-detached is deliberate. On Windows, a hidden non-detached child keeps a hidden console, and its implicit <code>ProxyJump</code> or <code>ProxyCommand</code> child inherits it. Detaching the tunnel made that grandchild open a visible console window.</p>
+        <p>Readiness comes from OpenSSH's own verbose log line, <code>Entering interactive session</code>. The plugin does not dial the forward port to learn that. A dropped tunnel is reported immediately from the child's exit.</p>
+
+        <h3 id="tunnel-port">Local port allocation</h3>
+        <p>The plugin allocates the local port with a bind test on both loopback families. OpenSSH binds the <code>-L</code> listener for IPv4 and IPv6 loopback, so a port that is busy only on <code>::1</code> is not usable. <code>connection.localPort</code> is honoured when that port is free. If OpenSSH still loses the race, the start retries on another port instead of failing the runtime.</p>
+
+        <h3 id="tunnel-adoption">The adoption shim</h3>
+        <p>The sidecar and every script helper receive <code>VB_PLUGIN_TUNNEL_OWNER=plugin</code>, the tunnel PID, and the local and remote ports. <code>runtime/vb_plugin_env.py</code> installs an adoption shim in <code>isolate_runtime_env()</code>. Upstream <code>SSHClient</code> then adopts that forward, answers liveness from the PID, and raises instead of starting a second <code>ssh.exe</code>. The shim is installed before a script body runs, even when the script never calls <code>connect()</code>. Test and health helpers refuse to create a forward without the Host switch, and tunnel teardown belongs to the Host.</p>
+        <div class="callout callout-tip"><span class="callout-title">One forward for every helper</span><p><code>ssh.exe</code> does not multiply with scripts, health checks or connection tests. A script also cannot tear down the forward that the sidecar is using.</p></div>
+
+        <h3 id="tunnel-discovery">Discovery before the forward</h3>
+        <p>A small record under the data directory's <code>tunnels/</code> keeps a Host-owned forward discoverable after a crashed DSH process. The panel shows the tunnel state, its PID, and the <code>localhost:port → remote</code> pair.</p>
+        <p>Automatic-session connections run the same read-only instance discovery as the <code>instances</code> action, before the tunnel opens. The Host then forwards to the instance the sidecar will select. An ambiguous discovery &mdash; several live instances, no stored selection &mdash; fails with the available list instead of forwarding to the wrong CIW.</p>
+
+        <h2 id="surfaces">Panels and endpoint</h2>
+        <p>Two panels, one same-origin endpoint. Both surfaces read the same state, and neither keeps a second copy of it.</p>
+
+        <h3 id="left-page">Configuration page</h3>
+        <p>The left sidebar entry opens the full-page configuration view, which starts on <strong>Server connections</strong>. Environment, runtime defaults, storage and activity stay folded until you need them. Environment setup, with its source and install log, is disclosed only when expanded or unhealthy. This page owns the long-lived controls: install and repair, the connection cards, credentials, workdir sub-instances, and the cache directory.</p>
+
+        <h3 id="right-panel">Runtime panel</h3>
+        <p>The right tab is fixed to <strong>dsh-virtuoso-bridge</strong>. It contains:</p>
+        <ul>
+          <li><strong>Environment</strong>, shown only while setup is not ready, with an <strong>Open settings</strong> prompt.</li>
+          <li><strong>Server connections</strong>, each with Start/Stop, a status and a details disclosure.</li>
+          <li><strong>Agent activity</strong>: the current session's agent is pinned at the top and highlighted. Each agent folds its own history, running tools stay visible, and inactive agents remain listed in gray.</li>
+          <li><strong>Connection pills</strong>, on the same line as <strong>Last used</strong>: one per server the agent has connected to. A server inactive for more than 10 minutes turns gray. After 30 minutes it leaves the pills only, and the agent row remains.</li>
+          <li><strong>Storage</strong>: a one-line size and free-space summary. The full path, size and clear list live on the configuration page.</li>
+        </ul>
+        <p>A single click toggles an agent's history. A double-click opens that DSH session in the main view.</p>
+
+        <h3 id="composer">Composer control</h3>
+        <p>The composer control is the VB mark plus a status dot, with no text. It is green when connected, yellow when waiting or blocked, and red on error. It breathes green while a call for that session is running. The control is absent while the Session has no active runtime (running, waiting, starting or connecting), so a Session without a bridge keeps the composer clean.</p>
+
+        <h3 id="endpoint">Dashboard endpoint</h3>
+        <p>Both surfaces read the same-origin endpoint <code>/__dsh/virtuoso-bridge</code> over an SSE stream. The Host registers the route through <code>ctx.inject(['webServer'])</code>, so the route still exists on a cold boot where the webserver activates after feature plugins.</p>
+        <p>The browser half bootstraps <code>{ token, origin, basePath }</code> from a loopback-only <code>/bootstrap</code>. It tries the injected origin first, then the page's own origin, and retries after a 404 or a stale token. The endpoint requires the per-process token or a local same-origin request. Cross-site requests are rejected even when they arrive from <code>127.0.0.1</code>.</p>
+        <div class="callout callout-warn"><span class="callout-title">Keep the loopback bind</span><p>Binding the Web server to a non-loopback address widens exposure of the whole DSH UI, not just this endpoint. Keep the default loopback bind. Reload the page after upgrading the plugin so the browser uses the current bundle.</p></div>
+
+        <h2 id="isolation">Isolation</h2>
+        <p>A runtime must not inherit what you or another bridge installation saved earlier. The plugin enforces that at the process boundary. The connection-side rules are in <a href="connections.html#credentials">Credentials and authentication</a>.</p>
+
+        <h3 id="env-isolation">Runtime environment</h3>
+        <p>The plugin never copies your <code>~/.virtuoso-bridge/.env</code>. Every Python helper is isolated from it with the plugin's empty runtime env file before <code>virtuoso_bridge</code> is imported. That covers deploy, discovery, SSH test, sidecar, shell probe and scripts, so the saved connection is authoritative for that runtime. Helpers start from the plugin venv with <code>-E -s</code>. They inherit no <code>PYTHONPATH</code>, <code>PYTHONHOME</code> or <code>VIRTUAL_ENV</code>, and no ambient <code>VB_*</code> values. A second local virtuoso-bridge installation cannot redirect a plugin call.</p>
+
+        <h3 id="python-guard">Venv guard</h3>
+        <p>The venv probe refuses to report ready when the imported <code>virtuoso_bridge</code> comes from outside the plugin venv. The one exception is an explicitly configured editable local checkout, where the venv is deliberately pointed at that source.</p>
+
+        <h3 id="ssh-config">Generated SSH config</h3>
+        <p>The generated per-runtime SSH config is content-addressed by profile and by a digest of the connection's SSH-relevant fields. A tool call therefore cannot delete or rewrite the config file a running tunnel uses. Editing a connection produces a new file, and the live forward keeps its own.</p>
+        <p>Daemon tokens live in the DSH credentials service as a grant record. They are write-only in the UI and passed to the sidecar through its environment. They never reach connection JSON or logs, and the panels never return them.</p>
+
+        <h2 id="cache">Data, cache and storage</h2>
+        <p>The plugin keeps durable state apart from disposable artifacts. The data directory holds what the runtime needs to start again, and the cache directory holds what can be rebuilt or cleared. Both paths, and their overrides, are described in <a href="getting-started.html#data-dir">Data directory</a>.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Item</th><th>Location</th></tr></thead>
+            <tbody>
+              <tr><td>Python venv</td><td>Data directory</td></tr>
+              <tr><td><code>settings.json</code> and plugin logs</td><td>Data directory</td></tr>
+              <tr><td>Installed bridge documentation: <code>skills/</code>, <code>README.md</code>, <code>AGENTS.md</code></td><td>Data directory, <code>instructions/</code></td></tr>
+              <tr><td>Tunnel records for Host-owned forwards</td><td>Data directory, <code>tunnels/</code></td></tr>
+              <tr><td>pip wheels, git checkouts, script jobs, large results</td><td>Cache directory</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>Leave the cache path blank to use the data directory. Changing it does not move existing files, and the runtime panel immediately shows the new paths.</p>
+        <p><strong>Storage</strong> on the configuration page lists each cache with its label, path, byte size, file count, free space and a per-item Clear control. The right panel keeps only the one-line size and free-space summary.</p>
+
+        <h2 id="next">Next</h2>
+        <p>The operations chapter turns these internals into decisions: which state to trust, when to deploy, and what to send when a problem survives the checklist.</p>
+        <nav class="doc-next">
+          <a href="troubleshooting.html"><span>NEXT</span>Troubleshooting →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      简体中文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.zh-CN.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.zh-CN.md">plugin guide</a>
+    </p>
+    <p>
+      Built on <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>.
+      Canonical documentation lives in
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/tree/main/docs">docs/</a>.
+    </p>
+  </footer>
+</body>
+</html>

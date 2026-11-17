@@ -1,381 +1,74 @@
-# Virtuoso Bridge — DeepSeek Harness 插件
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nekomona/dsh-virtuoso-bridge/main/site/assets/banner.zh-CN.svg" alt="dsh-virtuoso-bridge 横幅：围绕 Virtuoso Bridge 的 DeepSeek Harness 插件，把智能体接入 Cadence Virtuoso CIW" width="100%">
+</p>
 
-[English](README.md) | **简体中文**
+<h3 align="center">
+  <a href="https://nekomona.github.io/dsh-virtuoso-bridge/index.zh-CN.html">▶ <strong>看文档</strong></a>
+</h3>
 
-面向 [DeepSeek Harness](https://github.com/deepseek-ai) 的持久化插件，封装
-[virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite)，
-把 SSH 隧道和 Virtuoso CIW 守护进程变成跨会话存活的管理运行时。
+<p align="center">
+  <a href="README.md">English</a> &nbsp;·&nbsp; <a href="README.zh-CN.md"><b>简体中文</b></a>
+</p>
 
-已在 npm 发布为
-[`@nekomona/dsh-virtuoso-bridge`](https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge)；
-源码和问题跟踪位于
-[nekomona/dsh-virtuoso-bridge](https://github.com/nekomona/dsh-virtuoso-bridge)。
+<p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-6b45b9?style=flat-square" alt="MIT 许可证"></a>
+  <a href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge"><img src="https://img.shields.io/npm/v/@nekomona/dsh-virtuoso-bridge?style=flat-square&color=bb667f" alt="npm 版本"></a>
+  <a href="https://github.com/nekomona/dsh-virtuoso-bridge"><img src="https://img.shields.io/badge/DeepSeek%20Harness-plugin-527c79?style=flat-square" alt="DeepSeek Harness 插件"></a>
+</p>
 
-插件以固定版本的 `virtuoso-bridge-lite/` **git submodule** 提供
-virtuoso-bridge-lite，也可以改用本地开发仓库，或从指定 git ref 克隆。固定的是上游
-精确提交 `1f186abfbb3d658211743cd707f3156ed2f59a87`（2026-11-04），其精确
-时间戳和来源信息记录在 `virtuoso-bridge-lite.pin.json`；`.gitmodules` 不声明
-`branch`，因此上游 `main` 更新不会改变内置源码。不要执行
-`git submodule update --remote`：它是唯一会跟随移动分支的命令。npm 包内含同一份
-源码，因此通过 npm 安装不需要 git 或 submodule；源码 checkout 需执行一次
-`git submodule update --init virtuoso-bridge-lite`，缺失时插件会给出明确的错误提示。
+**`dsh-virtuoso-bridge`** 是围绕上游
+[**Virtuoso Bridge**](https://github.com/Arcadia-1/virtuoso-bridge-lite) 的
+DeepSeek Harness 插件：后者负责把智能体接入 **Cadence Virtuoso** 的 CIW。SSH 隧道、
+守护进程和 Python API 都来自上游；本插件负责补上留给用户的那部分：
 
-详细中文指南：[`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md) ·
-English guide: [`docs/plugin-guide.md`](docs/plugin-guide.md)
+* **一键部署** —— 选好来源、点 **Install**：插件创建隔离 venv、安装固定版本的
+  bridge、验证导入，再准备并上传 CIW 守护进程 setup，最后只剩一行 `load("...")`
+  需要在 CIW 里执行。
+* **多会话互通** —— 运行时是进程级的，同一 profile 里的对话、fork 和子智能体共用
+  一套隧道和一个守护进程。自动会话与工作目录子实例由插件发现并选中，右侧面板显示
+  哪个会话挂在哪个运行时上。
+* **面向智能体的接口** —— 整套 bridge API 作为一个工具、同一个 venv 里的批量
+  Python，以及随每次结果返回的 CIW 警告。
 
-## 功能概览
+## 工具一览
 
-| 能力 | 入口 |
+| 工具 | 智能体用它做什么 |
 | --- | --- |
-| 隔离 Python 环境和工具源码 | 配置页、`virtuoso_bridge_setup` |
-| SSH 连接、凭据和默认配置 | 配置页、`virtuoso_bridge_runtime` |
-| 跨会话隧道/守护进程管理 | Host 运行时管理器 |
-| 固定端口或自动实例发现 | 配置页、`instances` / `select_instance` |
-| 连接、守护进程、智能体活动、缓存 | 右侧 **Virtuoso Bridge** 运行时面板 |
-| 全部 virtuoso-bridge-lite Python API | `virtuoso_bridge_api` |
-| 隔离 venv 中执行批量 Python | `virtuoso_bridge_script`（内联代码或工作区文件） |
-| CIW 警告、`*Error*` 行和打印诊断 | `virtuoso_bridge_api` / `virtuoso_bridge_script` 结果块、`ciwReport` 设置 |
+| `virtuoso_bridge_runtime` | 保存连接、发现守护进程、信任主机密钥、启停托管隧道、部署 CIW setup |
+| `virtuoso_bridge_api` | 描述并调用任意 Python 对象：schematic、layout、library、symbol、Maestro、Spectre |
+| `virtuoso_bridge_script` | 在隔离 venv 中批量运行 Python，可内联代码或指向工作区文件 |
+| `virtuoso_bridge_setup` | 从内置、本地或 git 源安装、修复并诊断该 venv，管理缓存 |
 
-## 安装
+界面部分：左侧的 **Virtuoso Bridge 配置**页，以及右侧显示连接、守护进程和智能体
+活动的 **Bridge runtime** 面板。
 
-插件是一个 DSH bundle 包，以公开 scoped 包 **`@nekomona/dsh-virtuoso-bridge`** 发布。
-
-### 从 npm 安装（推荐）
-
-让智能体安装该 bundle，或使用插件管理器的 `install_bundle` 指定包名：
-
-> Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
-
-不需要 submodule，也不需要 Python checkout：npm 包内含插件所需的上游工具源码，
-插件会自建 venv 并从该源码 pip 安装。
-
-### 从 git checkout 安装（开发）
-
-```powershell
-git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git <plugin-directory>
-```
-
-`virtuoso-bridge-lite/` 是 git submodule。如果 clone 时没有加
-`--recurse-submodules`，安装前先初始化：
-
-```powershell
-git submodule update --init virtuoso-bridge-lite
-```
-
-然后让智能体安装该本地 bundle：
-
-> Install the plugin bundle at `<plugin-directory>`.
-
-或者通过插件管理器的 `install_bundle` 指向该目录。安装后刷新 DSH 页面以加载最新的
-浏览器端 bundle。
-
-数据目录：
+## 快速开始
 
 ```text
-%USERPROFILE%\.dsh\virtuoso-bridge\<profile>\
+Install the DSH bundle `@nekomona/dsh-virtuoso-bridge`.
 ```
 
-`<profile>` 默认为 `default`，可由 `$DSH_PROFILE` 或 `config.dataDir` /
-`VB_PLUGIN_DATA_DIR` 覆盖。
-
-## 首次配置
-
-打开左侧全局面板列表中的 **Virtuoso Bridge 配置**（VB 图标）。页面默认先显示
-**服务器连接**；环境、默认设置、存储和活动均可折叠。
-
-选择安装来源：
-
-- **内置源码**（`virtuoso-bridge-lite/` submodule，默认）：安装插件固定的
-  `virtuoso-bridge-lite/` git submodule，不需要访问工具仓库；首次 pip 安装仍需可访问
-  Python 包索引。源码安装必须已初始化 submodule，否则插件会报错并提示执行
-  `git submodule update --init virtuoso-bridge-lite`。npm 包内含同一份源码，npm 用户
-  不会遇到该状态。
-- **本地开发仓库**：从 `source.localRepoPath` 以 editable 方式安装，例如
-  `C:\src\virtuoso-bridge-lite`。代码修改会在下次运行时启动时生效；打包元数据变化
-  后使用“修复”。
-- **Git 仓库**：按 `source.repoUrl` / `source.gitRef` 克隆并安装，“更新”会重新拉取。
-
-点击安装后，插件创建私有 venv，安装工具及依赖，默认安装 SSH extra
-（`paramiko` + `PySocks`），并验证 `import virtuoso_bridge`。如果系统没有 OpenSSH，
-安装会暂停并询问是否仅使用 Paramiko 后端继续。
-
-## 兼容性
-
-- 目标 DSH 版本：当前 DSH 0.2.2 系列，Cordis 4.x。
-- Host 与 Client 两半均使用标准 DSH slot/service API。
-- 运行时面板、配置页、脚本工具卡和 composer 按钮均通过标准 slot 注册。
-- 插件不实现自己的 Maestro runner、job store、dialog manager、history manager 或调度器；
-  这些能力全部使用 virtuoso-bridge-lite / DSH 现有 API。
-
-## 智能体说明和技能
-
-安装完成后，插件会把技能和参考文档复制到 DSH profile 的数据目录，并在系统提示中
-注册一个紧凑的 Virtuoso Bridge 段落。智能体应先阅读匹配的 `SKILL.md`：
-
-- `skills/virtuoso/SKILL.md`
-- `skills/spectre/SKILL.md`
-- `skills/netlist/SKILL.md`
-- `skills/optimizer/SKILL.md`
-- `skills/search/SKILL.md`
-
-`docs/agent-workflows.md` 记录现有 API 上的常见配方（Maestro job manager、对话框、
-X11 关闭、保存 setup、history/job 策略），不新增引擎。
-
-## 连接与凭据
-
-配置页的服务器连接支持：
-
-- 固定端口旧版守护进程；
-- 自动会话/实例发现；
-- 一个连接下的多个工作目录子实例；
-- jump host、SSH backend、shell、Cadence 环境脚本、身份文件和角色覆盖。
-
-高级字段还包括远程暂存根目录（`remoteScratchRoot`）和全局默认远程暂存根目录，
-后者在连接未设置自己的值时作为 `VB_REMOTE_SCRATCH_ROOT` 传给部署、发现、shell
-和脚本。`~/` 会在远端账号上展开并解析为真实目录；解析后的绝对路径就是所有
-helper 以及脚本/IL 上传看到的值。Virtuoso 的 `load()` 不会展开 `~`，因此带 `~`
-的 IL 路径会在第一次加载时失败；在 IC23.1 等站点或 pack 上建议直接配置绝对路径
-（`~/` 仍可用，并会在任何上传前自动解析）。
-
-连接卡上直接显示 **启动/停止**、**编辑**、**测试** 和
-**部署守护进程设置**。较少使用的操作在 `⋯` 菜单中。运行时正在运行时，**测试**
-复用其 Host 托管隧道（helper 采用同一 PID/端口），不会再启动一个 `ssh.exe`；
-运行时停止时会打开一条短命的 Host 托管探测隧道，而不再使用上游的游离转发。
-
-凭据（守护进程 token）写入 DSH credentials 服务，不写入连接配置或日志。
-
-创建新连接、或修改现有连接的 SSH 目标，属于工作区之外的修改：保存后的连接是一项
-长期授权，启动它会让智能体在该主机上获得完全访问权限（shell、Python 与 SKILL）。
-因此 `virtuoso_bridge_runtime` 会通过 DSH 权限卡片请求用户批准，除非会话处于
-**完全权限**（`danger-full-access`）。重复提交相同 SSH 目标并同时修改备注、暂存根目录、
-子实例或环境的保存不会触发确认；配置页自身的 **保存** 按钮由用户操作，也不需要批准。
-被拒绝或无法获得批准时该操作就是终态，请改用配置页创建连接，不要绕过。
-
-## 守护进程部署与覆盖
-
-**部署守护进程设置** 只准备/上传生成的 account bootstrap，不启动隧道、不连接守护进程，
-也不自动加载 SKILL。部署完成后，在目标空闲 CIW 中执行返回的：
-
-```skill
-load("/path/to/virtuoso_setup.il")
-```
-
-如果远端生成的 bundle 与本插件不同，普通部署不会覆盖。面板会显示新旧守护进程的可用
-版本（未知时显示“版本未知”），并要求用户点击红色 **覆盖** 才执行替换。旧 bundle 会
-保留。共享 `daemonSetup`（由 install-daemon 管理）不能被客户端覆盖。
-
-## 工作目录子实例
-
-一个连接可以包含多个工作目录子实例。每个子实例使用自动会话和独立 daemon port，
-拥有自己的 VBL profile/sidecar，并通过工作目录发现。工具调用使用：
-
-```json
-{ "subInstance": "project-a" }
-```
-
-也可以传子实例名或绝对工作目录。右侧面板为每个子实例显示独立卡片。
-
-## 运行时生命周期
-
-1. 启动时建立 SSH 隧道，必要时部署 setup。
-2. 守护进程未响应时，运行时进入 `waiting`；在 CIW 中加载 setup 后自动转为 `running`。
-3. 守护进程可被状态检查、对话框检查和工作目录探测。
-4. 停止时关闭 sidecar/tunnel；进程级管理器仍保留配置和活动记录。
-
-### 由 Host 插件托管的 SSH 隧道
-
-固定端口的远程连接不再由 Python sidecar 启动一个游离的 `ssh.exe`，而是由 Host
-插件自己打开转发：
-
-* `lib/tunnel.js` 以隐藏、**非 detached** 子进程方式启动 `ssh -N -L`，通过子进程事件
-  跟踪状态。就绪与否读取 OpenSSH 自己的详细日志（`Entering interactive session`），
-  隧道断开立即上报；插件不再通过连接转发端口来判断存活。
-  非 detached 是有意为之：Windows 上隐藏的非 detached 子进程会保留一个隐藏控制台，
-  `ssh -J` 隐式 `ProxyCommand` 子进程会继承它。此前 detached 正是该孙进程弹出可见
-  控制台窗口的原因。
-* 本地端口在 IPv4/IPv6 回环上先做绑定测试再使用，因此不再需要上游的“端口被占用”
-  探测；`connection.localPort` 空闲时会优先使用。
-* sidecar 与所有脚本 helper 都会收到 `VB_PLUGIN_TUNNEL_OWNER=plugin`、隧道 PID 和
-  本地/远端端口。`runtime/vb_plugin_env.py` 在 `isolate_runtime_env()` 中安装接管
-  shim：上游 `SSHClient` 直接采用该转发、用 PID 判断存活，并在需要时抛错而不是再
-  启动一个 `ssh.exe`。即使脚本正文从不调用 `connect()`，shim 也会在执行正文前安装；
-  Test/health helper 在没有 Host 隧道开关时不会自行创建转发。隧道的关闭由 Host 负责。
-* `<数据目录>/tunnels/` 下的记录让 DSH 崩溃后仍能发现 Host 托管的转发；运行面板
-  显示隧道状态、PID 与 `localhost:端口 → 远端`。
-* 自动会话连接会先执行与 `instances` 动作相同的只读实例发现，再打开隧道，因此
-  Host 转发到的实例与 sidecar 将要选择的实例一致。若发现结果不唯一（多个活动实例
-  且没有已保存的选择），启动会直接失败并列出候选，而不是转发到错误的 CIW。
-
-状态包括：`stopped`、`starting`、`connecting`、`waiting`、`running`、`error`、
-`needs-trust`。
-
-如果 CIW 被弹窗阻塞，状态会包含对话框检查结果；面板提示用户点击/回答弹窗，而不是
-误报需要重装守护进程。其他失败会显示隧道/健康检查原因。
-
-## 缓存目录
-
-默认缓存位于：
-
-```text
-%USERPROFILE%\.dsh\virtuoso-bridge\<profile>\
-```
-
-配置页的 **存储** 区域显示缓存根目录、可用空间，以及每项缓存的路径、大小、文件数
-和清理按钮。右侧面板只显示一行存储摘要，不重复完整列表。
-
-## 智能体工具
-
-### `virtuoso_bridge_runtime`
-
-管理连接和运行时：
-
-- `status` / `list`
-- `start` / `stop` / `restart`
-- `ping`
-- `deploy_daemon`
-- `instances` / `select_instance`
-- `detect_shell`
-- `host_key` / `trust_host`
-
-创建连接或修改其 SSH 目标时，`save_connection` 会在会话不具备完全权限时请求批准；
-拒绝或批准不可用即终态。
-
-### `virtuoso_bridge_api`
-
-访问全部 virtuoso-bridge-lite API：
-
-```text
-virtuoso_bridge_api action=describe target=client
-virtuoso_bridge_api action=call target=client.schematic method=open_window ...
-```
-
-`call` 可带一行可选 `description`，用作工具卡标签。每次调用都与脚本运行共用同一张
-可展开代码卡：`execute_skill` 调用把 SKILL 源码显示为代码，其他调用显示参数，
-卡片图标为 Virtuoso Bridge。
-
-### `virtuoso_bridge_script`
-
-在隔离 venv 中执行批量 Python，返回 job id、结果或结构化失败。工具卡显示脚本描述、
-代码和结果，且始终可展开；与桥接 `execute_skill` 调用共用同一张卡片，图标为 Virtuoso Bridge。
-
-`run` 只接受一种来源：内联 `code`，或指向 Python 文件的 `path`；用哪种由调用方决定，
-每个 job 相互独立，并不绑定固定的临时脚本。脚本需要反复查看、修改或扩展时，文件方式
-更利于复用：智能体可以用普通文件工具读、改并重新运行它。相对 `path` 以当前 Session
-工作目录为基准。每次运行都会把文件当前内容复制到自己的 job 目录，所以编辑在下一次
-运行时生效。
-
-### `virtuoso_bridge_setup`
-
-管理安装源、安装/修复/更新、诊断和缓存：
-
-- `status` / `preflight`
-- `install` / `update`
-- `diagnose`
-- `configure` / `set_source`
-- `caches` / `clear_cache`
-
-## 界面
-
-### 左侧配置页
-
-页面标题和左侧入口为 **Virtuoso Bridge 配置**。默认顺序：
-
-1. 服务器连接
-2. 环境（健康时折叠）
-3. 默认设置
-4. 存储
-5. 活动
-
-环境不健康时自动展开。安装日志和来源字段位于折叠区域。底部有上游项目说明：
-
-> 本插件基于 [Arcadia-1/virtuoso-bridge-lite](https://github.com/Arcadia-1/virtuoso-bridge-lite)
-
-### 右侧运行时面板
-
-- 标签固定为 **Virtuoso Bridge**，窄标签由 DSH 自动裁剪。
-- 环境区仅在未就绪时显示，并提供打开配置页的按钮。
-- 当前会话对应的智能体排在最上方并高亮。
-- 每个智能体的历史由用户手动展开/折叠；正在运行的工具始终显示。
-- **最近使用** 同一行显示该智能体使用过的服务器 pill；不活跃超过 10 分钟变灰，
-  超过 30 分钟不显示该 pill，但智能体行仍保留。
-- 双击智能体行跳转到对应 DSH 会话。
-- 顶部 **打开设置** 进入配置页；存储行不重复设置按钮。
-
-### Composer 按钮
-
-输入框左侧的 VB 图标显示状态点：
-
-- 绿色：已连接；
-- 黄色：等待/阻塞；
-- 运行工具时呼吸绿色。
-
-没有额外文字。
-
-## 文件
-
-```text
-index.js                 Host plugin entry
-client.js                Browser UI
-lib/manager.js           Runtime/connection manager
-lib/tools.js             Agent tool definitions
-runtime/vb_sidecar.py    Per-runtime sidecar
-runtime/vb_deploy.py     Daemon setup deployment
-tests/*.test.mjs         node:test unit tests (host-key evaluation, daemon failure classes)
-virtuoso-bridge-lite/    Pinned virtuoso-bridge-lite git submodule (1f186ab)
-virtuoso-bridge-lite.pin.json  Upstream pin: name, version, commit, date, license
-scripts/prepare-vendor.mjs  Verify/initialise the pinned submodule (prepack)
-scripts/check-no-private-data.mjs  Public-release guard against private data
-scripts/check-branch-privacy.mjs  Commit-message and branch-diff guard:
-                      no server names, account names or home directories
-scripts/lib/private-rules.mjs  Shared private-data rules for both guards
-.github/workflows/       ci.yml (push/PR), release.yml (npm + GitHub Release)
-docs/plugin-guide.md     English detailed guide
-docs/plugin-guide.zh-CN.md  Chinese detailed guide
-README.md                English README
-README.zh-CN.md          Chinese README
-```
-
-## 验证
-
-插件在开发中验证了：
-
-- DSH slot/service 注册和面板加载；
-- Host 工具调用、状态投影和脚本 job 流程；
-- 固定端口和自动实例发现；
-- 主机密钥信任流程、Paramiko/OpenSSH 后端和 jump host；
-- 配置保存、来源切换、缓存路径跟随和诊断；
-- 脚本工具卡、运行时面板折叠、智能体历史和连接状态；
-- 守护进程冲突提示、弹窗检测、远程工作目录和双语文档；
-- CI（`.github/workflows/ci.yml`）校验 `virtuoso-bridge-lite/` gitlink 与
-  `virtuoso-bridge-lite.pin.json` 一致，并运行公开发布检查
-  （`scripts/check-no-private-data.mjs`）和单元测试
-  （`node --test tests/*.test.mjs`）。
-
-未在真实 Cadence 硬件上自动验证所有 SKILL/GUI 行为；实际效果取决于已安装的
-virtuoso-bridge-lite、SSH 配置和 CIW 状态。
-
-## 限制
-
-- 插件不能在运行中的 Virtuoso CIW 内自动加载 SKILL；需用户执行一次 `load(...)`。
-- 不包含 Cadence/Virtuoso 或 Spectre 许可。
-- 首次安装需要下载 Python 依赖。
-- 浏览器渲染依赖 DSH 主题和宿主版本。
-
-## 开发
-
-```powershell
-node --check index.js
-node --check client.js
-node --check lib/manager.js
-node --check lib/tools.js
-python -m py_compile runtime/vb_sidecar.py
-node --check runtime/vb_deploy.py
-```
-
-修改客户端后刷新 DSH 页面；Host 侧修改通过重新加载插件生效。
-
-## 许可
-
-MIT License。`virtuoso-bridge-lite/` 是 virtuoso-bridge-lite 的上游 git submodule，
-保留上游的 MIT 许可与归属；上游提交、日期和许可记录在
-`virtuoso-bridge-lite.pin.json`。
+然后打开左侧的 **Virtuoso Bridge 配置**页，点 **Install**，添加一条服务器连接并点
+**Start**。首次使用的 CIW 需要执行一次面板给出的 `load("...")`，之后运行时会自动
+变为 `running`。
+
+## 深入阅读
+
+* [开始使用](https://nekomona.github.io/dsh-virtuoso-bridge/getting-started.zh-CN.html) — 安装、首次配置、第一个运行中的守护进程
+* [连接](https://nekomona.github.io/dsh-virtuoso-bridge/connections.zh-CN.html) — 固定端口、自动会话、主机密钥、凭据、部署
+* [智能体工具](https://nekomona.github.io/dsh-virtuoso-bridge/agent-tools.zh-CN.html) — 每个动作和参数
+* [工作流](https://nekomona.github.io/dsh-virtuoso-bridge/workflows.zh-CN.html) — Maestro 作业、对话框、历史、CIW 诊断
+* [运行时](https://nekomona.github.io/dsh-virtuoso-bridge/runtime.zh-CN.html) — 状态、Host 托管隧道、面板、隔离、缓存
+* [故障排查](https://nekomona.github.io/dsh-virtuoso-bridge/troubleshooting.zh-CN.html) — 分诊、信任、对话框、限制
+
+站点为双语，每章都有对应的 `.zh-CN.html`。离线阅读见
+[`docs/plugin-guide.zh-CN.md`](docs/plugin-guide.zh-CN.md)，其中包含架构、开发和限制说明。
+
+## 致谢
+
+基于上游 [Virtuoso Bridge](https://github.com/Arcadia-1/virtuoso-bridge-lite)
+（`virtuoso-bridge-lite`）开发：SSH、守护进程和 SKILL 侧的工作都由它完成，本仓库只是
+它的 DeepSeek Harness 封装。上游以 `virtuoso-bridge-lite/` git submodule 固定版本，
+其提交、日期与许可记录在
+[`virtuoso-bridge-lite.pin.json`](virtuoso-bridge-lite.pin.json)。两个项目均为 MIT 许可。
+Cadence 与 Virtuoso 是 Cadence Design Systems, Inc. 的商标；本插件与 Cadence 无关。

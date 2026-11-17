@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A saved connection is a standing grant: fields, fixed and automatic daemon modes, host-key trust, credentials, deployment and scratch roots.">
+    <meta name="language-current" content="en">
+  <meta name="language-alternate" content="connections.zh-CN.html">
+  <title>Connections and credentials · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">Skip to content</a>
+  <header class="site-header">
+    <a class="brand" href="index.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+    <nav class="site-nav" id="site-nav" aria-label="Primary">
+      <span class="language-switch" aria-label="Language">
+        <a href="connections.zh-CN.html" hreflang="zh-CN" data-language-choice="zh">中文</a>
+        <a href="connections.html" aria-current="page" data-language-choice="en">EN</a>
+      </span>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Get started</a>
+      <a href="connections.html" aria-current="page">Connections</a>
+      <a href="agent-tools.html">Agent tools</a>
+      <a href="workflows.html">Workflows</a>
+      <a href="runtime.html">Runtime</a>
+      <a href="troubleshooting.html">Troubleshooting</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="On this page">
+        <p class="toc-title">On this page</p>
+        <ol>
+          <li><a href="#model">What a connection is</a></li>
+          <li><a href="#fields">Fields</a></li>
+          <li><a href="#fixed-vs-auto">Fixed port versus automatic sessions</a>
+            <ol>
+              <li><a href="#fixed-port">Fixed port</a></li>
+              <li><a href="#auto-sessions">Automatic sessions</a></li>
+              <li><a href="#attach">Attach before deploy</a></li>
+              <li><a href="#sub-instances">Workdir sub-instances</a></li>
+            </ol>
+          </li>
+          <li><a href="#host-keys">Host keys and trust</a></li>
+          <li><a href="#credentials">Credentials and authentication</a></li>
+          <li><a href="#deploy">Daemon deployment</a>
+            <ol>
+              <li><a href="#deploy-conflicts">Conflicts</a></li>
+              <li><a href="#deploy-timeouts">Timeouts</a></li>
+            </ol>
+          </li>
+          <li><a href="#scratch">Remote scratch root</a></li>
+          <li><a href="#multi-host">Split host roles</a></li>
+          <li><a href="#next">Next</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">02 · Network</p>
+        <h1>Connections and credentials</h1>
+        <p class="doc-lede">A connection is the address and the permission the bridge starts from. This chapter covers the saved fields, the two daemon modes, host-key trust, credentials, the deployment step and the scratch root that every upload lands in.</p>
+
+        <h2 id="model">What a connection is</h2>
+        <p>In DeepSeek Harness (DSH), a saved connection is not a form: it is a standing grant. Starting it opens an SSH (Secure Shell) session and a signed bridge daemon on that account. The agent can then run shell commands, Python and SKILL (Cadence's scripting language). Creating a row, or changing an existing row's SSH target, is therefore a modification outside the workspace.</p>
+        <ul>
+          <li><code>virtuoso_bridge_runtime</code> asks for approval through DSH's permission card unless the session has <strong>Full access</strong> (<code>danger-full-access</code>).</li>
+          <li>A rejected or unavailable approval is final. Create the row from the configuration page instead of working around it.</li>
+          <li>Saves that repeat the same SSH target (notes, scratch roots, sub-instances, environment) need no approval. The page's own <strong>Save</strong> button is user-initiated.</li>
+          <li>Saving without an <code>id</code> updates the row with the same name, and the result says <code>updated</code> or <code>created</code>. An existing row is retargeted when <code>host</code>, <code>user</code>, <code>sshPort</code>, <code>jumpHost</code>/<code>jumpUser</code> or a role host changes.</li>
+        </ul>
+        <p>Two modes share every other field. A <strong>fixed-port</strong> connection points at a stable daemon endpoint and probes it. An <strong>automatic-session</strong> connection discovers registered daemons and uses an OS-assigned port. Which one you need depends on how the CIW (the Virtuoso Command Interpreter Window) is bootstrapped, not on the transport.</p>
+
+        <h2 id="fields">Fields</h2>
+        <p>The configuration page keeps primary fields visible and folds advanced network settings, host roles, shell and Cadence environment, credentials, and workdir sub-instances. <code>save_connection</code> accepts the same names.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Field</th><th>Default</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>name</code></td><td><code>host</code>, else <code>connection</code></td><td>Display name and the key for a save without <code>id</code>.</td></tr>
+              <tr><td><code>host</code></td><td>required</td><td>SSH target. A loopback host makes the row a local connection.</td></tr>
+              <tr><td><code>user</code></td><td>&mdash;</td><td>SSH account; also the input for a derived fixed port.</td></tr>
+              <tr><td><code>sshPort</code></td><td><code>22</code></td><td>SSH endpoint port, separate from the daemon port.</td></tr>
+              <tr><td><code>port</code></td><td>derived from <code>user</code></td><td>Fixed-mode daemon port; unused when <code>autoSessions</code> is true.</td></tr>
+              <tr><td><code>autoSessions</code></td><td><code>false</code></td><td>Automatic discovery with an OS-assigned daemon port.</td></tr>
+              <tr><td><code>instancePort</code></td><td>unset</td><td>Discovered port stored by <code>select_instance</code>; selects one instance before a restart.</td></tr>
+              <tr><td><code>jumpHost</code>, <code>jumpUser</code></td><td>empty</td><td>Bastion host and optional account. A jump-host key is listed separately during trust.</td></tr>
+              <tr><td><code>remoteWorkDir</code></td><td>empty</td><td>Absolute remote working directory; under automatic sessions it is also the discovery filter.</td></tr>
+              <tr><td><code>daemonSetup</code></td><td>empty</td><td>A shared <code>virtuoso_setup.il</code> installed by <code>virtuoso-bridge install-daemon</code>; read-only to clients.</td></tr>
+              <tr><td><code>sshBackend</code></td><td><code>openssh</code></td><td><code>openssh</code> or <code>paramiko</code>.</td></tr>
+              <tr><td><code>sshProxy</code></td><td>empty</td><td>Paramiko SOCKS5 proxy, <code>socks5://host:port</code>.</td></tr>
+              <tr><td><code>identityFile</code></td><td>empty</td><td>Writes a per-connection SSH config that includes the user's own config.</td></tr>
+              <tr><td><code>sshMaxSessions</code></td><td>unset</td><td>Advanced SSH setting; maps to the upstream SSH session limit.</td></tr>
+              <tr><td><code>localPort</code></td><td>auto</td><td>Local port of the Host-owned tunnel; honoured when free.</td></tr>
+              <tr><td><code>envShell</code></td><td><code>auto</code></td><td><code>auto</code>, <code>csh</code> or <code>sh</code>. <code>auto</code> runs the Cadence script under both and keeps the shell that exposes <code>virtuoso</code>.</td></tr>
+              <tr><td><code>cadenceEnvScript</code></td><td>empty</td><td>Cadence environment script sourced for remote work.</td></tr>
+              <tr><td><code>remoteScratchRoot</code></td><td>global default</td><td>Absolute root preferred; <code>~/</code> is expanded and symlinks resolved before upload.</td></tr>
+              <tr><td><code>clientId</code></td><td>empty</td><td>Optional client identifier recorded with the connection.</td></tr>
+              <tr><td><code>daemonHost</code>, <code>deployHost</code>, <code>guiHost</code>, <code>spectreHost</code></td><td>empty</td><td>Role overrides for split-host topologies; see <a href="#multi-host">Split host roles</a>.</td></tr>
+              <tr><td><code>subInstances</code></td><td>none</td><td>Named absolute workdirs; see <a href="#sub-instances">Workdir sub-instances</a>.</td></tr>
+              <tr><td><code>notes</code></td><td>empty</td><td>Free text stored with the row.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A complete automatic-session row, as accepted by <code>save_connection</code>:</p>
+        <div class="code-card">
+          <header><span>connectionConfig</span><span>JSON</span></header>
+          <pre><code>{
+  "name": "lab-virtuoso-auto",
+  "host": "virtuoso01.example.com",
+  "user": "designer",
+  "autoSessions": true,
+  "instancePort": null,
+  "remoteWorkDir": "/projects/example",
+  "daemonSetup": "/opt/virtuoso-bridge/v1/virtuoso_setup.il",
+  "sshPort": 22,
+  "jumpHost": "",
+  "sshBackend": "openssh",
+  "spectreHost": "",
+  "envShell": "auto",
+  "cadenceEnvScript": "/site/cadence/setup.csh",
+  "identityFile": "C:\\Users\\me\\.ssh\\id_ed25519"
+}</code></pre>
+        </div>
+        <p><strong>Test</strong> reports on four layers: SSH, the remote Python, the scratch root and the daemon port. It runs while the runtime is stopped. <strong>Start</strong> owns the tunnel and sidecar.</p>
+
+        <h2 id="fixed-vs-auto">Fixed port versus automatic sessions</h2>
+        <h3 id="fixed-port">Fixed port</h3>
+        <p>Leaving <code>port</code> blank derives the bridge's stable per-user daemon port from the SSH user name (SHA-1, range 65000&ndash;65499), matching <code>virtuoso_bridge.basic.bridge._default_remote_port</code>. The CIW-side setup starts the daemon on that endpoint. A fixed legacy deployment is not discoverable after a CIW restart, so the deploy result carries <code>recommendedAutoSessions</code> and a guidance line.</p>
+        <h3 id="auto-sessions">Automatic sessions</h3>
+        <p>With <code>autoSessions</code>, the daemon uses an OS-assigned port and <code>port</code> is unused. The plugin discovers registered daemons and selects one by port or workdir.</p>
+        <p>Discovery is read-only until you store a selection. A missing or ambiguous selection fails with the available list instead of silently picking one. <code>select_instance</code> stores the chosen port on the connection before a restart. Discovery runs before the tunnel opens, so the Host forwards to the instance the sidecar will select.</p>
+        <p>The decision is a deployment choice: a fixed port gives one stable endpoint for one CIW, while automatic sessions follow whatever instance is registered and selected.</p>
+        <h3 id="attach">Attach before deploy</h3>
+        <p>A fixed-port start probes the configured port first. If this account's daemon answers with a signed capability handshake, the runtime attaches to it and <strong>skips deployment entirely</strong>. Status reports <code>attach.attached</code> and the reused setup path. Only when no attachable daemon is present does the runtime prepare the scratch root and deploy the setup.</p>
+        <p>A broken or missing scratch root therefore cannot block a live instance, including one deployed by another client or machine. <a href="runtime.html#attach">Runtime</a> covers the attach details.</p>
+        <h3 id="sub-instances">Workdir sub-instances</h3>
+        <p>A connection can carry a list of workdir sub-instances, each with a name and an absolute remote working directory. Each one starts with automatic sessions and an OS-assigned daemon port. It gets its own VBL (virtuoso-bridge-lite) profile and sidecar, and the plugin discovers it by workdir rather than by a fixed port.</p>
+        <ul>
+          <li>The runtime panel shows one card per sub-instance. The runtime id is <code>rt_&lt;connection&gt;__&lt;sub-instance&gt;</code>.</li>
+          <li>Tool calls select one with <code>subInstance: "&lt;id|name|/absolute/workdir&gt;"</code>.</li>
+          <li>This allows several project CIWs under a single connection without assigning fixed ports.</li>
+        </ul>
+
+        <h2 id="host-keys">Host keys and trust</h2>
+        <p>On the first connection the plugin reads the offered host keys and stops in the <code>needs-trust</code> state with their SHA-256 fingerprints. The runtime is intentionally not started.</p>
+        <ul>
+          <li>The probe targets the endpoint SSH actually reaches. It resolves <code>HostName</code>, <code>Port</code> and <code>HostKeyAlias</code> from <code>~/.ssh/config</code>, so a saved alias or non-default port does not report a fingerprint from a different server.</li>
+          <li>Each offered fingerprint is labelled with the host it belongs to. A jump host's key is marked separately.</li>
+          <li>Nothing is trusted or added until the user confirms it: the runtime-panel button, or a <code>trust_host</code> call made only after the user confirms the fingerprint. A trust call can only select a key the fresh probe offered. The argument never defines what is written.</li>
+          <li>Trust writes that single key to <code>~/.ssh/known_hosts</code> under both names a remapped host may be looked up by. OpenSSH uses the saved alias. Paramiko uses the resolved host name.</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Outcome</th><th>What it means</th><th>What to do</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>A key type is absent</td>
+                <td>A host normally offers several types (ed25519, ecdsa, rsa) and <code>known_hosts</code> usually contains only some of them.</td>
+                <td>Untrusted, not changed. A host with at least one trusted type starts normally. SSH is pinned to the trusted types in the generated config.</td>
+              </tr>
+              <tr>
+                <td>A different key of the same type</td>
+                <td>The trusted key for that host has changed.</td>
+                <td>A conflict. It is never replaced automatically. Review it and remove the stale entry with <code>ssh-keygen -R &lt;host&gt;</code>, then start again.</td>
+              </tr>
+              <tr>
+                <td>First connection</td>
+                <td>Nothing is trusted yet.</td>
+                <td><code>needs-trust</code>. Confirm the fingerprint, then start again.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="code-card">
+          <header><span>Remove a changed key</span><span>SHELL</span></header>
+          <pre><code>ssh-keygen -R virtuoso01.example.com</code></pre>
+        </div>
+        <div class="callout callout-warn">
+          <span class="callout-title">Trust is a decision, not a default</span>
+          <p>When a live agent session is available, the same confirmation appears as a question in the conversation. You do not need the right sidebar open. Failed starts report the stage, SSH and daemon output, the traceback and the host-key probe result in the runtime panel and the tool error.</p>
+        </div>
+
+        <h2 id="credentials">Credentials and authentication</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Layer</th><th>Where it lives</th><th>Notes</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Daemon token</td>
+                <td>DSH credentials service, as a grant record</td>
+                <td>Optional. Write-only in the UI and never returned by panels, tools or logs. Passed to the sidecar environment.</td>
+              </tr>
+              <tr>
+                <td>SSH authentication</td>
+                <td>The system SSH configuration (agent, keys, <code>~/.ssh/config</code>) or Paramiko</td>
+                <td><code>identityFile</code> writes a per-connection SSH config that includes the user's own config.</td>
+              </tr>
+              <tr>
+                <td>Remote environment</td>
+                <td><code>cadenceEnvScript</code> plus the cached shell detection</td>
+                <td><code>envShell: "auto"</code> tries csh and sh and keeps the shell that exposes <code>virtuoso</code>. The result is cached per connection and can be refreshed with <code>detect_shell</code>.</td>
+              </tr>
+              <tr>
+                <td>Local connections</td>
+                <td>The local bridge token file</td>
+                <td><code>localhost</code>, <code>127.0.0.1</code> and <code>::1</code> skip SSH and use that file exactly like <code>virtuoso-bridge</code> local mode.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A stored token is shown as stored and can be cleared. Its value is never read back, and the same rule holds for the panels, tools and logs.</p>
+        <p>Credential isolation is deliberate. The plugin never copies the user's <code>~/.virtuoso-bridge/.env</code>. Every Python helper is isolated from it with the plugin's empty runtime env file before <code>virtuoso_bridge</code> is imported. Helpers start from the plugin venv with <code>-E -s</code> and inherit no <code>PYTHONPATH</code>/<code>PYTHONHOME</code>/<code>VIRTUAL_ENV</code> and no ambient <code>VB_*</code> values. The venv probe refuses to report ready when <code>virtuoso_bridge</code> comes from outside the plugin venv, except an explicitly configured editable local checkout.</p>
+
+        <h2 id="deploy">Daemon deployment</h2>
+        <p><strong>Deploy daemon setup</strong> prepares and uploads the generated account bootstrap. It does not start a tunnel, start or connect a daemon, or load SKILL. After it succeeds, copy the returned line and load it in the intended idle CIW:</p>
+        <div class="code-card">
+          <header><span>Virtuoso CIW</span><span>SKILL</span></header>
+          <pre><code>load("/path/to/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>Every connection row has the control. The same action is available as <code>virtuoso_bridge_runtime</code> action <code>deploy_daemon</code>, with <code>replace: true</code> as the explicit upgrade path for generated files. For a site-wide bootstrap, install the upstream shared bundle on the Linux Cadence host with <code>virtuoso-bridge install-daemon &lt;versioned-directory&gt;</code> and set <code>daemonSetup</code> to the printed <code>virtuoso_setup.il</code>. All automatic-session clients share that setup. Changing a client environment cannot retroactively update a running CIW.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Result</th><th>Meaning</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Returned load line</td><td>The exact line to load in the idle CIW. After an overwrite, load the newly returned line.</td></tr>
+              <tr><td><code>recommendedAutoSessions</code></td><td>Set on a fixed legacy deployment, with a guidance line. That deployment is not discoverable after a CIW restart, so automatic sessions or a shared install-daemon setup are preferred for long-lived use.</td></tr>
+              <tr><td><code>errorCode</code>, <code>path</code>, <code>hint</code></td><td>A deploy failure carries its path and remedy, for example the required <code>mkdir -p -m 700</code> for a missing root outside the home.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <h3 id="deploy-conflicts">Conflicts</h3>
+        <p>If the remote generated bundle differs from the current bundle, normal deployment does <strong>not</strong> overwrite it. The panel reports the new or current package version when available and the existing daemon version when available. Otherwise it shows <code>version unknown</code>, plus the backend conflict details.</p>
+        <p>Only an explicit red <strong>Overwrite</strong> button authorizes replacement, and the old bundle is retained as a backup. Shared setups configured through <code>daemonSetup</code> or install-daemon are read-only to clients. Clients cannot replace them.</p>
+        <h3 id="deploy-timeouts">Timeouts</h3>
+        <p>Deployment runs over SSH and can take longer than the dashboard's short status-poll budget. The dashboard gives long actions their own timeout and keeps the printed setup path and load line visible. Do not retry a deploy just because a browser request timed out.</p>
+        <p>An older daemon on another port is not reused: the daemon probe reports <code>no-listener</code> or <code>legacy</code>. The hint is to deploy, load the returned line in the intended idle CIW and start again.</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">A restart is not a deploy</span>
+          <p>A reconnect or a plain restart does not deploy files or reload the setup. If the setup was never loaded, run the printed <code>load("...")</code> line first. Reinstall only when the environment, not the CIW, is the proven cause. <a href="runtime.html#lifecycle">Runtime</a> covers the lifecycle.</p>
+        </div>
+
+        <h2 id="scratch">Remote scratch root</h2>
+        <p>The remote scratch root is where deployment, discovery, shells and scripts write. <strong>Runtime defaults</strong> holds a global default, and a connection's own <code>remoteScratchRoot</code> overrides it. The value reaches helpers as <code>VB_REMOTE_SCRATCH_ROOT</code>, so deployment follows the same root as the runtime instead of falling back to <code>/tmp</code>.</p>
+        <ul>
+          <li>A leading <code>~/</code> is expanded on the remote account, and symlinks resolve to the real directory. Every helper and every script or IL upload sees that resolved absolute path.</li>
+          <li>Prefer an absolute root. Virtuoso <code>load()</code> does not expand <code>~</code>, so a <code>~</code>-prefixed IL path fails at the first <code>load()</code>. Sites and packs such as IC23.1 are the usual reason to pin an absolute site path. <code>~/</code> is still accepted and expanded before any upload.</li>
+          <li>Before any deployment, fixed or automatic, the plugin checks the root. A missing root under the account home is created with mode <code>0700</code>, with a warning when a sibling path differs only by <code>_</code> versus <code>-</code>. A permissive user-owned root is tightened. A symlink, wrong owner, non-directory or missing path outside the home gets its own actionable error.</li>
+        </ul>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Deploy result field</th><th>What it tells you</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>configuredScratchRoot</code></td><td>The value as configured on the connection or as the global default.</td></tr>
+              <tr><td><code>scratchRoot</code></td><td>The resolved absolute root actually used for uploads and the load path.</td></tr>
+              <tr><td><code>scratchCreated</code>, <code>scratchTightened</code></td><td>Whether the root was created with mode <code>0700</code> or had its permissions tightened.</td></tr>
+              <tr><td><code>warning</code></td><td>Non-fatal notes such as a sibling path that differs only by <code>_</code> versus <code>-</code>.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>A missing root outside the home is not created. The error names the path and the remedy, for example:</p>
+        <div class="code-card">
+          <header><span>Actionable hint</span><span>SHELL</span></header>
+          <pre><code>mkdir -p -m 700 /projects/example/.virtuoso-bridge</code></pre>
+        </div>
+        <div class="callout callout-warn">
+          <span class="callout-title">"load: can't access file - ~/..."</span>
+          <p>That message at the first IL load means a <code>~</code>-prefixed path reached Virtuoso: <code>load()</code> does not expand <code>~</code>. Set an absolute <code>remoteScratchRoot</code> on the remote account, or leave <code>~/</code> and let the plugin resolve it. Deployment and client or IL uploads never pass <code>~</code> to <code>load()</code>.</p>
+        </div>
+
+        <h2 id="multi-host">Split host roles</h2>
+        <p>Advanced connections can split roles across hosts. Host-key preflight and the SSH test target the primary <code>host</code>. Trust additional role-host keys through <code>ssh</code> and <code>known_hosts</code> before you use a split topology.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Role</th><th>Field</th><th>Routes</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>Daemon host</td><td><code>daemonHost</code></td><td>The CIW side that runs the bridge daemon.</td></tr>
+              <tr><td>Deploy host</td><td><code>deployHost</code></td><td>Deployment and uploads.</td></tr>
+              <tr><td>GUI host</td><td><code>guiHost</code></td><td>The display and X11 side.</td></tr>
+              <tr><td>Spectre host</td><td><code>spectreHost</code></td><td>The Spectre simulation side.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>The rest of the advanced set maps to upstream split-host, private-scratch and proxy settings: <code>remoteScratchRoot</code>, <code>clientId</code>, <code>sshMaxSessions</code> and a Paramiko <code>sshProxy</code> (<code>socks5://host:port</code>).</p>
+
+        <nav class="doc-next" id="next">
+          <a href="agent-tools.html"><span>NEXT</span>Agent tools →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      简体中文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.zh-CN.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.zh-CN.md">plugin guide</a>
+    </p>
+    <p>
+      Built on <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>.
+      Canonical documentation lives in
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/tree/main/docs">docs/</a>.
+    </p>
+  </footer>
+</body>
+</html>

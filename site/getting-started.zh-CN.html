@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="安装 dsh-virtuoso-bridge bundle、创建隔离 venv、保存连接，并在空闲 CIW 中加载守护进程 setup，让 bridge 运行起来。">
+  <meta name="language-current" content="zh">
+  <meta name="language-alternate" content="getting-started.html">
+  <title>开始使用 · dsh-virtuoso-bridge</title>
+  <link rel="stylesheet" href="assets/site.css">
+  <link rel="icon" href="assets/logo.svg" type="image/svg+xml">
+  <script src="assets/language.js"></script>
+  <script src="assets/site.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#content">跳到正文</a>
+  <header class="site-header">
+    <a class="brand" href="index.zh-CN.html"><img class="brand-logo" src="assets/logo.svg" alt="" width="26" height="26" aria-hidden="true"> dsh-virtuoso-bridge</a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">菜单</button>
+    <nav class="site-nav" id="site-nav" aria-label="主导航">
+      <span class="language-switch" aria-label="语言">
+        <a href="getting-started.html" hreflang="en" data-language-choice="en">EN</a>
+        <a href="getting-started.zh-CN.html" aria-current="page" data-language-choice="zh">中文</a>
+      </span>
+      <a href="index.zh-CN.html">总览</a>
+      <a href="getting-started.zh-CN.html" aria-current="page">开始使用</a>
+      <a href="connections.zh-CN.html">连接</a>
+      <a href="agent-tools.zh-CN.html">智能体工具</a>
+      <a href="workflows.zh-CN.html">工作流</a>
+      <a href="runtime.zh-CN.html">运行时</a>
+      <a href="troubleshooting.zh-CN.html">故障排查</a>
+      <a class="nav-ext" href="https://github.com/nekomona/dsh-virtuoso-bridge">GitHub ↗</a>
+      <a class="nav-ext" href="https://www.npmjs.com/package/@nekomona/dsh-virtuoso-bridge">npm ↗</a>
+    </nav>
+  </header>
+  <main id="content" class="doc-wrap">
+    <div class="doc-layout">
+      <aside class="doc-toc" aria-label="本页内容">
+        <p class="toc-title">本页内容</p>
+        <ol>
+          <li><a href="#requirements">环境要求</a></li>
+          <li><a href="#install">安装 bundle</a>
+            <ol>
+              <li><a href="#install-npm">从 npm 安装</a></li>
+              <li><a href="#install-git">从 git checkout 安装</a></li>
+              <li><a href="#data-dir">数据目录</a></li>
+            </ol>
+          </li>
+          <li><a href="#environment">创建环境</a></li>
+          <li><a href="#source-modes">选择来源模式</a></li>
+          <li><a href="#first-connection">保存连接并启动</a></li>
+          <li><a href="#verify">验证首次运行</a></li>
+          <li><a href="#next-steps">后续步骤</a></li>
+        </ol>
+      </aside>
+      <article class="doc">
+        <p class="doc-kicker">01 · 安装</p>
+        <h1>开始使用</h1>
+        <p class="doc-lede">本章带你从一个空的 DeepSeek Harness（DSH）profile 走到正常运行的 bridge：安装 bundle、创建隔离 Python 环境、保存连接，再在空闲 CIW（Virtuoso 命令解释窗口）中加载守护进程 setup。每个 profile 只需做一次，之后的会话复用同一个托管运行时。</p>
+
+        <h2 id="requirements">环境要求</h2>
+        <p>插件装在一个 DSH profile 里，通过 SSH（Secure Shell）连接 Virtuoso，在 CIW 内运行 SKILL（Cadence 的脚本语言）。环境要求每个 profile 检查一次即可，不必每个会话重复。插件不含 Cadence 或 Spectre 许可，也不含仿真硬件。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>要求</th><th>为什么需要</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>DeepSeek Harness 0.2.2 系列、Cordis 4.x</td>
+                <td>Host 端、Client 面板和工具注册都针对这套 API。插件已在 DSH 0.2.2-rc.1 / Cordis 4.1 上验证。</td>
+              </tr>
+              <tr>
+                <td>Node.js</td>
+                <td>Host 端运行在 DSH 自带的 Node.js 运行时上，无需单独安装。</td>
+              </tr>
+              <tr>
+                <td>Python 3.9+</td>
+                <td>用于创建存放 <code>virtuoso-bridge-lite</code> 的隔离 venv。可执行文件可通过 <code>source.pythonPath</code> / <code>settings.pythonPath</code> 配置。</td>
+              </tr>
+              <tr>
+                <td>Python 包索引访问</td>
+                <td>首次安装会用 pip 下载 bridge 源码及其依赖。之后的启动直接复用 venv。</td>
+              </tr>
+              <tr>
+                <td><code>PATH</code> 中的 <code>git</code></td>
+                <td>git checkout 与 git 仓库两种来源模式需要它。npm 安装既不需要 <code>git</code>，也不需要 submodule。</td>
+              </tr>
+              <tr>
+                <td><code>PATH</code> 中的 OpenSSH <code>ssh</code> <span class="badge badge-amber">可选</span></td>
+                <td>推荐。缺少时安装会暂停，经你确认后才只用内置 Paramiko 后端继续。</td>
+              </tr>
+              <tr>
+                <td>可访问的 SSH 主机和运行中的 Virtuoso CIW</td>
+                <td>实际 SKILL 操作需要：运行时与 CIW 内的守护进程通信。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="callout callout-tip">
+          <span class="callout-title">尽早选定 SSH 后端</span>
+          <p>OpenSSH 是默认后端。没有 <code>ssh</code> 的主机可以改用 Paramiko，但安装要经你确认才继续。测试与运行时用同一后端，所以后端是连接级配置，不随单次调用改变。</p>
+        </div>
+
+        <h2 id="install">安装 bundle</h2>
+        <p>插件是 DSH bundle 包，以公开 scoped 包 <code>@nekomona/dsh-virtuoso-bridge</code> 发布。</p>
+
+        <h3 id="install-npm">从 npm 安装 <span class="badge badge-green">推荐</span></h3>
+        <p>让智能体安装这个 bundle，或用插件管理器的 <code>install_bundle</code> 指定包名：</p>
+        <div class="code-card">
+          <header><span>发给智能体的指令</span><span>TEXT</span></header>
+          <pre><code>Install the DSH bundle @nekomona/dsh-virtuoso-bridge.</code></pre>
+        </div>
+        <p>发布包内含插件所装 <code>virtuoso-bridge-lite/</code> 的打包子集：<code>pyproject.toml</code>、<code>README.md</code>、<code>AGENTS.md</code>、<code>LICENSE</code>、<code>mcp_server.py</code>、<code>src/**</code> 和 <code>skills/**</code>，另有 <code>virtuoso-bridge-lite.pin.json</code>。所以插件只需创建 venv，再从这份源码 pip 安装。不需要 submodule，也不需要 Python checkout。</p>
+
+        <h3 id="install-git">从 git checkout 安装</h3>
+        <p>只有开发插件本身时才用 checkout。先带 submodule 一起 clone；如果 clone 时漏了 <code>--recurse-submodules</code>，就补一次初始化，再通过 DSH 安装这个本地 bundle：</p>
+        <div class="code-card">
+          <header><span>终端</span><span>SHELL</span></header>
+          <pre><code>git clone --recurse-submodules https://github.com/nekomona/dsh-virtuoso-bridge.git &lt;plugin-directory&gt;
+git submodule update --init virtuoso-bridge-lite</code></pre>
+        </div>
+        <p>把插件 bundle 安装到 <code>&lt;plugin-directory&gt;</code>，例如让智能体执行。安装后刷新一次 DSH 页面，更新浏览器端 bundle。安装前就打开的页面仍能通过 loopback 的 panel-token bootstrap 恢复，但只有刷新才能加载最新的 Client bundle。</p>
+
+        <h3 id="data-dir">数据目录</h3>
+        <p>运行时、设置、venv 和插件日志都在 profile 的数据目录下。<strong>默认设置</strong> 里的缓存目录存放 pip wheel、git checkout、脚本 job 和大型结果。</p>
+        <div class="code-card">
+          <header><span>目录结构</span><span>TEXT</span></header>
+          <pre><code>%USERPROFILE%\.dsh\virtuoso-bridge\&lt;profile&gt;\
+  settings.json
+  venv\
+  instructions\    installed upstream skills, README.md and AGENTS.md
+  tunnels\         Host-owned tunnel records</code></pre>
+        </div>
+        <p><code>&lt;profile&gt;</code> 默认为 <code>default</code>。要覆盖它，可用 Host 进程导出的 <code>$DSH_PROFILE</code>，或 <code>config.dataDir</code>、<code>VB_PLUGIN_DATA_DIR</code>。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">固定的是提交，不是分支</span>
+          <p>内置源码安装的是固定到精确提交的 <code>virtuoso-bridge-lite/</code> git submodule：<code>1f186abfbb3d658211743cd707f3156ed2f59a87</code>，日期与许可记录在 <code>virtuoso-bridge-lite.pin.json</code>。<code>.gitmodules</code> 不声明 branch，上游 <code>main</code> 再怎么更新，也改不了已装好的源码。不要执行 <code>git submodule update --remote</code>：它是唯一会跟随移动分支的命令。</p>
+        </div>
+
+        <h2 id="environment">创建环境</h2>
+        <p>在左侧边栏的全局面板列表里打开 <strong>dsh-virtuoso-bridge 配置</strong> 入口（VB 图标，在插件与自动化任务旁边）。整页配置面板默认显示 <strong>服务器连接</strong>。环境、默认设置、存储和活动默认折叠，需要时再展开。</p>
+        <ul>
+          <li>venv 缺失时用 <strong>安装</strong>。已存在时用 <strong>诊断</strong>。</li>
+          <li><code>⋯</code> 菜单包含 <strong>修复</strong> 和 <strong>更新</strong>。</li>
+          <li><strong>来源与安装日志</strong>（折叠）包含来源模式、Python 可执行文件、本地仓库路径或 git URL/ref、pin JSON、安装日志和后端详情。</li>
+        </ul>
+        <p>安装会创建一个私有 venv，并完成以下步骤：</p>
+        <ul>
+          <li>安装工具及其依赖；</li>
+          <li>默认安装 <strong>SSH extra</strong>（<code>paramiko</code> + <code>PySocks</code>）；</li>
+          <li>用 <code>runtime/vb_probe.py</code> 验证 <code>import virtuoso_bridge</code>。</li>
+        </ul>
+        <p>也可以调用 <code>virtuoso_bridge_setup</code> 的 <code>install</code> 或 <code>update</code> 动作。只想用 Paramiko 时，要传 <code>confirm: true</code>。<code>preflight</code> 动作报告可用的后端和 extra 定义。</p>
+        <p>Python 可执行文件通过 <code>source.pythonPath</code> 或 <code>settings.pythonPath</code> 配置。来源选择和 <code>pythonPath</code> 一起保存。安装和更新会先保存当前可见的来源草稿，确保实际使用所选来源。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">缺少 OpenSSH 时先确认后端</span>
+          <p>如果 <code>ssh</code> 不在 <code>PATH</code> 中，安装会暂停，经你确认后才只用 Paramiko 后端继续。<code>virtuoso_bridge_setup</code> 的 <code>install</code> 动作也需要同样的确认，不会静默回退。</p>
+        </div>
+        <div class="callout callout-tip">
+          <span class="callout-title">venv 隔离是有意为之</span>
+          <p>helper 以 <code>-E -s</code> 从插件 venv 启动，不继承 <code>PYTHONPATH</code>、<code>PYTHONHOME</code>、<code>VIRTUAL_ENV</code>，也不继承环境里已有的 <code>VB_*</code> 值。如果导入的 <code>virtuoso_bridge</code> 不是来自插件 venv，探测会拒绝报告就绪，唯一例外是显式配置的 editable 本地 checkout。插件绝不会复制用户的 <code>~/.virtuoso-bridge/.env</code>。</p>
+        </div>
+
+        <h2 id="source-modes">选择来源模式</h2>
+        <p>三种模式位于同一张环境卡。模式和 <code>pythonPath</code> 一起保存。<strong>更新</strong> 会沿用所选模式。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>模式</th><th>来源</th><th>刷新行为</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>内置源码 <span class="badge badge-accent">默认</span></td>
+                <td>来自本插件、固定版本的 <code>virtuoso-bridge-lite/</code> git submodule；不访问工具仓库。</td>
+                <td>使用固定提交。submodule 缺失或未初始化时会直接报错，提示执行 <code>git submodule update --init virtuoso-bridge-lite</code>（并给出固定提交）。npm 用户不会遇到这种状态。</td>
+              </tr>
+              <tr>
+                <td>本地开发仓库</td>
+                <td>从 <code>source.localRepoPath</code> 以 editable 方式安装。</td>
+                <td>代码修改在下次运行时启动时生效。打包元数据变化时用 <strong>修复</strong> 重新安装。</td>
+              </tr>
+              <tr>
+                <td>Git 仓库</td>
+                <td>按 <code>source.repoUrl</code>、<code>source.gitRef</code> 克隆到 profile 数据目录后安装。</td>
+                <td><strong>更新</strong> 会重新拉取这个 ref。</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p>无论哪种模式，首次安装时 pip 都需要正常的包索引。不同的只是工具仓库的访问方式。</p>
+
+        <h2 id="first-connection">保存连接并启动</h2>
+        <p>连接是运行时启动所依据的地址和权限。固定端口守护进程和自动会话守护进程查找端点的方式不同，<a href="connections.zh-CN.html">连接与凭据</a> 一章专门讲这个选择。</p>
+        <ol>
+          <li>在 <strong>服务器连接</strong> 里新增一行，或让智能体调用 <code>virtuoso_bridge_runtime</code> 的 <code>save_connection</code>。新增一行或修改现有行的 SSH 目标，都会请求用户批准，除非会话具备完全权限。</li>
+          <li>点击 <strong>启动</strong>，或调用 <code>start</code> 动作。固定端口启动会先探测配置的守护进程端口；若有已签名的守护进程应答，运行时直接挂接，跳过部署。</li>
+          <li>读取运行时状态，而不是只看一行日志。</li>
+          <li>状态为 <code>waiting</code> 时，在目标空闲 CIW 中执行打印出的 <code>load("...")</code> 行。健康轮询随后把运行时转为 <code>running</code>；守护进程一应答，加载提示即消失。</li>
+        </ol>
+        <p>运行时会报告 <code>starting</code>、<code>connecting</code>、<code>waiting</code> 和 <code>running</code>。停在 <code>waiting</code>，说明网络侧已经通了，只差 CIW 去加载那行打印出来的 setup；到了 <code>running</code>，说明守护进程已经应答。<a href="runtime.zh-CN.html#states">运行时</a> 列出全部状态，包括 <code>needs-trust</code> 和 <code>error</code>。</p>
+        <div class="code-card">
+          <header><span>Virtuoso CIW</span><span>SKILL</span></header>
+          <pre><code>load("/path/to/virtuoso_setup.il")</code></pre>
+        </div>
+        <p>路径以部署时打印出来的为准。直接复制那一行，别手敲路径。Host 每 20 秒检查一次状态；守护进程没应答时，还会检查 X11 弹窗。</p>
+        <div class="callout callout-warn">
+          <span class="callout-title">插件无法向运行中的 CIW 加载 SKILL</span>
+          <p>部署只准备并上传 bootstrap，然后打印 <code>load("...")</code> 行。加载这一步要由人在空闲 CIW 中完成。重连或普通重启不会部署文件，也不会重新加载 setup。在你加载 setup 之前，运行时一直停在 <code>waiting</code>。</p>
+        </div>
+
+        <h2 id="verify">验证首次运行</h2>
+        <p><code>virtuoso_bridge_runtime</code> 的 <code>status</code> 动作返回一份紧凑摘要：环境就绪情况、连接端点、运行时状态、守护进程与实例状态、已关联智能体，以及正在执行的操作。冗长的安装日志、来源与 venv 调试路径、隧道内部信息和完整 traceback 都留在 UI 里；完整状态以 UI 为准。</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>字段</th><th>何时读取</th></tr>
+            </thead>
+            <tbody>
+              <tr><td><code>setup.installed</code>、<code>setup.venvReady</code></td><td>确认环境就绪。值为 false 时先安装或诊断，不要先怀疑主机。</td></tr>
+              <tr><td><code>state</code>、<code>connectionStatus</code></td><td>读取运行时阶段和连接判定：<code>ready</code>、<code>no-response</code>、<code>auth-failed</code>、<code>unreachable</code> 或 <code>unknown</code>。</td></tr>
+              <tr><td><code>daemon</code>、<code>daemonProbe</code></td><td>查看配置端口上有什么应答：探测状态 <code>ready</code>、<code>no-listener</code>、<code>legacy</code>、<code>auth</code>、<code>timeout</code>。</td></tr>
+              <tr><td><code>setupHint</code></td><td>找到 <code>load("...")</code> 行。仅在首次就绪前存在，守护进程响应后消失。</td></tr>
+              <tr><td><code>instance</code></td><td>自动会话：选中的端口、Virtuoso <code>pid</code>、<code>work_dir</code> 和用户。</td></tr>
+              <tr><td><code>attach</code></td><td>固定模式：挂接了已签名守护进程、跳过部署时，给出 <code>attached</code>、<code>port</code> 和 <code>setupPath</code>。</td></tr>
+              <tr><td><code>health</code>、<code>dialog</code>、<code>errorSummary</code></td><td>守护进程是否响应、阻塞弹窗的标题，以及失败的阶段、消息和提示。</td></tr>
+              <tr><td><code>agents</code>、<code>activeActions</code></td><td>哪些会话已关联，哪些操作仍在运行。</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>然后用最小的调用证明守护进程有应答：</p>
+        <div class="code-card">
+          <header><span>智能体工具调用</span><span>TEXT</span></header>
+          <pre><code>virtuoso_bridge_api({
+  action: "call",
+  target: "client",
+  method: "execute_skill",
+  args: ["1+1"],
+  description: "Check the daemon answers"
+})</code></pre>
+        </div>
+        <p><code>running</code> 表示 <code>execute_skill("1+1")</code> 已通过守护进程返回结果。如果调用有返回值但 CIW 打印了警告，先读结果附带的 CIW 块，再断定调用没生效。</p>
+
+        <p><strong>测试</strong> 报告四层结果：SSH、远端 Python、暂存根目录和守护进程端口；运行时停止时也能执行。<strong>启动</strong> 负责隧道和 sidecar。连接检查的细节见 <a href="connections.zh-CN.html#fields">连接与凭据</a>。</p>
+        <p>完整状态在右侧边栏的 <strong>dsh-virtuoso-bridge</strong> 标签里：连接状态、守护进程与健康摘要、远端项目工作目录、弹窗警告和智能体活动。composer 状态点已连接时为绿色，等待或阻塞时为黄色，出错时为红色；会话有操作正在执行时呼吸绿色。会话没有活动运行时，不显示状态点。</p>
+        <div class="callout callout-tip">
+          <span class="callout-title">不要在启动中途读取状态</span>
+          <p>带 <code>waitMs</code> 的 <code>status</code> 会等进行中的启动落定，或等到预算耗尽。启动后的下一步通常就是这种带等待的 <code>status</code>，而不是 sleep。</p>
+        </div>
+
+        <h2 id="next-steps">后续步骤</h2>
+        <p>接着读 <a href="connections.zh-CN.html">连接与凭据</a>，了解字段和主机密钥信任；读 <a href="agent-tools.zh-CN.html">智能体工具</a>，了解工具能力。<a href="runtime.zh-CN.html">运行时</a> 一章讲状态与架构。</p>
+        <p class="doc-footnote">本章正本：<code>docs/plugin-guide.md</code> 第 3&ndash;7 节；根目录的 <code>README.md</code> 只是简介。</p>
+
+        <nav class="doc-next">
+          <a href="connections.zh-CN.html"><span>下一章</span>连接与凭据 →</a>
+        </nav>
+      </article>
+    </div>
+  </main>
+  <footer class="site-footer">
+    <span>dsh-virtuoso-bridge · MIT · DeepSeek Harness</span>
+    <p>
+      基于 <a href="https://github.com/Arcadia-1/virtuoso-bridge-lite">virtuoso-bridge-lite</a>，
+      以 git submodule 固定版本。Cadence 与 Virtuoso 是 Cadence Design Systems 的商标；本插件与 Cadence 无关。
+    </p>
+    <p>
+      英文文档:
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/README.md">README</a>
+      ·
+      <a href="https://github.com/nekomona/dsh-virtuoso-bridge/blob/main/docs/plugin-guide.md">plugin guide</a>
+    </p>
+  </footer>
+</body>
+</html>
