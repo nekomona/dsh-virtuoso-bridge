@@ -107,6 +107,39 @@ test('a value added and removed later is still caught in history', async () => {
   }
 })
 
+test('a base commit lost to a rewrite falls back instead of failing the scan', async () => {
+  const { dir, git } = await makeRepo()
+  try {
+    await fs.writeFile(path.join(dir, 'change.txt'), `${privateIp}\n`, 'utf8')
+    git(['add', '.'])
+    git(['commit', '-q', '-m', 'add configuration'])
+    // The old tip of a force-pushed branch: a syntactically valid SHA that no
+    // longer exists in the checkout.
+    const missingBase = [1, 2, 3, 4, 5].map((digit) => String(digit).repeat(8)).join('')
+    const result = runCheck(dir, {}, missingBase)
+    assert.equal(result.status, 1, result.stderr)
+    assert.match(result.stderr, /is not in this checkout/)
+    assert.match(result.stdout, /\[private-ipv4\]/)
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('a base commit lost to a rewrite still succeeds on clean history', async () => {
+  const { dir, git } = await makeRepo()
+  try {
+    await fs.writeFile(path.join(dir, 'change.txt'), 'clean\n', 'utf8')
+    git(['add', '.'])
+    git(['commit', '-q', '-m', 'add a clean file'])
+    const missingBase = [1, 2, 3, 4, 5].map((digit) => String(digit).repeat(8)).join('')
+    const result = runCheck(dir, {}, missingBase)
+    assert.equal(result.status, 0, result.stdout + result.stderr)
+    assert.match(result.stderr, /is not in this checkout/)
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 test('documented placeholders and the git identity stay allowed', async () => {
   const { dir, git } = await makeRepo()
   try {

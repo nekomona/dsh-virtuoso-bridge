@@ -423,7 +423,9 @@ npm pack --dry-run
 token、本机路径和备份目录的公开发布检查；`check-branch-privacy.mjs` 还会扫描本分支
 新增的提交信息与 diff，拒绝服务器名、账号名和用户主目录（git 的作者/提交者身份
 除外）；`--worktree` 同时检查未提交改动，CI 提供 base SHA 与可选的
-`VB_PRIVATE_NAMES` 仓库变量。`npm pack --dry-run` 只列出发布包内容，不执行发布。
+`VB_PRIVATE_NAMES` 仓库变量。如果该 base 提交已不在检出中（分支被 force-push
+或重写过），检查改为扫描上一个发布标签以来的提交，而不是直接失败。
+`npm pack --dry-run` 只列出发布包内容，不执行发布。
 
 客户端修改后刷新 DSH 页面；Host 修改需重新加载插件。插件原则是封装现有
 VBL/DSH API，而不是增加并行基础设施。

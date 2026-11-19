@@ -28,7 +28,11 @@
  *   node scripts/check-branch-privacy.mjs [--base <ref-or-sha>] [--worktree]
  *
  * The range defaults to the merge base of HEAD and origin/main (or main),
- * falling back to HEAD^..HEAD. Exit codes: 0 clean, 1 hits, 2 scan failure.
+ * falling back to HEAD^..HEAD. When the requested base commit is not in the
+ * checkout (a force-pushed or otherwise rewritten branch), the commits since
+ * the previous release tag are scanned instead, and the full history is used
+ * only as a last resort, so rewritten commits are never silently skipped.
+ * Exit codes: 0 clean, 1 hits, 2 scan failure.
  *
  * Node.js >= 20, no dependencies.
  */
@@ -82,33 +86,90 @@ function git(args, { allowFailure = false } = {}) {
   }
 }
 
+/**
+ * Resolve a revision to a commit object id, or '' when it is not a commit in
+ * this checkout. `^{commit}` plus `cat-file` are deliberate: some git builds
+ * let `rev-parse --verify` accept a syntactically valid SHA that no longer
+ * exists (for example the `before` SHA of a force push), which would make the
+ * scan fail later with "Invalid revision range".
+ */
+function commitOid(rev) {
+  if (!rev) return ''
+  const oid = git(['rev-parse', '--verify', '--quiet', `${rev}^{commit}`], { allowFailure: true })?.trim()
+  if (!oid) return ''
+  return git(['cat-file', '-e', oid], { allowFailure: true }) === undefined ? '' : oid
+}
+
+/** Git's empty tree, written to the object database if this checkout lacks it. */
+function emptyTreeOid() {
+  return execFileSync('git', ['mktree'], {
+    cwd: REPO_ROOT,
+    input: '',
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  }).trim()
+}
+
+/**
+ * Compare HEAD against the start of history. Used only when no base and no
+ * release tag can be resolved; a rewritten branch must still be scanned.
+ */
+function fullHistoryRange() {
+  return {
+    logRange: 'HEAD',
+    diffRange: `${emptyTreeOid()}..HEAD`,
+    label: 'the full history (no usable base commit)',
+  }
+}
+
+/**
+ * The nearest release tag before HEAD. After a force push the old tip is gone
+ * from the checkout, but the release tag it sat on is still published, so the
+ * rewritten commits since that tag are the right scope to scan.
+ */
+function previousReleaseRange() {
+  const tag = git(['describe', '--tags', '--abbrev=0', '--match', 'v*', 'HEAD^'], {
+    allowFailure: true,
+  })?.trim()
+  const oid = tag ? commitOid(tag) : ''
+  if (!oid) return undefined
+  return { logRange: `${oid}..HEAD`, diffRange: `${oid}..HEAD`, label: `${tag}..HEAD` }
+}
+
 function resolveRange(baseArg) {
-  let base = String(baseArg || '').trim()
-  if (base && ZERO_SHA.test(base)) base = ''
+  const raw = String(baseArg || '').trim()
+  const requested = ZERO_SHA.test(raw) ? '' : raw
+  let base = requested
   if (!base) {
     for (const ref of ['origin/main', 'main']) {
-      if (git(['rev-parse', '--verify', '--quiet', ref], { allowFailure: true })) {
+      if (commitOid(ref)) {
         base = ref
         break
       }
     }
   }
-  let start
-  if (base && git(['rev-parse', '--verify', '--quiet', base], { allowFailure: true })) {
-    start = git(['merge-base', 'HEAD', base], { allowFailure: true })?.trim() || base
-  }
-  if (!start) {
-    start = git(['rev-parse', '--verify', '--quiet', 'HEAD^'], { allowFailure: true })?.trim()
-    if (!start) {
-      // First commit in the repository: compare against git's empty tree.
-      start = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
+  if (base) {
+    const oid = commitOid(base)
+    if (oid) {
+      const start = git(['merge-base', 'HEAD', oid], { allowFailure: true })?.trim() || oid
+      return { logRange: `${start}..HEAD`, diffRange: `${start}..HEAD`, label: `${start}..HEAD` }
     }
   }
-  if (!start) {
-    console.error('check-branch-privacy: cannot determine a base commit to compare against.')
-    process.exit(2)
+  if (requested) {
+    const release = previousReleaseRange()
+    console.error(
+      `check-branch-privacy: base ${requested} is not in this checkout (rewritten or pruned history); ` +
+        (release
+          ? `scanning the commits since the last release tag (${release.label}) instead.`
+          : 'scanning the full history instead.'),
+    )
+    return release ?? fullHistoryRange()
   }
-  return { range: `${start}..HEAD`, base: start }
+  const parent = commitOid('HEAD^')
+  if (parent) {
+    return { logRange: `${parent}..HEAD`, diffRange: `${parent}..HEAD`, label: `${parent}..HEAD` }
+  }
+  return fullHistoryRange()
 }
 
 // ---------------------------------------------------------------------------
@@ -365,15 +426,15 @@ function parseArgs(argv) {
 
 function main() {
   const options = parseArgs(process.argv.slice(2))
-  const { range } = resolveRange(options.base)
+  const { logRange, diffRange, label } = resolveRange(options.base)
   const privateTokens = derivePrivateTokens()
   const hits = []
   const counters = { files: new Set(), lines: 0 }
 
-  const commits = listCommits(range)
+  const commits = listCommits(logRange)
   scanCommitMessages(commits, privateTokens, hits)
   scanCommitDiffs(commits, privateTokens, hits, counters)
-  scanRangeDiff(range, privateTokens, hits, counters)
+  scanRangeDiff(diffRange, privateTokens, hits, counters)
   if (options.worktree) scanWorkingTree(privateTokens, hits, counters)
 
   if (hits.length > 0) {
@@ -386,7 +447,7 @@ function main() {
     if (hits.length > 200) console.log(`... and ${hits.length - 200} more hit(s)`)
     console.error(
       `check-branch-privacy: FAILED — ${hits.length} hit(s) in ${commits.length} commit message(s), ` +
-        `${counters.lines} added line(s) of ${counters.files.size} file(s) in ${range}. ` +
+        `${counters.lines} added line(s) of ${counters.files.size} file(s) in ${label}. ` +
         'Server names, account names and home directories are forbidden in commit messages and committed files; ' +
         'the git author/committer identity alone is exempt. Matched values are redacted on purpose.',
     )
@@ -400,7 +461,7 @@ function main() {
       : 'no local settings-derived values (CI should supply VB_PRIVATE_NAMES)'
   console.log(
     `check-branch-privacy: clean — ${commits.length} commit message(s), ${counters.lines} added line(s) in ` +
-      `${counters.files.size} file(s), ${range}; guarded by ${tokenNote}.`,
+      `${counters.files.size} file(s), ${label}; guarded by ${tokenNote}.`,
   )
   process.exit(0)
 }

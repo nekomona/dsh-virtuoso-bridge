@@ -502,8 +502,10 @@ guard for tokens, local paths and backup directories.
 the branch adds for server names, account names and home directories (the git
 author/committer identity is exempt); `--worktree` includes uncommitted changes,
 and CI supplies the base SHA and optional `VB_PRIVATE_NAMES` repository
-variable. `npm pack --dry-run` shows the packaged tarball contents without
-publishing.
+variable. If that base commit is no longer in the checkout (a force-pushed or
+rewritten branch), the check scans the commits since the previous release tag
+instead of failing. `npm pack --dry-run` shows the packaged tarball contents
+without publishing.
 
 Client changes require a DSH page refresh; Host changes require reloading the
 plugin. The plugin’s philosophy is to wrap existing VBL/DSH APIs rather than add
